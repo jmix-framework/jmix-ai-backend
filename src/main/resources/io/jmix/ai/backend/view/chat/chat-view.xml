@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://chatView.title">
+    <layout>
+        <hbox width="100%">
+            <textArea id="requestField" height="10em" width="100%"/>
+            <button id="sendButton" text="Send"/>
+        </hbox>
+        <hr/>
+        <div id="responseDiv" width="100%"/>
+    </layout>
+</view>

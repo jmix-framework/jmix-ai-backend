@@ -21,7 +21,15 @@ repositories {
     }
 }
 
+def springAiVersion = '1.0.0-M8'
+
 dependencies {
+    implementation "org.springframework.ai:spring-ai-starter-model-openai:$springAiVersion"
+    implementation "org.springframework.ai:spring-ai-starter-vector-store-pgvector:$springAiVersion"
+    implementation "org.springframework.ai:spring-ai-advisors-vector-store:$springAiVersion"
+
+    implementation 'org.commonmark:commonmark:0.24.0'
+
     implementation 'io.jmix.core:jmix-core-starter'
     implementation 'io.jmix.data:jmix-eclipselink-starter'
     implementation 'io.jmix.security:jmix-security-starter'

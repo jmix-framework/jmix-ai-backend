@@ -3,6 +3,7 @@
 
     <menu id="application" title="msg://io.jmix.ai.backend/menu.application.title" opened="true">
         <item view="User.list" title="msg://io.jmix.ai.backend.view.user/UserListView.title"/>
+        <item view="ChatView" title="msg://io.jmix.ai.backend.view.chat/chatView.title"/>
     </menu>
 
 </menu-config>
