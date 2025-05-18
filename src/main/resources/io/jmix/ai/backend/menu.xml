@@ -4,6 +4,7 @@
     <menu id="application" title="msg://io.jmix.ai.backend/menu.application.title" opened="true">
         <item view="User.list" title="msg://io.jmix.ai.backend.view.user/UserListView.title"/>
         <item view="ChatView" title="msg://io.jmix.ai.backend.view.chat/chatView.title"/>
+        <item view="VectorStoreView" title="msg://io.jmix.ai.backend.view.vectorstore/vectorStoreView.title"/>
     </menu>
 
 </menu-config>

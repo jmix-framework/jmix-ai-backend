@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
+      title="msg://vectorStoreEntityListView.title"
+      focusComponent="vectorStoreEntitiesDataGrid">
+    <data>
+        <collection id="vectorStoreEntitiesDc"
+                    class="io.jmix.ai.backend.entity.VectorStoreEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="vectorStoreEntitiesDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from VectorStoreEntity e]]>
+                </query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="loadButton" text="Load"/>
+<!--            <button id="createButton" action="vectorStoreEntitiesDataGrid.createAction"/>-->
+<!--            <button id="editButton" action="vectorStoreEntitiesDataGrid.editAction"/>-->
+            <button id="removeButton" action="vectorStoreEntitiesDataGrid.removeAction"/>
+            <button id="removeAllButton" text="Remove All" themeNames="warning"/>
+            <button id="refreshButton" action="vectorStoreEntitiesDataGrid.refreshAction"/>
+            <simplePagination id="pagination" dataLoader="vectorStoreEntitiesDl"/>
+        </hbox>
+        <dataGrid id="vectorStoreEntitiesDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="vectorStoreEntitiesDc"
+                  columnReorderingAllowed="true">
+            <actions>
+<!--                <action id="createAction" type="list_create" actionVariant="DEFAULT"/>-->
+<!--                <action id="editAction" type="list_edit"/>-->
+                <action id="removeAction" type="list_remove"/>
+                <action id="refreshAction" type="list_refresh"/>
+            </actions>
+            <columns resizable="true">
+                <column property="id"/>
+                <column property="content"/>
+                <column property="metadata"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>

@@ -25,10 +25,11 @@ def springAiVersion = '1.0.0-M8'
 
 dependencies {
     implementation "org.springframework.ai:spring-ai-starter-model-openai:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-starter-vector-store-pgvector:$springAiVersion"
+    implementation "org.springframework.ai:spring-ai-pgvector-store:$springAiVersion"
     implementation "org.springframework.ai:spring-ai-advisors-vector-store:$springAiVersion"
 
     implementation 'org.commonmark:commonmark:0.24.0'
+    implementation 'org.jsoup:jsoup:1.17.2'
 
     implementation 'io.jmix.core:jmix-core-starter'
     implementation 'io.jmix.data:jmix-eclipselink-starter'
@@ -44,7 +45,7 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    runtimeOnly 'org.hsqldb:hsqldb'
+    implementation 'org.postgresql:postgresql'
 
     testImplementation('org.springframework.boot:spring-boot-starter-test') {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
