@@ -2,16 +2,11 @@
 <view xmlns="http://jmix.io/schema/flowui/view"
       xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
       title="msg://vectorStoreEntityListView.title"
-      focusComponent="vectorStoreEntitiesDataGrid">
+      focusComponent="vectorStoreDataGrid">
     <data>
-        <collection id="vectorStoreEntitiesDc"
+        <collection id="vectorStoreDc"
                     class="io.jmix.ai.backend.entity.VectorStoreEntity">
-            <fetchPlan extends="_base"/>
-            <loader id="vectorStoreEntitiesDl" readOnly="true">
-                <query>
-                    <![CDATA[select e from VectorStoreEntity e]]>
-                </query>
-            </loader>
+            <loader id="vectorStoreDl" readOnly="true"/>
         </collection>
     </data>
     <facets>
@@ -25,23 +20,33 @@
         <action id="discardAction" type="lookup_discard"/>
     </actions>
     <layout>
-        <hbox id="buttonsPanel" classNames="buttons-panel">
-            <button id="loadButton" text="Load"/>
-<!--            <button id="createButton" action="vectorStoreEntitiesDataGrid.createAction"/>-->
-<!--            <button id="editButton" action="vectorStoreEntitiesDataGrid.editAction"/>-->
-            <button id="removeButton" action="vectorStoreEntitiesDataGrid.removeAction"/>
-            <button id="removeAllButton" text="Remove All" themeNames="warning"/>
-            <button id="refreshButton" action="vectorStoreEntitiesDataGrid.refreshAction"/>
-            <simplePagination id="pagination" dataLoader="vectorStoreEntitiesDl"/>
+        <hbox alignItems="CENTER" width="100%">
+            <span text="Metadata filter:" minWidth="8em"/>
+            <textField id="filterField" width="100%" datatype="string">
+                <suffix>
+                    <button id="filterHelpButton" themeNames="tertiary-inline" icon="vaadin:question-circle-o"/>
+                </suffix>
+            </textField>
         </hbox>
-        <dataGrid id="vectorStoreEntitiesDataGrid"
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="updateButton" text="Update all"/>
+<!--            <button id="createButton" action="vectorStoreDataGrid.createAction"/>-->
+<!--            <button id="editButton" action="vectorStoreDataGrid.editAction"/>-->
+            <button id="readButton" action="vectorStoreDataGrid.readAction"/>
+            <button id="removeButton" action="vectorStoreDataGrid.removeAction"/>
+            <button id="removeAllButton" text="Remove All" themeNames="warning"/>
+            <button id="refreshButton" action="vectorStoreDataGrid.refreshAction"/>
+            <simplePagination id="pagination" dataLoader="vectorStoreDl"/>
+        </hbox>
+        <dataGrid id="vectorStoreDataGrid"
                   width="100%"
                   minHeight="20em"
-                  dataContainer="vectorStoreEntitiesDc"
+                  dataContainer="vectorStoreDc"
                   columnReorderingAllowed="true">
             <actions>
 <!--                <action id="createAction" type="list_create" actionVariant="DEFAULT"/>-->
 <!--                <action id="editAction" type="list_edit"/>-->
+                <action id="readAction" type="list_read"/>
                 <action id="removeAction" type="list_remove"/>
                 <action id="refreshAction" type="list_refresh"/>
             </actions>
