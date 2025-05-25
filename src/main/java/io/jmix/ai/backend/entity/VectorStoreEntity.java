@@ -1,10 +1,13 @@
 package io.jmix.ai.backend.entity;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
 import io.jmix.core.entity.annotation.JmixId;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import io.jmix.core.metamodel.annotation.Store;
 
+import java.util.Map;
 import java.util.UUID;
 
 @JmixEntity
@@ -42,4 +45,12 @@ public class VectorStoreEntity {
         this.id = id;
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getMetadataMap() {
+        try {
+            return new ObjectMapper().readValue(metadata, Map.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

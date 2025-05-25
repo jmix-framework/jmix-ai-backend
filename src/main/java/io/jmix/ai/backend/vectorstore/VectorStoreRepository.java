@@ -48,10 +48,11 @@ public class VectorStoreRepository {
         String sql;
         if (filterExpression != null) {
             String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
-            sql = "SELECT id, content, metadata FROM vector_store WHERE metadata::jsonb @@ '"
-                    + nativeFilterExpression + "'::jsonpath";
+            sql = "SELECT id, content, metadata FROM vector_store " +
+                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath " +
+                    "ORDER BY id";
         } else {
-            sql = "SELECT id, content, metadata FROM vector_store";
+            sql = "SELECT id, content, metadata FROM vector_store ORDER BY id";
         }
         return jdbcTemplate.query(sql, getVsEntityRowMapper());
     }
@@ -85,6 +86,6 @@ public class VectorStoreRepository {
     }
 
     public void deleteAll() {
-        jdbcTemplate.update("delete from vector_store");
+        jdbcTemplate.update("DELETE FROM vector_store");
     }
 }

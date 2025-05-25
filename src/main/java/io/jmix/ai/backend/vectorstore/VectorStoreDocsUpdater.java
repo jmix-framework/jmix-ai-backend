@@ -24,6 +24,7 @@ public class VectorStoreDocsUpdater implements VectorStoreUpdater {
     private static final Logger log = LoggerFactory.getLogger(VectorStoreDocsUpdater.class);
     private final String baseUrl;
     private final String initialPage;
+    private final int limitPages;
     private final VectorStore vectorStore;
     private final TimeSource timeSource;
     private final VectorStoreRepository vectorStoreRepository;
@@ -31,10 +32,13 @@ public class VectorStoreDocsUpdater implements VectorStoreUpdater {
     public VectorStoreDocsUpdater(
             @Value( "${docs.base-url}") String baseUrl,
             @Value( "${docs.initial-page}") String initialPage,
+            @Value( "${docs.limit-pages}") int limitPages,
             VectorStore vectorStore,
-            TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
+            TimeSource timeSource,
+            VectorStoreRepository vectorStoreRepository) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
         this.initialPage = initialPage;
+        this.limitPages = limitPages;
         this.vectorStore = vectorStore;
         this.timeSource = timeSource;
         this.vectorStoreRepository = vectorStoreRepository;
@@ -46,16 +50,16 @@ public class VectorStoreDocsUpdater implements VectorStoreUpdater {
     }
 
     @Override
-    public String update() {
+    public String updateAll() {
         long start = timeSource.currentTimeMillis();
 
         List<String> docPages = loadListOfDocPages();
-        log.info("Found {} doc pages, loading them", docPages.size());
+        log.info("Found {} doc pages, loading {}", docPages.size(), limitPages > 0 ? "first " + limitPages : "all");
 
         List<org.springframework.ai.document.Document> documents = docPages.stream()
-                .limit(5) // TODO remove limit
-                .map(this::loadPage)
-                .filter(this::isContentDifferent)
+                .limit(limitPages > 0 ? limitPages : docPages.size())
+                .map(docPage -> loadPage(baseUrl + docPage))
+                .filter(this::checkContent)
                 .toList();
 
         log.info("Adding {} documents to vector store", documents.size());
@@ -66,8 +70,23 @@ public class VectorStoreDocsUpdater implements VectorStoreUpdater {
         return "loaded: %d, added: %d".formatted(docPages.size(), documents.size());
     }
 
-    private boolean isContentDifferent(org.springframework.ai.document.Document newDocument) {
-        String url = (String) newDocument.getMetadata().get("url");
+    @Override
+    public String update(VectorStoreEntity entity) {
+        String url = (String) entity.getMetadataMap().get("url");
+        log.info("Loading doc page: {}", url);
+        org.springframework.ai.document.Document document = loadPage(url);
+        if (!entity.getContent().equals(document.getText())) {
+            vectorStoreRepository.delete(entity.getId());
+            log.info("Adding document to vector store");
+            vectorStore.add(List.of(document));
+            return "updated 1 document";
+        } else {
+            return "no changes";
+        }
+    }
+
+    private boolean checkContent(org.springframework.ai.document.Document document) {
+        String url = (String) document.getMetadata().get("url");
 
         List<VectorStoreEntity> entities = vectorStoreRepository.loadList(
                 "type == '%s' && url == '%s'".formatted(getType(), url)
@@ -77,7 +96,7 @@ public class VectorStoreDocsUpdater implements VectorStoreUpdater {
         }
         boolean contentChanged = false;
         for (VectorStoreEntity entity : entities) {
-            if (!entity.getContent().equals(newDocument.getText())) {
+            if (!entity.getContent().equals(document.getText())) {
                 // Delete existing document since content has changed
                 vectorStoreRepository.delete(entity.getId());
                 contentChanged = true;
@@ -100,11 +119,10 @@ public class VectorStoreDocsUpdater implements VectorStoreUpdater {
                 .toList();
     }
 
-    private org.springframework.ai.document.Document loadPage(String docPage) {
-        String url = baseUrl + docPage;
+    private org.springframework.ai.document.Document loadPage(String url) {
+        log.debug("Loading doc page: {}", url);
         Document doc;
         try {
-            log.debug("Loading doc page: {}", url);
             doc = Jsoup.connect(url).get();
         } catch (IOException e) {
             throw new RuntimeException("Failed to load web page: " + url, e);

@@ -15,8 +15,11 @@ import io.jmix.flowui.action.DialogAction;
 import io.jmix.flowui.backgroundtask.BackgroundTask;
 import io.jmix.flowui.backgroundtask.TaskLifeCycle;
 import io.jmix.flowui.component.SupportsTypedValue;
+import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.component.textfield.TypedTextField;
+import io.jmix.flowui.exception.DefaultUiExceptionHandler;
 import io.jmix.flowui.kit.component.button.JmixButton;
+import io.jmix.flowui.kit.component.combobutton.ComboButton;
 import io.jmix.flowui.model.CollectionLoader;
 import io.jmix.flowui.view.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,12 +42,45 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private Dialogs dialogs;
     @Autowired
     private VectorStoreRepository vectorStoreRepository;
+    @Autowired
+    private Notifications notifications;
+    @Autowired
+    private DefaultUiExceptionHandler defaultUiExceptionHandler;
+
     @ViewComponent
     private CollectionLoader<VectorStoreEntity> vectorStoreDl;
     @ViewComponent
     private TypedTextField<String> filterField;
-    @Autowired
-    private Notifications notifications;
+    @ViewComponent
+    private ComboButton updateButton;
+    @ViewComponent
+    private DataGrid<VectorStoreEntity> vectorStoreDataGrid;
+
+    @Subscribe
+    public void onInit(final InitEvent event) {
+        for (String type : vectorStoreUpdateManager.getTypes()) {
+            updateButton.addItem("docs", "Update all " + type).addClickListener(clickEvent -> {
+                dialogs.createOptionDialog()
+                        .withHeader("Confirm")
+                        .withText("Update all data of type '%s'?".formatted(type))
+                        .withActions(
+                                new DialogAction(DialogAction.Type.YES).withHandler(e ->
+                                        updateInBackground(new UpdateByTypeTask(type))),
+                                new DialogAction(DialogAction.Type.NO)
+                        )
+                        .open();
+            });
+        }
+        updateButton.addItem("selected", "Update selected row").addClickListener(clickEvent -> {
+            VectorStoreEntity entity = vectorStoreDataGrid.getSingleSelectedItem();
+            if (entity == null) {
+                notifications.show("Select row to update");
+            } else {
+                updateInBackground(new UpdateByEntityTask(entity));
+            }
+        });
+    }
+
 
     @Install(to = "vectorStoreDl", target = Target.DATA_LOADER)
     private List<VectorStoreEntity> vectorStoreDlLoadDelegate(final LoadContext<VectorStoreEntity> loadContext) {
@@ -64,18 +100,18 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     @Subscribe(id = "updateButton", subject = "clickListener")
     public void onUpdateButtonClick(final ClickEvent<JmixButton> event) {
         dialogs.createOptionDialog()
-                .withHeader("Confirmation")
-                .withText("Update all vector store data?")
+                .withHeader("Confirm")
+                .withText("Update all data?")
                 .withActions(
                         new DialogAction(DialogAction.Type.YES).withHandler(e ->
-                                updateInBackground()),
+                                updateInBackground(new UpdateTask())),
                         new DialogAction(DialogAction.Type.NO)
                 )
                 .open();
     }
 
-    private void updateInBackground() {
-        dialogs.createBackgroundTaskDialog(new UpdateTask())
+    private void updateInBackground(UpdateTask task) {
+        dialogs.createBackgroundTaskDialog(task)
                 .withHeader("Updating vector store data")
                 .withText("Please wait...")
                 .open();
@@ -119,6 +155,40 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                     .withHeader("Update result")
                     .open();
             vectorStoreDl.load();
+        }
+
+        @Override
+        public boolean handleException(Exception ex) {
+            defaultUiExceptionHandler.handle(ex);
+            return true;
+        }
+    }
+
+    private class UpdateByTypeTask extends UpdateTask {
+
+        private final String type;
+
+        private UpdateByTypeTask(String type) {
+            this.type = type;
+        }
+
+        @Override
+        public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
+            return vectorStoreUpdateManager.updateByType(type);
+        }
+    }
+
+    private class UpdateByEntityTask extends UpdateTask {
+
+        private final VectorStoreEntity entity;
+
+        public UpdateByEntityTask(VectorStoreEntity entity) {
+            this.entity = entity;
+        }
+
+        @Override
+        public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
+            return vectorStoreUpdateManager.updateByEntity(entity);
         }
     }
 }
