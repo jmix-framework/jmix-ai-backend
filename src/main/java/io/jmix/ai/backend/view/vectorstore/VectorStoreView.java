@@ -6,7 +6,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
-import io.jmix.ai.backend.vectorstore.VectorStoreUpdateManager;
+import io.jmix.ai.backend.vectorstore.RetrieverManager;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.LoadContext;
 import io.jmix.flowui.Dialogs;
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Autowired
-    private VectorStoreUpdateManager vectorStoreUpdateManager;
+    private RetrieverManager retrieverManager;
     @Autowired
     private Dialogs dialogs;
     @Autowired
@@ -58,7 +58,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        for (String type : vectorStoreUpdateManager.getTypes()) {
+        for (String type : retrieverManager.getTypes()) {
             updateButton.addItem("docs", "Update all " + type).addClickListener(clickEvent -> {
                 dialogs.createOptionDialog()
                         .withHeader("Confirm")
@@ -145,7 +145,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return vectorStoreUpdateManager.update();
+            return retrieverManager.update();
         }
 
         @Override
@@ -174,7 +174,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return vectorStoreUpdateManager.updateByType(type);
+            return retrieverManager.updateByType(type);
         }
     }
 
@@ -188,7 +188,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return vectorStoreUpdateManager.updateByEntity(entity);
+            return retrieverManager.updateByEntity(entity);
         }
     }
 }

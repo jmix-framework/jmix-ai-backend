@@ -6,32 +6,32 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
-public class VectorStoreUpdateManager {
+public class RetrieverManager {
 
-    private final List<VectorStoreUpdater> updaters;
+    private final List<Retriever> retrievers;
 
-    public VectorStoreUpdateManager(List<VectorStoreUpdater> updaters) {
-        this.updaters = updaters;
+    public RetrieverManager(List<Retriever> retrievers) {
+        this.retrievers = retrievers;
     }
 
     public String update() {
         StringBuilder sb = new StringBuilder();
-        for (VectorStoreUpdater updater : updaters) {
+        for (Retriever updater : retrievers) {
             String result = updater.updateAll();
-            sb.append("<b>").append(updater.getType()).append("</b><br>").append(result);
+            sb.append("<b>").append(updater.getType()).append("</b><br>").append(result).append("<br>");
         }
         return sb.toString();
     }
 
     public List<String> getTypes() {
-        return updaters.stream()
-                .map(VectorStoreUpdater::getType)
+        return retrievers.stream()
+                .map(Retriever::getType)
                 .toList();
     }
 
     public String updateByType(String type) {
         StringBuilder sb = new StringBuilder();
-        updaters.stream()
+        retrievers.stream()
                 .filter(updater -> updater.getType().equals(type))
                 .findFirst()
                 .ifPresent(updater -> {
@@ -44,7 +44,7 @@ public class VectorStoreUpdateManager {
     public String updateByEntity(VectorStoreEntity entity) {
         StringBuilder sb = new StringBuilder();
         String type = (String) entity.getMetadataMap().get("type");
-        updaters.stream()
+        retrievers.stream()
                 .filter(updater -> updater.getType().equals(type))
                 .findFirst()
                 .ifPresent(updater -> {

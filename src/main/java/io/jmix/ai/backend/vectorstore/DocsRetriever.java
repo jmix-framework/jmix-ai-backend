@@ -19,9 +19,10 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class VectorStoreDocsUpdater implements VectorStoreUpdater {
+public class DocsRetriever implements Retriever {
 
-    private static final Logger log = LoggerFactory.getLogger(VectorStoreDocsUpdater.class);
+    private static final Logger log = LoggerFactory.getLogger(DocsRetriever.class);
+
     private final String baseUrl;
     private final String initialPage;
     private final int limitPages;
@@ -29,7 +30,7 @@ public class VectorStoreDocsUpdater implements VectorStoreUpdater {
     private final TimeSource timeSource;
     private final VectorStoreRepository vectorStoreRepository;
 
-    public VectorStoreDocsUpdater(
+    public DocsRetriever(
             @Value( "${docs.base-url}") String baseUrl,
             @Value( "${docs.initial-page}") String initialPage,
             @Value( "${docs.limit-pages}") int limitPages,
