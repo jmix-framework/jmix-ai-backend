@@ -128,7 +128,10 @@ public class DocsRetriever implements Retriever {
         } catch (IOException e) {
             throw new RuntimeException("Failed to load web page: " + url, e);
         }
-        String textContent = doc.select("article.doc").text();
+        Elements elements = doc.select("article.doc");
+        elements.select("nav.pagination").remove();
+        elements.select("div.feedback-form").remove();
+        String textContent = elements.text();
 
         return new org.springframework.ai.document.Document(
                 UuidProvider.createUuidV7().toString(),
