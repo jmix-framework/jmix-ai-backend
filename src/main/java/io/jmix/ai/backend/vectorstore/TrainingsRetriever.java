@@ -93,14 +93,18 @@ public class TrainingsRetriever extends AbstractRetriever {
     private List<Path> loadListOfTrainingDocs() {
         try (Stream<Path> walk = Files.walk(gitLocalPath)) {
             return walk.filter(Files::isRegularFile)
-                    .filter(path -> 
-                            path.toString().endsWith("_EN.adoc") &&
-                                    Streams.of(path).anyMatch(p -> whitelist.contains(p.toString()))
-                    )
+                    .filter(this::isValidTrainingFile)
                     .toList();
         } catch (IOException e) {
             throw new RuntimeException("Failed to load list of training docs", e);
         }
+    }
+
+    private boolean isValidTrainingFile(Path path) {
+        String pathStr = path.toString();
+        return pathStr.endsWith(".adoc") &&
+                (pathStr.contains("_EN") || pathStr.contains("-EN")) &&
+                Streams.of(path).anyMatch(p -> whitelist.contains(p.toString()));
     }
 
     @Override
