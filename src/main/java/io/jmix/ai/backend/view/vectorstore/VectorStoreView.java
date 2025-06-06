@@ -62,7 +62,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     @Subscribe
     public void onInit(final InitEvent event) {
         for (String type : retrieverManager.getTypes()) {
-            updateButton.addItem("docs", "Update all " + type).addClickListener(clickEvent -> {
+            updateButton.addItem(type, "Update " + type).addClickListener(clickEvent -> {
                 dialogs.createOptionDialog()
                         .withHeader("Confirm")
                         .withText("Update all data of type '%s'?".formatted(type))
@@ -74,13 +74,17 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                         .open();
             });
         }
-        updateButton.addItem("selected", "Update selected row").addClickListener(clickEvent -> {
-            VectorStoreEntity entity = vectorStoreDataGrid.getSingleSelectedItem();
-            if (entity == null) {
-                notifications.show("Select row to update");
-            } else {
-                updateInBackground(new UpdateByEntityTask(entity));
-            }
+        updateButton.addItem("all", "Update all data").addClickListener(clickEvent -> {
+            dialogs.createOptionDialog()
+                    .withHeader("Confirm")
+                    .withText("Update all data?")
+                    .withActions(
+                            new DialogAction(DialogAction.Type.YES).withHandler(e -> {
+                                updateInBackground(new UpdateTask());
+                            }),
+                            new DialogAction(DialogAction.Type.NO)
+                    )
+                    .open();
         });
     }
 
@@ -102,15 +106,12 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Subscribe(id = "updateButton", subject = "clickListener")
     public void onUpdateButtonClick(final ClickEvent<JmixButton> event) {
-        dialogs.createOptionDialog()
-                .withHeader("Confirm")
-                .withText("Update all data?")
-                .withActions(
-                        new DialogAction(DialogAction.Type.YES).withHandler(e ->
-                                updateInBackground(new UpdateTask())),
-                        new DialogAction(DialogAction.Type.NO)
-                )
-                .open();
+        VectorStoreEntity entity = vectorStoreDataGrid.getSingleSelectedItem();
+        if (entity == null) {
+            notifications.show("Select row to update");
+        } else {
+            updateInBackground(new UpdateByEntityTask(entity));
+        }
     }
 
     private void updateInBackground(UpdateTask task) {

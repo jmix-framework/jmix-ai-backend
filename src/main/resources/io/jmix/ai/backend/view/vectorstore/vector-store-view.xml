@@ -29,7 +29,7 @@
             </textField>
         </hbox>
         <hbox id="buttonsPanel" classNames="buttons-panel">
-            <comboButton id="updateButton" text="Update all"/>
+            <comboButton id="updateButton" text="Update"/>
 <!--            <button id="createButton" action="vectorStoreDataGrid.createAction"/>-->
 <!--            <button id="editButton" action="vectorStoreDataGrid.editAction"/>-->
             <button id="readButton" action="vectorStoreDataGrid.readAction"/>
