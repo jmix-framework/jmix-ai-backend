@@ -5,8 +5,8 @@ import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
-import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.vectorstore.RetrieverManager;
+import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.LoadContext;
 import io.jmix.flowui.Dialogs;
@@ -18,14 +18,17 @@ import io.jmix.flowui.component.SupportsTypedValue;
 import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.component.textfield.TypedTextField;
 import io.jmix.flowui.exception.DefaultUiExceptionHandler;
+import io.jmix.flowui.kit.action.ActionVariant;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.kit.component.combobutton.ComboButton;
 import io.jmix.flowui.model.CollectionLoader;
+import io.jmix.flowui.util.RemoveOperation;
 import io.jmix.flowui.view.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 
@@ -134,7 +137,41 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Install(to = "vectorStoreDataGrid.removeAction", subject = "delegate")
     public void vectorStoreDataGridRemoveActionDelegate(final Collection<VectorStoreEntity> collection) {
-        vectorStoreRepository.delete(collection);
+        List<VectorStoreEntity> entities = getEntitiesOfTheSameSource(collection.iterator().next());
+        vectorStoreRepository.delete(entities);
+    }
+
+    @Install(to = "vectorStoreDataGrid.removeAction", subject = "beforeActionPerformedHandler")
+    private void vectorStoreDataGridRemoveActionBeforeActionPerformedHandler(final RemoveOperation.BeforeActionPerformedEvent<VectorStoreEntity> beforeActionPerformedEvent) {
+        VectorStoreEntity selectedEntity = vectorStoreDataGrid.getSingleSelectedItem();
+        if (selectedEntity == null)
+            return;
+
+        List<VectorStoreEntity> entities = getEntitiesOfTheSameSource(selectedEntity);
+        if (entities.size() > 1) {
+            beforeActionPerformedEvent.preventAction();
+            dialogs.createOptionDialog()
+                    .withHeader("Please confirm")
+                    .withText("There are multiple chunks of this source. Remove them all?")
+                    .withActions(
+                            new DialogAction(DialogAction.Type.OK)
+                                    .withVariant(ActionVariant.PRIMARY)
+                                    .withHandler(e -> {
+                                        vectorStoreRepository.delete(entities);
+                                        vectorStoreDl.load();
+                                    }),
+                            new DialogAction(DialogAction.Type.CANCEL)
+                    )
+                    .open();
+        }
+    }
+
+    private List<VectorStoreEntity> getEntitiesOfTheSameSource(VectorStoreEntity selectedEntity) {
+        Map<String, Object> metadata = selectedEntity.getMetadataMap();
+        String type = (String) metadata.get("type");
+        String source = (String) metadata.get("source");
+        List<VectorStoreEntity> entities = vectorStoreRepository.loadList("type == '%s' && source == '%s'".formatted(type, source));
+        return entities;
     }
 
     private class UpdateTask extends BackgroundTask<Integer, String> {
