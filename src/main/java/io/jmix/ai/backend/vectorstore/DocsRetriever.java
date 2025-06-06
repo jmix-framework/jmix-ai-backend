@@ -1,48 +1,39 @@
 package io.jmix.ai.backend.vectorstore;
 
-import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.core.TimeSource;
-import io.jmix.core.UuidProvider;
 import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Component
-public class DocsRetriever implements Retriever {
+public class DocsRetriever extends AbstractRetriever {
 
     private static final Logger log = LoggerFactory.getLogger(DocsRetriever.class);
 
     private final String baseUrl;
     private final String initialPage;
-    private final int limitPages;
-    private final VectorStore vectorStore;
-    private final TimeSource timeSource;
-    private final VectorStoreRepository vectorStoreRepository;
+    private final int limit;
 
     public DocsRetriever(
-            @Value( "${docs.base-url}") String baseUrl,
-            @Value( "${docs.initial-page}") String initialPage,
-            @Value( "${docs.limit-pages}") int limitPages,
+            @Value("${docs.base-url}") String baseUrl,
+            @Value("${docs.initial-page}") String initialPage,
+            @Value("${docs.limit}") int limit,
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository) {
+        super(vectorStore, timeSource, vectorStoreRepository);
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
         this.initialPage = initialPage;
-        this.limitPages = limitPages;
-        this.vectorStore = vectorStore;
-        this.timeSource = timeSource;
-        this.vectorStoreRepository = vectorStoreRepository;
+        this.limit = limit;
     }
 
     @Override
@@ -51,64 +42,9 @@ public class DocsRetriever implements Retriever {
     }
 
     @Override
-    public String updateAll() {
-        long start = timeSource.currentTimeMillis();
-
-        List<String> docPages = loadListOfDocPages();
-        log.info("Found {} doc pages, loading {}", docPages.size(), limitPages > 0 ? "first " + limitPages : "all");
-
-        List<org.springframework.ai.document.Document> documents = docPages.stream()
-                .limit(limitPages > 0 ? limitPages : docPages.size())
-                .map(docPage -> loadPage(baseUrl + docPage))
-                .filter(this::checkContent)
-                .toList();
-
-        log.info("Adding {} documents to vector store", documents.size());
-        vectorStore.add(documents);
-
-        log.info("Done in {} sec", (timeSource.currentTimeMillis() - start) / 1000.0);
-
-        return "loaded: %d, added: %d".formatted(docPages.size(), documents.size());
-    }
-
-    @Override
-    public String update(VectorStoreEntity entity) {
-        String url = (String) entity.getMetadataMap().get("url");
-        log.info("Loading doc page: {}", url);
-        org.springframework.ai.document.Document document = loadPage(url);
-        if (!entity.getContent().equals(document.getText())) {
-            vectorStoreRepository.delete(entity.getId());
-            log.info("Adding document to vector store");
-            vectorStore.add(List.of(document));
-            return "updated 1 document";
-        } else {
-            return "no changes";
-        }
-    }
-
-    private boolean checkContent(org.springframework.ai.document.Document document) {
-        String url = (String) document.getMetadata().get("url");
-
-        List<VectorStoreEntity> entities = vectorStoreRepository.loadList(
-                "type == '%s' && url == '%s'".formatted(getType(), url)
-        );
-        if (entities.isEmpty()) {
-            return true;
-        }
-        boolean contentChanged = false;
-        for (VectorStoreEntity entity : entities) {
-            if (!entity.getContent().equals(document.getText())) {
-                // Delete existing document since content has changed
-                vectorStoreRepository.delete(entity.getId());
-                contentChanged = true;
-            }
-        }
-        return contentChanged;
-    }
-
-    private List<String> loadListOfDocPages() {
+    protected List<String> loadSources() {
         String url = baseUrl + initialPage;
-        Document doc;
+        org.jsoup.nodes.Document doc;
         try {
             doc = Jsoup.connect(url).get();
         } catch (IOException e) {
@@ -120,32 +56,31 @@ public class DocsRetriever implements Retriever {
                 .toList();
     }
 
-    private org.springframework.ai.document.Document loadPage(String url) {
+    @Override
+    protected int getSourceLimit() {
+        return limit;
+    }
+
+    @Override
+    protected Document loadDocument(String source) {
+        String url = baseUrl + source;
         log.debug("Loading doc page: {}", url);
-        Document doc;
+
+        org.jsoup.nodes.Document doc;
         try {
             doc = Jsoup.connect(url).get();
         } catch (IOException e) {
             throw new RuntimeException("Failed to load web page: " + url, e);
         }
+
         Elements elements = doc.select("article.doc");
         elements.select("nav.pagination").remove();
         elements.select("div.feedback-form").remove();
         String textContent = elements.text();
 
-        return new org.springframework.ai.document.Document(
-                UuidProvider.createUuidV7().toString(),
-                textContent,
-                createMetadata(url, textContent)
-        );
-    }
-
-    private Map<String, Object> createMetadata(String url, String textContent) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("type", getType());
+        Map<String, Object> metadata = createMetadata(source, textContent);
         metadata.put("url", url);
-        metadata.put("size", textContent.length());
-        metadata.put("updated", timeSource.now().toLocalDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        return metadata;
+
+        return createDocument(textContent, metadata);
     }
 }
