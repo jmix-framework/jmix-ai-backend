@@ -14,6 +14,7 @@
         <urlQueryParameters>
             <pagination component="pagination"/>
         </urlQueryParameters>
+        <settings auto="true"/>
     </facets>
     <actions>
         <action id="selectAction" type="lookup_select"/>
@@ -30,8 +31,6 @@
         </hbox>
         <hbox id="buttonsPanel" classNames="buttons-panel">
             <comboButton id="updateButton" text="Update"/>
-<!--            <button id="createButton" action="vectorStoreDataGrid.createAction"/>-->
-<!--            <button id="editButton" action="vectorStoreDataGrid.editAction"/>-->
             <button id="readButton" action="vectorStoreDataGrid.readAction"/>
             <button id="removeButton" action="vectorStoreDataGrid.removeAction"/>
             <button id="removeAllButton" text="Remove All" themeNames="warning"/>
@@ -44,13 +43,11 @@
                   dataContainer="vectorStoreDc"
                   columnReorderingAllowed="true">
             <actions>
-<!--                <action id="createAction" type="list_create" actionVariant="DEFAULT"/>-->
-<!--                <action id="editAction" type="list_edit"/>-->
                 <action id="readAction" type="list_read"/>
                 <action id="removeAction" type="list_remove"/>
                 <action id="refreshAction" type="list_refresh"/>
             </actions>
-            <columns resizable="true">
+            <columns resizable="true" sortable="false">
                 <column property="id"/>
                 <column property="content"/>
                 <column property="metadata"/>

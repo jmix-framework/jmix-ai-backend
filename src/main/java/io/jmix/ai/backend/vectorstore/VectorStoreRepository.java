@@ -22,14 +22,12 @@ import java.util.stream.Collectors;
 @Repository
 public class VectorStoreRepository {
 
-    private final VectorStore vectorStore;
     private final JdbcTemplate jdbcTemplate;
     private final EntityStates entityStates;
     private final FilterExpressionConverter filterExpressionConverter;
     private final FilterExpressionTextParser filterExpressionTextParser;
 
     public VectorStoreRepository(VectorStore vectorStore, EntityStates entityStates) {
-        this.vectorStore = vectorStore;
         this.entityStates = entityStates;
 
         Optional<JdbcTemplate> nativeClient = vectorStore.getNativeClient();
@@ -40,19 +38,29 @@ public class VectorStoreRepository {
     }
 
     public List<VectorStoreEntity> loadList(@Nullable String filterString) {
-        Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
-        return loadList(filterExpression);
+        return loadList(filterString, 0, 0);
     }
 
-    public List<VectorStoreEntity> loadList(@Nullable Filter.Expression filterExpression) {
+    public List<VectorStoreEntity> loadList(@Nullable String filterString, int offset, int limit) {
+        Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
+        return loadList(filterExpression, offset, limit);
+    }
+
+    public List<VectorStoreEntity> loadList(@Nullable Filter.Expression filterExpression, int offset, int limit) {
         String sql;
+        String orderBy = "ORDER BY metadata::jsonb ->> 'type', metadata::jsonb ->> 'source'";
         if (filterExpression != null) {
             String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
             sql = "SELECT id, content, metadata FROM vector_store " +
-                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath " +
-                    "ORDER BY id";
+                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath " + orderBy;
         } else {
-            sql = "SELECT id, content, metadata FROM vector_store ORDER BY id";
+            sql = "SELECT id, content, metadata FROM vector_store " + orderBy;
+        }
+        if (offset > 0) {
+            sql += " OFFSET " + offset;
+        }
+        if (limit > 0) {
+            sql += " LIMIT " + limit;
         }
         return jdbcTemplate.query(sql, getVsEntityRowMapper());
     }

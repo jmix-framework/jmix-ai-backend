@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 
@@ -91,7 +92,8 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Install(to = "vectorStoreDl", target = Target.DATA_LOADER)
     private List<VectorStoreEntity> vectorStoreDlLoadDelegate(final LoadContext<VectorStoreEntity> loadContext) {
-        return vectorStoreRepository.loadList(filterField.getTypedValue());
+        LoadContext.Query loadContextQuery = Objects.requireNonNull(loadContext.getQuery());
+        return vectorStoreRepository.loadList(filterField.getTypedValue(), loadContextQuery.getFirstResult(), loadContextQuery.getMaxResults());
     }
 
     @Subscribe(id = "filterHelpButton", subject = "clickListener")
