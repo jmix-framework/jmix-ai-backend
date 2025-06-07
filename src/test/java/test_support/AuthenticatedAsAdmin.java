@@ -1,4 +1,4 @@
-package io.jmix.ai.backend.test_support;
+package test_support;
 
 import io.jmix.core.security.SystemAuthenticator;
 import org.junit.jupiter.api.extension.AfterEachCallback;

@@ -26,7 +26,7 @@ public abstract class AbstractRetriever implements Retriever {
     protected final VectorStore vectorStore;
     protected final TimeSource timeSource;
     protected final VectorStoreRepository vectorStoreRepository;
-    protected final TextSplitter textSplitter;
+    protected TextSplitter textSplitter;
 
     // A chunk size of 4000 tokens is roughly half the OpenAI limit (8192), providing a safe buffer for
     // metadata, formatting, or encoding variations. For a 100KB document (~16,667-20,000 tokens),
