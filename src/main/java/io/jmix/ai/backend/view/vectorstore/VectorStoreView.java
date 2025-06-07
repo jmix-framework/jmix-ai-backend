@@ -8,6 +8,7 @@ import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.ai.backend.vectorstore.RetrieverManager;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.view.main.MainView;
+import io.jmix.core.DataLoadContext;
 import io.jmix.core.LoadContext;
 import io.jmix.flowui.Dialogs;
 import io.jmix.flowui.Notifications;
@@ -94,6 +95,11 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private List<VectorStoreEntity> vectorStoreDlLoadDelegate(final LoadContext<VectorStoreEntity> loadContext) {
         LoadContext.Query loadContextQuery = Objects.requireNonNull(loadContext.getQuery());
         return vectorStoreRepository.loadList(filterField.getTypedValue(), loadContextQuery.getFirstResult(), loadContextQuery.getMaxResults());
+    }
+
+    @Install(to = "pagination", subject = "totalCountDelegate")
+    private Integer paginationTotalCountDelegate(final DataLoadContext dataLoadContext) {
+        return vectorStoreRepository.getCount(filterField.getTypedValue());
     }
 
     @Subscribe(id = "filterHelpButton", subject = "clickListener")

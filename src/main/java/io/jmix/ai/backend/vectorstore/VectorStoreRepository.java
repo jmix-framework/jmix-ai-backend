@@ -71,6 +71,22 @@ public class VectorStoreRepository {
                 getVsEntityRowMapper());
     }
 
+    public int getCount(String filterString) {
+        Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
+
+        String sql;
+        if (filterExpression != null) {
+            String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
+            sql = "SELECT count(*) FROM vector_store " +
+                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath ";
+        } else {
+            sql = "SELECT count(*) FROM vector_store ";
+        }
+
+        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        return count == null ? 0 : count.intValue();
+    }
+
     private RowMapper<VectorStoreEntity> getVsEntityRowMapper() {
         return (rs, rowNum) -> {
             VectorStoreEntity entity = new VectorStoreEntity();
