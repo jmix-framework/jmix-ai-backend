@@ -1,12 +1,40 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <view xmlns="http://jmix.io/schema/flowui/view"
       title="msg://chatView.title">
+    <facets>
+        <urlQueryParameters id="urlQueryParameters"/>
+    </facets>
     <layout>
-        <hbox width="100%">
-            <textArea id="requestField" height="10em" width="100%"/>
-            <button id="sendButton" text="Send"/>
+        <textArea id="userMessageField" height="10em" width="100%">
+            <suffix>
+                <button id="copyToClipboardButton" icon="CLIPBOARD" title="Copy to clipboard"
+                        themeNames="tertiary-inline" tabIndex="-1"/>
+            </suffix>
+        </textArea>
+        <hbox width="100%" alignItems="CENTER">
+            <button id="sendButton" text="Send" themeNames="primary"/>
+            <span text="Parameters"/>
+            <entityPicker id="parametersPicker" metaClass="ParametersEntity" required="true" width="100%">
+                <actions>
+                    <action id="lookupAction" type="entity_lookup">
+                        <properties>
+                            <property name="viewId" value="Parameters.list"/>
+                        </properties>
+                    </action>
+                    <action id="openAction" type="entity_open">
+                        <properties>
+                            <property name="viewId" value="Parameters.detail"/>
+                        </properties>
+                    </action>
+                </actions>
+            </entityPicker>
+            <checkbox id="ragCheckbox" label="Use RAG" value="true" width="10em"/>
         </hbox>
-        <hr/>
+        <div id="modelOptionsDiv" width="100%"/>
+        <hbox>
+            <button id="clearButton" text="Clear" themeNames="small" enabled="false"/>
+            <button id="copyButton" text="Copy" themeNames="small" enabled="false"/>
+        </hbox>
         <div id="responseDiv" width="100%"/>
     </layout>
 </view>

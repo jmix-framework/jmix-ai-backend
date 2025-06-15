@@ -1,21 +1,35 @@
 package io.jmix.ai.backend.view.chat;
 
 
+import com.google.common.base.Strings;
 import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
+import io.jmix.ai.backend.chat.Chat;
+import io.jmix.ai.backend.chat.ParametersRepository;
+import io.jmix.ai.backend.entity.ParametersEntity;
 import io.jmix.ai.backend.view.main.MainView;
+import io.jmix.flowui.Dialogs;
 import io.jmix.flowui.Notifications;
+import io.jmix.flowui.backgroundtask.BackgroundTask;
+import io.jmix.flowui.backgroundtask.TaskLifeCycle;
+import io.jmix.flowui.component.UiComponentUtils;
+import io.jmix.flowui.component.checkbox.JmixCheckbox;
 import io.jmix.flowui.component.textarea.JmixTextArea;
+import io.jmix.flowui.component.valuepicker.EntityPicker;
+import io.jmix.flowui.facet.UrlQueryParametersFacet;
+import io.jmix.flowui.facet.urlqueryparameters.AbstractUrlQueryParametersBinder;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.view.*;
-import io.micrometer.common.util.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.Optional;
 
 @Route(value = "chat", layout = MainView.class)
 @ViewController(id = "ChatView")
@@ -23,39 +37,124 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class ChatView extends StandardView {
 
     @Autowired
-    private ChatClient.Builder chatClientBuilder;
-    @Autowired
-    private ChatModel chatModel;
+    private Chat chat;
     @Autowired
     private Notifications notifications;
+    @Autowired
+    private Dialogs dialogs;
+    @Autowired
+    private ParametersRepository parametersRepository;
+
     @ViewComponent
-    private JmixTextArea requestField;
+    private JmixTextArea userMessageField;
     @ViewComponent
     private Div responseDiv;
+    @ViewComponent
+    private JmixCheckbox ragCheckbox;
+    @ViewComponent
+    private Div modelOptionsDiv;
+    @ViewComponent
+    private JmixButton clearButton;
+    @ViewComponent
+    private JmixButton copyButton;
+    @ViewComponent
+    private EntityPicker<ParametersEntity> parametersPicker;
+    @ViewComponent
+    private UrlQueryParametersFacet urlQueryParameters;
 
-    private ChatClient chatClient;
+    private String lastResult;
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        chatClient = chatClientBuilder.build();
-        responseDiv.setText("Using " + chatModel.getDefaultOptions().toString());
+        modelOptionsDiv.setText("Using " + chat.getModelOptions().toString());
+        parametersPicker.setValue(parametersRepository.loadInUse());
+
+        urlQueryParameters.registerBinder(new UrlBinder());
     }
 
     @Subscribe(id = "sendButton", subject = "clickListener")
     public void onSendButtonClick(final ClickEvent<JmixButton> event) {
-        if (StringUtils.isBlank(requestField.getValue())) {
-            notifications.show("Enter some text");
+        if (StringUtils.isBlank(userMessageField.getValue())) {
+            notifications.show("Enter a question");
         } else {
-            String text = chatClient.prompt(requestField.getValue())
-                    .call()
-                    .content();
+            Chat.Options options = new Chat.Options(
+                    ragCheckbox.getValue(),
+                    parametersPicker.getValue().getSystemMessage()
+            );
+            dialogs.createBackgroundTaskDialog(
+                            new BackgroundTask<Integer, String>(60, this) {
+                                @Override
+                                public String run(TaskLifeCycle<Integer> taskLifeCycle) {
+                                    String text = chat.send(userMessageField.getValue(), options);
+                                    return text;
+                                }
+                                @Override
+                                public void done(String result) {
+                                    showResult(result);
+                                }
+                            }
+                    )
+                    .withHeader("Please wait")
+                    .withText("Processing request...")
+                    .open();
+        }
+    }
 
-            Parser parser = Parser.builder().build();
-            Node document = parser.parse(text);
-            HtmlRenderer renderer = HtmlRenderer.builder().build();
-            String html = renderer.render(document);
+    private void showResult(String result) {
+        lastResult = result;
 
-            responseDiv.getElement().setProperty("innerHTML", html);
+        Parser parser = Parser.builder().build();
+        Node document = parser.parse(result);
+        HtmlRenderer renderer = HtmlRenderer.builder().build();
+        String html = renderer.render(document);
+
+        responseDiv.getElement().setProperty("innerHTML", html);
+
+        enableResultButtons(true);
+    }
+
+    private void enableResultButtons(boolean enable) {
+        clearButton.setEnabled(enable);
+        copyButton.setEnabled(enable);
+    }
+
+    @Subscribe(id = "clearButton", subject = "clickListener")
+    public void onClearButtonClick(final ClickEvent<JmixButton> event) {
+        responseDiv.getElement().setProperty("innerHTML", "");
+        enableResultButtons(false);
+        lastResult = null;
+    }
+
+    @Subscribe(id = "copyButton", subject = "clickListener")
+    public void onCopyButtonClick(final ClickEvent<JmixButton> event) {
+        UiComponentUtils.copyToClipboard(lastResult)
+                .then(jsonValue -> notifications.show("Copied!"));
+    }
+
+    @Subscribe(id = "copyToClipboardButton", subject = "clickListener")
+    public void onCopyToClipboardButtonClick(final ClickEvent<JmixButton> event) {
+        UiComponentUtils.copyToClipboard(userMessageField.getValue())
+                .then(jsonValue -> notifications.show("Copied!"));
+    }
+
+    private class UrlBinder extends AbstractUrlQueryParametersBinder {
+        public UrlBinder() {
+            userMessageField.addValueChangeListener(valueChangeEvent -> {
+                String value = Strings.nullToEmpty(valueChangeEvent.getValue());
+                QueryParameters queryParameters = QueryParameters.of("userMessage", value);
+                fireQueryParametersChanged(new UrlQueryParametersFacet.UrlQueryParametersChangeEvent(this, queryParameters));
+            });
+        }
+
+        @Override
+        public void updateState(QueryParameters queryParameters) {
+            Optional<String> userMessageOptional = queryParameters.getSingleParameter("userMessage");
+            userMessageField.setValue(userMessageOptional.orElse(""));
+        }
+
+        @Override
+        public Component getComponent() {
+            return null;
         }
     }
 }

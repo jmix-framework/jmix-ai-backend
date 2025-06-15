@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
+      title="msg://parametersListView.title"
+      focusComponent="parametersEntitiesDataGrid">
+    <data>
+        <collection id="parametersEntitiesDc"
+                    class="io.jmix.ai.backend.entity.ParametersEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="parametersEntitiesDl" readOnly="true"/>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <settings auto="true"/>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="parametersEntitiesDataGrid.createAction"/>
+            <button id="copyButton" action="parametersEntitiesDataGrid.copyAction"/>
+            <button id="editButton" action="parametersEntitiesDataGrid.editAction"/>
+            <button id="removeButton" action="parametersEntitiesDataGrid.removeAction"/>
+            <button id="setInUseButton" action="parametersEntitiesDataGrid.setInUseAction"/>
+        </hbox>
+        <dataGrid id="parametersEntitiesDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="parametersEntitiesDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="createAction" type="list_create" actionVariant="DEFAULT">
+                    <properties>
+                        <property name="viewId" value="Parameters.detail"/>
+                    </properties>
+                </action>
+                <action id="copyAction" type="list_itemTracking" text="Copy"/>
+                <action id="editAction" type="list_edit">
+                    <properties>
+                        <property name="viewId" value="Parameters.detail"/>
+                    </properties>
+                </action>
+                <action id="removeAction" type="list_remove"/>
+                <action id="setInUseAction" type="list_itemTracking" text="Set In Use"/>
+            </actions>
+            <columns resizable="true">
+                <column property="lastModifiedDate"/>
+                <column property="lastModifiedBy"/>
+                <column property="inUse"/>
+                <column property="description"/>
+                <column property="systemMessage"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>

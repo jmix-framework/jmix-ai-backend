@@ -1,0 +1,54 @@
+package io.jmix.ai.backend.view.parameters;
+
+import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.router.Route;
+import io.jmix.ai.backend.chat.ParametersRepository;
+import io.jmix.ai.backend.entity.ParametersEntity;
+import io.jmix.ai.backend.view.main.MainView;
+import io.jmix.core.LoadContext;
+import io.jmix.core.SaveContext;
+import io.jmix.flowui.Notifications;
+import io.jmix.flowui.component.UiComponentUtils;
+import io.jmix.flowui.component.textarea.JmixTextArea;
+import io.jmix.flowui.kit.component.button.JmixButton;
+import io.jmix.flowui.view.*;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.Set;
+
+import static io.jmix.core.repository.JmixDataRepositoryUtils.extractEntityId;
+
+@Route(value = "parameters/:id", layout = MainView.class)
+@ViewController(id = "Parameters.detail")
+@ViewDescriptor(path = "parameters-detail-view.xml")
+@EditedEntityContainer("parametersEntityDc")
+public class ParametersDetailView extends StandardDetailView<ParametersEntity> {
+
+    @Autowired
+    private ParametersRepository repository;
+    @Autowired
+    private Notifications notifications;
+    @ViewComponent
+    private JmixTextArea systemMessageField;
+
+    @Subscribe
+    public void onInitEntity(final InitEntityEvent<ParametersEntity> event) {
+        event.getEntity().setSystemMessage(repository.loadDefaultSystemMessage());
+    }
+
+    @Install(to = "parametersEntityDl", target = Target.DATA_LOADER)
+    private ParametersEntity parametersEntityDlLoadDelegate(final LoadContext<ParametersEntity> context) {
+        return repository.getById(extractEntityId(context), context.getFetchPlan());
+    }
+
+    @Install(target = Target.DATA_CONTEXT)
+    private Set<Object> saveDelegate(final SaveContext saveContext) {
+        return Set.of(repository.save(getEditedEntity()));
+    }
+
+    @Subscribe(id = "copyToClipboardButton", subject = "clickListener")
+    public void onCopyToClipboardButtonClick(final ClickEvent<JmixButton> event) {
+        UiComponentUtils.copyToClipboard(systemMessageField.getValue())
+                .then(jsonValue -> notifications.show("Copied!"));
+    }
+}
