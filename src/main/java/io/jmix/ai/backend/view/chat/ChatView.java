@@ -29,6 +29,7 @@ import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.List;
 import java.util.Optional;
 
 @Route(value = "chat", layout = MainView.class)
@@ -62,7 +63,7 @@ public class ChatView extends StandardView {
     @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
 
-    private String lastResult;
+    private String lastResultText;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -82,14 +83,14 @@ public class ChatView extends StandardView {
                     parametersPicker.getValue().getSystemMessage()
             );
             dialogs.createBackgroundTaskDialog(
-                            new BackgroundTask<Integer, String>(60, this) {
+                            new BackgroundTask<Integer, Chat.StructuredResponse>(60, this) {
                                 @Override
-                                public String run(TaskLifeCycle<Integer> taskLifeCycle) {
-                                    String text = chat.send(userMessageField.getValue(), options);
-                                    return text;
+                                public Chat.StructuredResponse run(TaskLifeCycle<Integer> taskLifeCycle) {
+                                    Chat.StructuredResponse response = chat.requestStructured(userMessageField.getValue(), options);
+                                    return response;
                                 }
                                 @Override
-                                public void done(String result) {
+                                public void done(Chat.StructuredResponse result) {
                                     showResult(result);
                                 }
                             }
@@ -100,17 +101,26 @@ public class ChatView extends StandardView {
         }
     }
 
-    private void showResult(String result) {
-        lastResult = result;
+    private void showResult(Chat.StructuredResponse result) {
+        lastResultText = result.text();
 
         Parser parser = Parser.builder().build();
-        Node document = parser.parse(result);
+        Node document = parser.parse(result.text());
         HtmlRenderer renderer = HtmlRenderer.builder().build();
-        String html = renderer.render(document);
+        String html = renderer.render(document) + addSourceLinks(result.sourceLinks());
 
         responseDiv.getElement().setProperty("innerHTML", html);
 
         enableResultButtons(true);
+    }
+
+    private String addSourceLinks(List<String> strings) {
+        StringBuilder sb = new StringBuilder("<hr><p><strong>Source links:</strong></p><ul>");
+        for (String string : strings) {
+            sb.append("<li><a href=\"").append(string).append("\" target=\"_blank\">").append(string).append("</a></li>");
+        }
+        sb.append("</ul>");
+        return sb.toString();
     }
 
     private void enableResultButtons(boolean enable) {
@@ -122,12 +132,12 @@ public class ChatView extends StandardView {
     public void onClearButtonClick(final ClickEvent<JmixButton> event) {
         responseDiv.getElement().setProperty("innerHTML", "");
         enableResultButtons(false);
-        lastResult = null;
+        lastResultText = null;
     }
 
     @Subscribe(id = "copyButton", subject = "clickListener")
     public void onCopyButtonClick(final ClickEvent<JmixButton> event) {
-        UiComponentUtils.copyToClipboard(lastResult)
+        UiComponentUtils.copyToClipboard(lastResultText)
                 .then(jsonValue -> notifications.show("Copied!"));
     }
 
