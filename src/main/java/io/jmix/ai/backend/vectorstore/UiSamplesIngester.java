@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore;
 
+import io.jmix.ai.backend.vectorstore.chunking.Chunk;
 import io.jmix.core.TimeSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -83,5 +85,18 @@ public class UiSamplesIngester extends AbstractIngester {
 
     private String getSampleUrl(String sampleId) {
         return baseUrl + "/" + samplePath + "/" + sampleId;
+    }
+
+    @Override
+    protected List<Document> splitToChunks(List<Document> documents) {
+        List<Document> chunkDocs = new ArrayList<>();
+        for (Document document : documents) {
+            if (document.getText().length() <= 30_000) {
+                chunkDocs.add(document);
+            } else {
+                log.warn("Document {} is too long: {}", document.getMetadata().get("url"), document.getText().length());
+            }
+        }
+        return chunkDocs;
     }
 }

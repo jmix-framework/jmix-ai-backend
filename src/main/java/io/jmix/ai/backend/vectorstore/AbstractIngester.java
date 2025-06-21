@@ -3,6 +3,7 @@ package io.jmix.ai.backend.vectorstore;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
+import io.jmix.ai.backend.vectorstore.chunking.Chunker;
 import io.jmix.core.TimeSource;
 import io.jmix.core.UuidProvider;
 import org.slf4j.Logger;
@@ -85,14 +86,14 @@ public abstract class AbstractIngester implements Ingester {
                 .toList();
 
         log.debug("Splitting {} sources into chunks", documents.size());
-        List<Document> chunks = textSplitter.apply(documents);
+        List<Document> docChunks = splitToChunks(documents);
 
-        log.info("Adding {} documents to vector store", chunks.size());
-        vectorStore.add(chunks);
+        log.info("Adding {} documents to vector store", docChunks.size());
+        vectorStore.add(docChunks);
 
         log.info("Done in {} sec", (timeSource.currentTimeMillis() - start) / 1000.0);
 
-        return "loaded: %d, added: %d documents in %d chunks".formatted(sources.size(), documents.size(), chunks.size());
+        return "loaded: %d, added: %d documents in %d chunks".formatted(sources.size(), documents.size(), docChunks.size());
     }
 
     protected void prepareUpdate() {
@@ -105,12 +106,12 @@ public abstract class AbstractIngester implements Ingester {
         String source = getSource(entity);
         log.info("Loading source: {}", source);
         Document document = loadDocument(source);
-        
+
         if (!isContentSame(document, entity)) {
             deleteExistingEntities(entity);
 
             log.debug("Splitting document into chunks");
-            List<Document> chunks = textSplitter.apply(List.of(document));
+            List<Document> chunks = splitToChunks(List.of(document));
 
             log.info("Adding document to vector store");
             vectorStore.add(chunks);
@@ -126,11 +127,11 @@ public abstract class AbstractIngester implements Ingester {
         List<VectorStoreEntity> entities = vectorStoreRepository.loadList(
                 buildFilterQuery(source)
         );
-        
+
         if (entities.isEmpty()) {
             return true;
         }
-        
+
         boolean contentChanged = false;
         for (VectorStoreEntity entity : entities) {
             if (!isContentSame(document, entity)) {
@@ -184,6 +185,10 @@ public abstract class AbstractIngester implements Ingester {
     protected String computeHash(String content) {
         HashCode hash32 = Hashing.murmur3_32_fixed().hashString(content, StandardCharsets.UTF_8);
         return hash32.toString();
+    }
+
+    protected List<Document> splitToChunks(List<Document> documents) {
+        return textSplitter.apply(documents);
     }
 
     protected abstract List<String> loadSources();
