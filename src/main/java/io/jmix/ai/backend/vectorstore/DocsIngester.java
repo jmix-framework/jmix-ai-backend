@@ -15,15 +15,15 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class DocsRetriever extends AbstractRetriever {
+public class DocsIngester extends AbstractIngester {
 
-    private static final Logger log = LoggerFactory.getLogger(DocsRetriever.class);
+    private static final Logger log = LoggerFactory.getLogger(DocsIngester.class);
 
     private final String baseUrl;
     private final String initialPage;
     private final int limit;
 
-    public DocsRetriever(
+    public DocsIngester(
             @Value("${docs.base-url}") String baseUrl,
             @Value("${docs.initial-page}") String initialPage,
             @Value("${docs.limit}") int limit,

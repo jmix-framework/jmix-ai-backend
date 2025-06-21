@@ -15,9 +15,9 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class UiSamplesRetriever extends AbstractRetriever {
+public class UiSamplesIngester extends AbstractIngester {
 
-    private static final Logger log = LoggerFactory.getLogger(UiSamplesRetriever.class);
+    private static final Logger log = LoggerFactory.getLogger(UiSamplesIngester.class);
 
     private final String baseUrl;
     private final String docPath;
@@ -27,7 +27,7 @@ public class UiSamplesRetriever extends AbstractRetriever {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public UiSamplesRetriever(
+    public UiSamplesIngester(
             @Value("${uisamples.base-url}") String baseUrl,
             @Value("${uisamples.doc-path}") String docPath,
             @Value("${uisamples.sample-path}") String samplePath,

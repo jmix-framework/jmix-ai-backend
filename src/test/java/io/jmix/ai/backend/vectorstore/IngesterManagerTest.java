@@ -14,30 +14,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class RetrieverManagerTest {
+class IngesterManagerTest {
 
     @Mock
-    private Retriever docsRetriever;
+    private Ingester docsIngester;
 
     @Mock
-    private Retriever anotherRetriever;
+    private Ingester anotherIngester;
 
-    private RetrieverManager retrieverManager;
+    private IngesterManager ingesterManager;
 
     @BeforeEach
     void setUp() {
-        lenient().when(docsRetriever.getType()).thenReturn("docs");
-        lenient().when(anotherRetriever.getType()).thenReturn("another");
+        lenient().when(docsIngester.getType()).thenReturn("docs");
+        lenient().when(anotherIngester.getType()).thenReturn("another");
 
-        retrieverManager = new RetrieverManager(Arrays.asList(docsRetriever, anotherRetriever));
+        ingesterManager = new IngesterManager(Arrays.asList(docsIngester, anotherIngester));
     }
 
     @Test
     void shouldReturnAllTypes() {
-        when(docsRetriever.getType()).thenReturn("docs");
-        when(anotherRetriever.getType()).thenReturn("another");
+        when(docsIngester.getType()).thenReturn("docs");
+        when(anotherIngester.getType()).thenReturn("another");
 
-        List<String> types = retrieverManager.getTypes();
+        List<String> types = ingesterManager.getTypes();
         
         assertThat(types).hasSize(2)
                          .containsExactly("docs", "another");
@@ -45,21 +45,21 @@ class RetrieverManagerTest {
 
     @Test
     void shouldUpdateAll() {
-        String result = retrieverManager.update();
+        String result = ingesterManager.update();
         
-        verify(docsRetriever).updateAll();
-        verify(anotherRetriever).updateAll();
+        verify(docsIngester).updateAll();
+        verify(anotherIngester).updateAll();
         assertThat(result).contains(List.of("docs", "another"));
     }
 
     @Test
     void shouldUpdateByType() {
-        when(docsRetriever.updateAll()).thenReturn("docs result");
+        when(docsIngester.updateAll()).thenReturn("docs result");
         
-        String result = retrieverManager.updateByType("docs");
+        String result = ingesterManager.updateByType("docs");
         
-        verify(docsRetriever).updateAll();
-        verifyNoInteractions(anotherRetriever);
+        verify(docsIngester).updateAll();
+        verifyNoInteractions(anotherIngester);
         assertThat(result).contains("docs result");
     }
 
@@ -72,12 +72,12 @@ class RetrieverManagerTest {
                 }
                 """);
         
-        when(docsRetriever.update(entity)).thenReturn("docs entity result");
+        when(docsIngester.update(entity)).thenReturn("docs entity result");
         
-        String result = retrieverManager.updateByEntity(entity);
+        String result = ingesterManager.updateByEntity(entity);
         
-        verify(docsRetriever).update(entity);
-        verifyNoInteractions(anotherRetriever);
+        verify(docsIngester).update(entity);
+        verifyNoInteractions(anotherIngester);
         assertThat(result).contains("docs entity result");
     }
 }

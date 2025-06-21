@@ -19,7 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class RetrieverSpecificBehaviorTest {
+class IngesterSpecificBehaviorTest {
 
     @Mock
     private VectorStore vectorStore;
@@ -32,7 +32,7 @@ class RetrieverSpecificBehaviorTest {
     
     @Test
     void shouldCheckContentAndSkipExistingUnchangedDocuments() {
-        TestRetriever retriever = spy(new TestRetriever(vectorStore, timeSource, vectorStoreRepository));
+        TestIngester ingester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository));
         Document document = new Document("1", "content", Map.of("source", "test", "sourceHash", "hash1"));
         
         VectorStoreEntity entity = new VectorStoreEntity();
@@ -43,7 +43,7 @@ class RetrieverSpecificBehaviorTest {
         
         when(vectorStoreRepository.loadList(any())).thenReturn(entities);
         
-        boolean result = retriever.checkContent(document);
+        boolean result = ingester.checkContent(document);
         
         verify(vectorStoreRepository).loadList(any());
         verify(vectorStoreRepository, never()).delete(any(UUID.class));
@@ -52,7 +52,7 @@ class RetrieverSpecificBehaviorTest {
 
     @Test
     void shouldDeleteAndReplaceChangedDocuments() {
-        TestRetriever retriever = spy(new TestRetriever(vectorStore, timeSource, vectorStoreRepository));
+        TestIngester ingester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository));
         Document document = new Document("1", "content", Map.of("source", "test", "sourceHash", "newHash"));
         
         UUID entityId = UUID.randomUUID();
@@ -65,17 +65,17 @@ class RetrieverSpecificBehaviorTest {
         
         when(vectorStoreRepository.loadList(any())).thenReturn(entities);
         
-        boolean result = retriever.checkContent(document);
+        boolean result = ingester.checkContent(document);
         
         verify(vectorStoreRepository).loadList(any());
         verify(vectorStoreRepository).delete(entityId);
         assertThat(result).isTrue();
     }
     
-    // Test implementation of AbstractRetriever
-    private static class TestRetriever extends AbstractRetriever {
+    // Test implementation of AbstractIngester
+    private static class TestIngester extends AbstractIngester {
         
-        public TestRetriever(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
+        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
             super(vectorStore, timeSource, vectorStoreRepository);
         }
 

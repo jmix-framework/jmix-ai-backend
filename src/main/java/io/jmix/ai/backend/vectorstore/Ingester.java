@@ -2,7 +2,7 @@ package io.jmix.ai.backend.vectorstore;
 
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 
-public interface Retriever {
+public interface Ingester {
 
     String getType();
 

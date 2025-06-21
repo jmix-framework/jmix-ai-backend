@@ -25,7 +25,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class AbstractRetrieverTest {
+class AbstractIngesterTest {
 
     @Mock
     private VectorStore vectorStore;
@@ -39,15 +39,15 @@ class AbstractRetrieverTest {
     @Mock
     private TextSplitter textSplitter;
     
-    private TestRetriever retriever;
+    private TestIngester ingester;
     
     private final UUID mockUuid = UUID.randomUUID();
     private final LocalDateTime now = LocalDateTime.of(2023, 1, 1, 12, 0);
 
     @BeforeEach
     void setUp() {
-        retriever = new TestRetriever(vectorStore, timeSource, vectorStoreRepository, textSplitter);
-        retriever = spy(retriever);
+        ingester = new TestIngester(vectorStore, timeSource, vectorStoreRepository, textSplitter);
+        ingester = spy(ingester);
         lenient().when(timeSource.now()).thenReturn(now.atZone(ZoneId.systemDefault()));
     }
 
@@ -56,7 +56,7 @@ class AbstractRetrieverTest {
         String content = "Test content";
         String expected = Hashing.murmur3_32_fixed().hashString(content, StandardCharsets.UTF_8).toString();
         
-        String hash = retriever.computeHash(content);
+        String hash = ingester.computeHash(content);
         
         assertThat(hash).isEqualTo(expected);
     }
@@ -65,9 +65,9 @@ class AbstractRetrieverTest {
     void shouldCreateMetadataCorrectly() {
         String source = "test-source";
         String content = "Test content";
-        String hash = retriever.computeHash(content);
+        String hash = ingester.computeHash(content);
         
-        Map<String, Object> metadata = retriever.createMetadata(source, content);
+        Map<String, Object> metadata = ingester.createMetadata(source, content);
         
         assertThat(metadata)
             .containsEntry("type", "test")
@@ -85,7 +85,7 @@ class AbstractRetrieverTest {
             String content = "Test content";
             Map<String, Object> metadata = Map.of("key", "value");
             
-            Document document = retriever.createDocument(content, metadata);
+            Document document = ingester.createDocument(content, metadata);
             
             assertThat(document.getId()).isEqualTo(mockUuid.toString());
             assertThat(document.getText()).isEqualTo(content);
@@ -98,7 +98,7 @@ class AbstractRetrieverTest {
         String source = "test-source";
         String expected = "type == 'test' && source == 'test-source'";
         
-        String query = retriever.buildFilterQuery(source);
+        String query = ingester.buildFilterQuery(source);
         
         assertThat(query).isEqualTo(expected);
     }
@@ -112,12 +112,12 @@ class AbstractRetrieverTest {
                         {"sourceHash": "hash2"}
                         """);
         
-        assertThat(retriever.isContentSame(document, entity)).isFalse();
+        assertThat(ingester.isContentSame(document, entity)).isFalse();
         
         entity.setMetadata("""
                         {"sourceHash": "hash1"}
                         """);
-        assertThat(retriever.isContentSame(document, entity)).isTrue();
+        assertThat(ingester.isContentSame(document, entity)).isTrue();
     }
 
     @Test
@@ -130,20 +130,20 @@ class AbstractRetrieverTest {
                 new Document("4", "chunk2", Map.of())
         );
         
-        doReturn(sources).when(retriever).loadSources();
-        doReturn(0).when(retriever).getSourceLimit();
-        doReturn(doc1).when(retriever).loadDocument("source1");
-        doReturn(doc2).when(retriever).loadDocument("source2");
-        doReturn(true).when(retriever).checkContent(any());
+        doReturn(sources).when(ingester).loadSources();
+        doReturn(0).when(ingester).getSourceLimit();
+        doReturn(doc1).when(ingester).loadDocument("source1");
+        doReturn(doc2).when(ingester).loadDocument("source2");
+        doReturn(true).when(ingester).checkContent(any());
         when(textSplitter.apply(anyList())).thenReturn(chunks);
         when(timeSource.currentTimeMillis()).thenReturn(1000L, 5000L);
         
-        String result = retriever.updateAll();
+        String result = ingester.updateAll();
         
-        verify(retriever).prepareUpdate();
-        verify(retriever).loadSources();
-        verify(retriever).loadDocument("source1");
-        verify(retriever).loadDocument("source2");
+        verify(ingester).prepareUpdate();
+        verify(ingester).loadSources();
+        verify(ingester).loadDocument("source1");
+        verify(ingester).loadDocument("source2");
         verify(textSplitter).apply(List.of(doc1, doc2));
         verify(vectorStore).add(chunks);
         assertThat(result).isEqualTo("loaded: 2, added: 2 documents in 2 chunks");
@@ -164,15 +164,15 @@ class AbstractRetrieverTest {
         Document document = new Document("1", "content", Map.of("sourceHash", "hash1"));
         List<Document> chunks = List.of(new Document("2", "chunk", Map.of()));
         
-        doReturn("source1").when(retriever).getSource(entity);
-        doReturn(document).when(retriever).loadDocument("source1");
-        doReturn(false).when(retriever).isContentSame(document, entity);
+        doReturn("source1").when(ingester).getSource(entity);
+        doReturn(document).when(ingester).loadDocument("source1");
+        doReturn(false).when(ingester).isContentSame(document, entity);
         when(textSplitter.apply(anyList())).thenReturn(chunks);
         
-        String result = retriever.update(entity);
+        String result = ingester.update(entity);
         
-        verify(retriever).prepareUpdate();
-        verify(retriever).deleteExistingEntities(entity);
+        verify(ingester).prepareUpdate();
+        verify(ingester).deleteExistingEntities(entity);
         verify(textSplitter).apply(List.of(document));
         verify(vectorStore).add(chunks);
         assertThat(result).isEqualTo("updated 1 document");
@@ -191,23 +191,23 @@ class AbstractRetrieverTest {
         
         Document document = new Document("1", "content", Map.of("sourceHash", "hash1"));
         
-        doReturn("source1").when(retriever).getSource(entity);
-        doReturn(document).when(retriever).loadDocument("source1");
-        doReturn(true).when(retriever).isContentSame(document, entity);
+        doReturn("source1").when(ingester).getSource(entity);
+        doReturn(document).when(ingester).loadDocument("source1");
+        doReturn(true).when(ingester).isContentSame(document, entity);
         
-        String result = retriever.update(entity);
+        String result = ingester.update(entity);
         
-        verify(retriever).prepareUpdate();
-        verify(retriever, never()).deleteExistingEntities(any());
+        verify(ingester).prepareUpdate();
+        verify(ingester, never()).deleteExistingEntities(any());
         verify(textSplitter, never()).apply(anyList());
         verify(vectorStore, never()).add(anyList());
         assertThat(result).isEqualTo("no changes");
     }
 
-    // Test implementation of AbstractRetriever
-    private static class TestRetriever extends AbstractRetriever {
+    // Test implementation of AbstractIngester
+    private static class TestIngester extends AbstractIngester {
         
-        public TestRetriever(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository, TextSplitter textSplitter) {
+        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository, TextSplitter textSplitter) {
             super(vectorStore, timeSource, vectorStoreRepository);
             // Override the textSplitter field directly
             this.textSplitter = textSplitter;

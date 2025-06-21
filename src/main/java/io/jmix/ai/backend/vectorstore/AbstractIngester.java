@@ -19,9 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class AbstractRetriever implements Retriever {
+public abstract class AbstractIngester implements Ingester {
 
-    private final Logger log = LoggerFactory.getLogger(AbstractRetriever.class);
+    private final Logger log = LoggerFactory.getLogger(AbstractIngester.class);
     
     protected final VectorStore vectorStore;
     protected final TimeSource timeSource;
@@ -53,7 +53,7 @@ public abstract class AbstractRetriever implements Retriever {
 
     private static final boolean KEEP_SEPARATOR = true;
 
-    protected AbstractRetriever(
+    protected AbstractIngester(
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository) {

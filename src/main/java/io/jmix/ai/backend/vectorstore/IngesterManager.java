@@ -6,17 +6,17 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
-public class RetrieverManager {
+public class IngesterManager {
 
-    private final List<Retriever> retrievers;
+    private final List<Ingester> ingesters;
 
-    public RetrieverManager(List<Retriever> retrievers) {
-        this.retrievers = retrievers;
+    public IngesterManager(List<Ingester> ingesters) {
+        this.ingesters = ingesters;
     }
 
     public String update() {
         StringBuilder sb = new StringBuilder();
-        for (Retriever updater : retrievers) {
+        for (Ingester updater : ingesters) {
             String result = updater.updateAll();
             sb.append("<b>").append(updater.getType()).append("</b><br>").append(result).append("<br>");
         }
@@ -24,14 +24,14 @@ public class RetrieverManager {
     }
 
     public List<String> getTypes() {
-        return retrievers.stream()
-                .map(Retriever::getType)
+        return ingesters.stream()
+                .map(Ingester::getType)
                 .toList();
     }
 
     public String updateByType(String type) {
         StringBuilder sb = new StringBuilder();
-        retrievers.stream()
+        ingesters.stream()
                 .filter(updater -> updater.getType().equals(type))
                 .findFirst()
                 .ifPresent(updater -> {
@@ -44,7 +44,7 @@ public class RetrieverManager {
     public String updateByEntity(VectorStoreEntity entity) {
         StringBuilder sb = new StringBuilder();
         String type = (String) entity.getMetadataMap().get("type");
-        retrievers.stream()
+        ingesters.stream()
                 .filter(updater -> updater.getType().equals(type))
                 .findFirst()
                 .ifPresent(updater -> {

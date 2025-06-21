@@ -5,7 +5,7 @@ import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
-import io.jmix.ai.backend.vectorstore.RetrieverManager;
+import io.jmix.ai.backend.vectorstore.IngesterManager;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.DataLoadContext;
@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Autowired
-    private RetrieverManager retrieverManager;
+    private IngesterManager ingesterManager;
     @Autowired
     private Dialogs dialogs;
     @Autowired
@@ -63,7 +63,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        for (String type : retrieverManager.getTypes()) {
+        for (String type : ingesterManager.getTypes()) {
             updateButton.addItem(type, "Update " + type).addClickListener(clickEvent -> {
                 dialogs.createOptionDialog()
                         .withHeader("Confirm")
@@ -191,7 +191,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return retrieverManager.update();
+            return ingesterManager.update();
         }
 
         @Override
@@ -220,7 +220,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return retrieverManager.updateByType(type);
+            return ingesterManager.updateByType(type);
         }
     }
 
@@ -234,7 +234,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return retrieverManager.updateByEntity(entity);
+            return ingesterManager.updateByEntity(entity);
         }
     }
 }

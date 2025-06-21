@@ -9,14 +9,14 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-class RetrieverIntegrationTest {
+class IngesterIntegrationTest {
 
     @Autowired
-    private RetrieverManager retrieverManager;
+    private IngesterManager ingesterManager;
 
     @Test
-    void shouldReturnAvailableRetrieverTypes() {
-        List<String> types = retrieverManager.getTypes();
+    void shouldReturnAvailableIngesterTypes() {
+        List<String> types = ingesterManager.getTypes();
         assertThat(types).containsAll(List.of("docs", "uisamples", "trainings"));
     }
 }

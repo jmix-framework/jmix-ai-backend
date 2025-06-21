@@ -18,16 +18,16 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 @Component
-public class TrainingsRetriever extends AbstractRetriever {
+public class TrainingsIngester extends AbstractIngester {
 
-    private static final Logger log = LoggerFactory.getLogger(TrainingsRetriever.class);
+    private static final Logger log = LoggerFactory.getLogger(TrainingsIngester.class);
 
     private final String gitUrl;
     private final int limit;
     private final List<String> whitelist;
     private final Path gitLocalPath;
 
-    public TrainingsRetriever(
+    public TrainingsIngester(
             @Value("${trainings.git-url}") String gitUrl,
             @Value("${trainings.limit}") int limit,
             @Value("${trainings.whitelist}") List<String> whitelist,
