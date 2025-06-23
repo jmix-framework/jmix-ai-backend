@@ -1,0 +1,620 @@
+include::../../../asciidoctorconfig.adoc[]
+
+== Views Practice [[viewsPractice]]
+
+=== List view
+
+Let's start our practice with creating a view that displays a list of time entries of the current user.
+
+* Create a new *Blank view*
+** Descriptor: `my-time-entry-list-view.xml`
+** Controller: `MyTimeEntryListView`
+** Package: `com.company.timesheets.view.timeentry`
+** View Id: `ts_TimeEntry.my`
+** Route: `my-time-entries`
+** Title: _My time entries_
+
+'''
+
+Let's start with XML descriptor. Because we want to show a list of time entries, we will start with creating a collection data container that will supply data for the `DataGrid` component.
+
+* Add collection data container to the data section in the view
+** *Entity*: `TimeEntry`
+** *Fetch plan*: `_base`
+
+Jmix provides three built-in fetch plans for each entity:
+
+* `_local` fetch plan includes all local attributes (immediate attributes that are not references).
+* `_instance_name` fetch plan includes all attributes forming the instance name. These can be local attributes and references. If instance name is not specified for an entity, this fetch plan is empty.
+* `_base` fetch plan includes all attributes of the `_local` and `_instance_name` fetch plans. It differs from `_local` only if the `_instance_name` fetch plan includes reference attributes.
+
+'''
+
+Data components are non-visual elements of views that provide loading of data, binding it to data-aware visual components and saving changed data back to the data store. There are the following categories of data components:
+
+* *Containers* provide the thin layer between entities and data-aware visual components. Different types of containers hold either single instances or collections of entities.
+* *Loaders* load data to containers.
+* *DataContext* tracks changes in entities and saves changed instances upon request.
+
+Usually, data components are defined in the view XML descriptor in the `<data>` element as we have now.
+
+'''
+
+* Update JPQL Query so that we limit loaded time entries by current user: `select e from ts_TimeEntry e where e.user.username = :current_user_username`
+
+.my-time-entry-list-view.xml
+[source,xml]
+----
+<data>
+    <collection id="timeEntriesDc" class="com.company.timesheets.entity.TimeEntry">
+        <loader id="timeEntriesDl" readOnly="true">
+            <query>
+                <![CDATA[select e from ts_TimeEntry e where e.user.username = :current_user_username]]>
+            </query>
+        </loader>
+        <fetchPlan extends="_base"/>
+    </collection>
+</data>
+----
+
+'''
+
+Now, let's add the `DataGrid` component that will display the list of time entries.
+
+. Add `dataGrid` for the `timeEntriesDc` with `create`, `edit`, `remove` actions
+
+.my-time-entry-list-view.xml
+[source,xml]
+----
+<dataGrid id="timeEntriesDataGrid"
+          dataContainer="timeEntriesDc"
+          width="100%">
+    <actions>
+        <action id="create" type="list_create"/>
+        <action id="edit" type="list_edit"/>
+        <action id="remove" type="list_remove"/>
+    </actions>
+    <columns>
+        <column property="date"/>
+        <column property="task"/>
+        <column property="spentTime"/>
+        <column property="status"/>
+        <column property="description"/>
+        <column property="rejectionReason"/>
+    </columns>
+</dataGrid>
+----
+
+'''
+
+Also, to inform framework that we want to load data when the view is opened, we need to add the `dataLoadCoordinator` facet. We will talk about facets later.
+
+. Add `dataLoadCoordinator` facet
+
+.my-time-entry-list-view.xml
+[source,xml]
+----
+<facets>
+    <dataLoadCoordinator auto="true"/>
+</facets>
+----
+
+'''
+
+* Intermediate result
+
+.my-time-entry-list-view.xml
+[source,xml]
+----
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://myTimeEntryListView.title">
+    <data>
+        <collection id="timeEntriesDc" class="com.company.timesheets.entity.TimeEntry">
+            <loader id="timeEntriesDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from ts_TimeEntry e where e.user.username = :current_user_username]]>
+                </query>
+            </loader>
+            <fetchPlan extends="_base"/>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <layout>
+        <dataGrid id="timeEntriesDataGrid"
+                  dataContainer="timeEntriesDc"
+                  width="100%">
+            <actions>
+                <action id="create" type="list_create"/>
+                <action id="edit" type="list_edit"/>
+                <action id="remove" type="list_remove"/>
+            </actions>
+            <columns>
+                <column property="date"/>
+                <column property="task"/>
+                <column property="spentTime"/>
+                <column property="status"/>
+                <column property="description"/>
+                <column property="rejectionReason"/>
+            </columns>
+        </dataGrid>
+    </layout>
+</view>
+----
+
+'''
+
+* Restart the app and show the view
+
+We can see that only time entries of current user are shown
+
+* Compare with *Time Entries list view* to prove
+
+'''
+
+Let's develop your view further. The first thing that comes to mind is: where are our actions that we added to the `DataGrid` component? On regular list view I can see buttons like *Create*, *Edit* and *Remove*.
+
+. Show actions in XML
+. Show buttons that bound to these actions on any other list view
+
+Actions added to the `DataGrid` component are added to its context menu
+
+* Show context menu
+
+But, we can bind these actions to other components like buttons. Let's do this.
+
+* Add the following markup above the `dataGrid`:
+
+.my-time-entry-list-view.xml
+[source,xml]
+----
+<hbox id="buttonsPanel" classNames="buttons-panel">
+    <button id="createBtn" action="timeEntriesDataGrid.create"/>
+    <button id="editBtn" action="timeEntriesDataGrid.edit"/>
+    <button id="removeBtn" action="timeEntriesDataGrid.remove"/>
+
+    <simplePagination id="pagination" dataLoader="timeEntriesDl"/>
+</hbox>
+----
+
+We also added the `simplePagination` component that provides pagination functionality.
+
+* Refresh the page to show changes
+
+'''
+
+Next component that usually exists on a list view is a *generic filter*
+
+* Add `genericFilter` as first component:
+
+.my-time-entry-list-view.xml
+[source,xml]
+----
+<genericFilter id="genericFilter"
+               dataLoader="timeEntriesDl">
+    <properties include=".*"/>
+</genericFilter>
+----
+
+* Refresh the page to show changes
+
+'''
+
+Now let's tune our view to improve the UX. For example, I want users to be able to reorder columns and change their width. In addition to this, I want to redistribute the width of the columns since currently all columns are the same width even though they contain different amounts of text.
+
+. Show that we can't reorder and resize columns
+. Show that columns have equal width
+. Show that `DataGrid` collapse if the page height is too small
+
+Let's start with columns.
+
+. Add `columnReorderingAllowed="true"` to `dataGrid`
+. Update column definitions as follows:
+
+.my-time-entry-list-view.xml
+[source,xml]
+----
+<columns resizable="true">
+    <column property="date" autoWidth="true" flexGrow="0"/>
+    <column property="task"/>
+    <column property="spentTime" autoWidth="true" flexGrow="0"/>
+    <column property="status" autoWidth="true" flexGrow="0"/>
+    <column property="description" flexGrow="2"/>
+    <column property="rejectionReason" flexGrow="2"/>
+</columns>
+----
+
+Each column has the `resizable` attribute that defines whether the column is user-resizable. By default this is set to `false`. But, instead of enabling `resizable` for each column, we can set it to the `columns` element.
+
+Unless specified, all columns are the same width. You can either set a specific width for any column, or allow the `DataGrid` to set the width based on the content. Column widths can be fixed or non-fixed, which is the default. Fixed-width columns don’t grow or shrink as the available space changes, while non-fixed-width columns do.
+
+* `autoWidth="true"` automatically sets the width of the column based on the column contents.
+* To make fixed width columns, we need to set `flexGrow="0"` which means that no available space is added to a column width.
+* `flexGrow="2"` means the columns will be allocated twice the available space. By default `flexGrow` is `1`.
+
+The last thing that we need to do is to set the *minimal height* for the `DataGrid`:
+
+. Set `minHeight="20em"`
+. Refresh the page to show changes
+
+'''
+
+Now, let's talk about actions.
+
+*Action* is an abstraction over some function that can be assigned to components that support actions, e.g. `Button`. *Action* also defines some common properties, such as text, keyboard shortcuts, visibility, etc.
+
+So far we have only used built-in actions such as *create*, *edit*, *remove*, etc. But we are not limited only with built-in actions, we can define custom ones. For example, I want to crete a *copy* action that creates a new time entry based on a selected one.
+
+. Add a custom action to `DataGrid`
+. Add a button assigned to the *copy* action
+
+.my-time-entry-list-view.xml
+[source,xml]
+----
+...
+<button id="copyBtn" action="timeEntriesDataGrid.copy"/>
+...
+<action id="copy" text="Copy" icon="COPY_O"/>
+...
+----
+
+* Refresh the page to show changes
+
+We have our action and a button, but so far it does nothing. Let's subscribe on `ActionPerformedEvent` and implement action logic:
+
+.MyTimeEntryListView.java
+[source,java]
+----
+@ViewComponent
+private DataGrid<TimeEntry> timeEntriesDataGrid;
+
+@Autowired
+private TimeEntrySupport timeEntrySupport;
+
+@Subscribe("timeEntriesDataGrid.copy")
+public void onTimeEntriesDataGridCopy(final ActionPerformedEvent event) {
+    TimeEntry selectedItem = timeEntriesDataGrid.getSingleSelectedItem();
+    if (selectedItem == null) {
+        return;
+    }
+
+    TimeEntry copiedEntity = timeEntrySupport.copy(selectedItem);
+
+    // TODO: open a detail view
+}
+----
+
+The copy functionality is already implemented in the `TimeEntrySupport` bean.
+
+* Open `TimeEntrySupport#copy` and describe the code
+
+Also, we don't know how to open views programmatically, it's a topic of the next section.
+
+'''
+
+Before we proceed, let's make the last change to our action. Currently, it is active regardless of whether an item is selected in the `DataGrid` or not. Let's improve that.
+
+* Add the `type="list_itemTracking"` attribute to the *copy* action
+
+`list_itemTracking` means that action will be available when an item in the `DataGrid` is selected.
+
+* Refresh the page to show changes
+
+We created our first view from scratch to get acquainted with UI development.
+
+=== Lookup view
+
+Now, let's talk about lookup views. As we already know, if we need to select an entity or list of entities to use them as a value of some component, e.g. `EntityPicker` we can open a lookup view for that purpose. Also, we know that a *list view* scaffolded for an entity by Studio can also be used as a *lookup view* because it extends `StandardListView` base class.
+
+* Show an example of opening *Client* lookup view: `ProjectDetailView` > `clientField`
+
+Even though the list view can be used as a lookup view, we may want to have a separate lookup view. For example, to limit CRUD operations, to provide additional filtering, etc.
+
+Let's create a separate lookup view for the *Client* entity.
+
+* New View > Entity list view
+** Entity: *Client*
+** Don't add to menu
+** Uncheck *all action*
+** Uncheck *filter*, *column reordering* and *resizing*
+** Descriptor name: `client-lookup-view.xml`
+** Controller name: `ClientLookupView`
+** View id: `ts_Client.lookup`
+** View route: _any_ as we will remove it at all
+** fetchPlan: `_instance_name`
+** View title: *Clients*
+
+'''
+
+Let's take a look at the generated view.
+
+* Open `client-lookup-view.xml`
+
+It's pretty standard, but it's worth mentioning the `<actions>` element. Not only `DataGrid` can have actions but also views and some other components such as `EntityPicker`, `DropdownButton`, etc. In this particular view, we can see built-in actions for lookup view such as `select` and `discard`.
+
+Let's clean our view a little bit, for example let's remove `<urlQueryParameters>` facet which we will discuss later:
+
+. Remove `<urlQueryParameters>`
+. Open controller
+. Remove the `@Route` annotation +
+This view as a lookup view will be opened in a dialog mode only.
+
+'''
+
+We haven't added generic filter component to our view because we have a single column, so it's better to have a single filter field instead of generic one.
+
+We are going to add a `propertyFilter` component that defines a filtering condition based on a particular property of an entity.
+
+* Add propertyFilter inside buttons panel
+
+NOTE: Dima, buttons panel is a `hbox` with `id="buttonsPanel"`, `DataGrid` no longer has a nested `buttonsPanel` element
+
+.client-lookup-view.xml
+[source,xml]
+----
+<propertyFilter id="nameFilter"
+                dataLoader="clientsDl" property="name"
+                operation="CONTAINS">
+</propertyFilter>
+----
+
+* Show that the new lookup view works
+
+'''
+
+All right, it works, but I don't really like the filter field we have. I don't want to see a default label that says _Name Contains_, but instead a placeholder prompting us to search. In addition, the *SEARCH* icon will make the purpose of the field more clear to the user. Also, I want to adjust the width of the filter so that on small screens the width is `100%`, e.g. mobile devices, but not wider than `30em`, so as not to make it too wide.
+
+* Update `propertyFilter` as follows:
+
+.client-lookup-view.xml
+[source,xml]
+----
+<propertyFilter id="nameFilter"
+                dataLoader="clientsDl" property="name"
+                operation="CONTAINS"
+                labelVisible="false"
+                width="100%" maxWidth="30em">
+    <textField id="nameFilterField"
+               placeholder="Find a client..."
+               clearButtonVisible="true">
+        <prefix>
+            <icon icon="SEARCH"/>
+        </prefix>
+    </textField>
+</propertyFilter>
+----
+
+* Show changes in the app
+
+=== Detail view
+
+We won't create a new detail view from scratch since we already have all we need. But, existing detail views require polishing. So let's start with simple ones.
+
+==== ProjectRoleDetailView
+
+For example, let's open *Project Role detail view*:
+
+* *Project roles* > _edit_ any entity
+
+This view contains 3 fields. When using *Entity detail view* template, all fields are placed inside the `FormLayout` component that allows us to build responsive forms with multiple columns. The number of columns changes depending on the layout width.
+
+* Demonstrate that the number of columns changes depending on the layout width
+
+Let's take a look at XML descriptor
+
+* Open `project-role-detail-view.xml`
+
+Here we have a typical detail view which has:
+
+* the `<data>` section with _instance_ container
+* `<actions>` with detail view related actions such as `save` and `close`
+* `formLayout` with fields for editing an entity attributes
+* and a buttons panel at the bottom
+
+Special attention should be paid to the `formLayout` and nested fields. In order to bind a field to an entity attribute the `dataContainer` and `property` attributes must be defined for that field. As you can see, when fields are placed inside a `formLayout`, there is no need to define the `dataContainer` attribute for each field, it's enough to set it only for `formLayout`. `formLayout` doesn't expose `setDataContainer` Java API, this `dataContainer` attribute is just used to simplify the XML to reduce amount of XML code.
+
+'''
+
+Let's take a look at the *ProjectRole detail view* one more time
+
+* Go to app and open *ProjectRole detail view* (*Project roles* > _edit_ any entity)
+
+By default, `formLayout` arranges components into 2 columns and since we have an odd number of components, we have an empty space next to the *Description* field. Not a big deal, but since the *Description* field is a `TextArea` which allows entry of multiple lines of text, it would be prettier if it took up the entire line, i.e. two columns. To do this, we are going to add the `colspan` attribute that sets the number of columns that the component should occupy if it is placed in a `formLayout`.
+
+* Open `project-role-detail-view.xml`
+* Add `colspan="2"` to `descriptionField`
+
+[source,xml]
+----
+<textArea id="descriptionField" height="9.5em" property="description" colspan="2"/>
+----
+
+. Refresh the page to show changes
+. Demonstrate that the number of columns changes depending on the layout width and `descriptionField` still looks good
+
+==== TaskTypeDetailView
+
+Now, let's take a look at *Task type Role detail view*:
+
+* *Task types* > _edit_ any entity
+
+It contains only two fields, and it seems that displaying them in one column instead of one row would be prettier.
+
+* Open `task-type-detail-view.xml`
+
+In order to define how many columns are shown based on the layout width the `responsiveSteps` element can be used. Let's define that our `formLayout` must only have one column:
+
+[source,xml]
+----
+<formLayout id="form" dataContainer="taskTypeDc">
+    <responsiveSteps>
+        <responsiveStep minWidth="0" columns="1"/>
+    </responsiveSteps>
+    ...
+</formLayout>
+----
+
+* Refresh the page to show changes
+
+Now our fields are in one column, but they look too wide. Let's fix it.
+
+* Set `maxWidth="40em"` for `formLayout`
+
+[source,xml]
+----
+<formLayout id="form" dataContainer="taskTypeDc" maxWidth="40em">
+----
+
+* Refresh the page to show changes
+
+==== ClientDetailView
+
+The next view that I want to polish is *ClientDetailView*.
+
+* *Clients* > _edit_ any entity
+
+The first thing I noticed here is that the `image` has no preview, it's just an upload field. Also, `email`, `phone`, `URL` and `address` fields are not direct attributes of the Client entity, they are attributes of embedded entity, so I want to separate them visually.
+
+. Open `client-detail-view.xml`
+. Show that even though all fields are in the same `formLayout` component, some of them have explicit `dataContainer` attribute that differs from one defined for `formLayout`
+
+'''
+
+NOTE: About 2 hours
+
+IMPORTANT: What we do below is getting components placed in `formlayout` and creating separated components for them
+
+Let's start with separating contact information attributes
+
+.client-detail-view.xml
+[source,xml]
+----
+<details id="contactInformationDetails"
+         summaryText="msg://com.company.timesheets.entity/Client.contactInformation"
+         width="100%" opened="true">
+    <formLayout dataContainer="contactInformationDc">
+        <responsiveSteps>
+            <responsiveStep minWidth="0" columns="1"/>
+            <responsiveStep minWidth="60em" columns="3"/>
+        </responsiveSteps>
+        <emailField id="emailField" property="email">
+            <prefix>
+                <icon icon="ENVELOPE"/>
+            </prefix>
+        </emailField>
+        <textField id="phoneField" property="phone">
+            <prefix>
+                <icon icon="PHONE"/>
+            </prefix>
+        </textField>
+        <textField id="urlField" property="url">
+            <prefix>
+                <icon icon="LINK"/>
+            </prefix>
+        </textField>
+        <textArea id="addressField" property="address"
+                  height="9.5em" colspan="3">
+            <prefix>
+                <icon icon="MAP_MARKER"/>
+            </prefix>
+        </textArea>
+    </formLayout>
+</details>
+----
+
+* Refresh the page to show changes
+
+'''
+
+Now, let's implement image preview and if no image is defined we will show a placeholder image.
+
+* Add `add-image-placeholder.png` to the `resources/META-INF/resources/images` directory
+
+.client-detail-view.xml
+[source,xml]
+----
+<layout>
+    <vbox id="imageWrapper"
+          classNames="border rounded-m border-contrast-20"
+          alignItems="CENTER"
+          width="100%" maxWidth="30em">
+        <image id="image" height="10em"
+               dataContainer="clientDc" property="image"
+               alternateText="msg://com.company.timesheets.entity/Client.image"/>
+
+        <hbox id="uploadWrapper" expand="imageUpload" width="100%">
+            <fileUploadField id="imageUpload"
+                             dataContainer="clientDc" property="image"
+                             uploadIcon="UPLOAD_ALT"/>
+            <button id="uploadClearBtn" icon="CLOSE_BIG">
+                <tooltip text="msg://uploadClearBtn.tooltip"/>
+            </button>
+        </hbox>
+    </vbox>
+
+    <textField id="nameField"
+               dataContainer="clientDc" property="name"
+               label="msg://com.company.timesheets.entity/Client.name"
+               width="100%" maxWidth="30em">
+        <prefix>
+            <icon icon="USER_CARD"/>
+        </prefix>
+    </textField>
+
+    <hr/>
+
+    <details id="contactInformationDetails" ...>
+
+    ...
+</layout>
+----
+
+NOTE: The `classNames` values we are using here are predefined CSS classes from Vaadin Lumo theme. We will discuss them in the *Theming and Styling* section.
+
+.ClientDetailView.java
+[source,java]
+----
+public class ClientDetailView extends StandardDetailView<Client> {
+
+    @ViewComponent
+    private JmixImage<byte[]> image;
+    @ViewComponent
+    private FileUploadField imageUpload;
+    @ViewComponent
+    private HorizontalLayout uploadWrapper;
+
+    @Subscribe
+    public void onReady(final ReadyEvent event) {
+        updateImage(getEditedEntity().getImage());
+        applySecurityPermissions();
+    }
+
+    private void applySecurityPermissions() {
+        // Since imageUpload is bound to the entity attribute,
+        // it has already applied security restriction, so we
+        // can just check if this field is in read-only state
+        uploadWrapper.setVisible(!imageUpload.isReadOnly());
+    }
+
+    @Subscribe(id = "uploadClearBtn", subject = "clickListener")
+    public void onUploadClearBtnClick(final ClickEvent<JmixButton> event) {
+        getEditedEntity().setImage(null);
+    }
+
+    @Subscribe(id = "clientDc", target = Target.DATA_CONTAINER)
+    public void onClientDcItemPropertyChange(final InstanceContainer.ItemPropertyChangeEvent<Client> event) {
+        if ("image".equals(event.getProperty())) {
+            updateImage(getEditedEntity().getImage());
+        }
+    }
+
+    private void updateImage(@Nullable byte[] value) {
+        if (value == null) {
+            image.setSrc("images/add-image-placeholder.png");
+        }
+    }
+}
+----
+
+* Refresh the page and show changes

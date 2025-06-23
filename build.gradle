@@ -31,6 +31,7 @@ dependencies {
 
     implementation 'org.commonmark:commonmark:0.24.0'
     implementation 'org.jsoup:jsoup:1.17.2'
+    implementation 'org.asciidoctor:asciidoctorj:3.0.0'
 
     implementation 'io.jmix.core:jmix-core-starter'
     implementation 'io.jmix.data:jmix-eclipselink-starter'

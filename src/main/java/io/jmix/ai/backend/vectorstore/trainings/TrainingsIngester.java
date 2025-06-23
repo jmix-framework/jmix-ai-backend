@@ -1,5 +1,9 @@
-package io.jmix.ai.backend.vectorstore;
+package io.jmix.ai.backend.vectorstore.trainings;
 
+import io.jmix.ai.backend.vectorstore.AbstractIngester;
+import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
+import io.jmix.ai.backend.vectorstore.chunking.Chunk;
+import io.jmix.ai.backend.vectorstore.chunking.Chunker;
 import io.jmix.core.CoreProperties;
 import io.jmix.core.TimeSource;
 import org.apache.commons.lang3.stream.Streams;
@@ -13,8 +17,10 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Component
@@ -25,12 +31,15 @@ public class TrainingsIngester extends AbstractIngester {
     private final String gitUrl;
     private final int limit;
     private final List<String> whitelist;
+    private final List<String> blacklist;
     private final Path gitLocalPath;
+    private final Chunker chunker;
 
     public TrainingsIngester(
             @Value("${trainings.git-url}") String gitUrl,
             @Value("${trainings.limit}") int limit,
             @Value("${trainings.whitelist}") List<String> whitelist,
+            @Value("${trainings.blacklist}") List<String> blacklist,
             CoreProperties coreProperties,
             VectorStore vectorStore,
             TimeSource timeSource,
@@ -40,6 +49,12 @@ public class TrainingsIngester extends AbstractIngester {
         this.limit = limit;
         this.whitelist = whitelist;
         gitLocalPath = Path.of(coreProperties.getWorkDir(), "trainings");
+        this.blacklist = blacklist;
+        chunker = createChunker();
+    }
+
+    private Chunker createChunker() {
+        return new TrainingsChunker(20_000, 300);
     }
 
     @Override
@@ -70,9 +85,10 @@ public class TrainingsIngester extends AbstractIngester {
     }
 
     private void executeCommand(String... command) throws IOException, InterruptedException {
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-        Process process = processBuilder.start();
-        int exitCode = process.waitFor();
+        int exitCode = new ProcessBuilder(command)
+                .inheritIO()
+                .start()
+                .waitFor();
         if (exitCode != 0) {
             throw new RuntimeException("Command failed with exit code: " + exitCode);
         }
@@ -104,7 +120,8 @@ public class TrainingsIngester extends AbstractIngester {
         String pathStr = path.toString();
         return pathStr.endsWith(".adoc") &&
                 (pathStr.contains("_EN") || pathStr.contains("-EN")) &&
-                Streams.of(path).anyMatch(p -> whitelist.contains(p.toString()));
+                Streams.of(path).anyMatch(p -> whitelist.contains(p.toString())) &&
+                Streams.of(path).noneMatch(p -> blacklist.contains(p.toString()));
     }
 
     @Override
@@ -121,5 +138,34 @@ public class TrainingsIngester extends AbstractIngester {
 
         Map<String, Object> metadata = createMetadata(source, textContent);
         return createDocument(textContent, metadata);
+    }
+
+    @Override
+    protected List<Document> splitToChunks(List<Document> documents) {
+        List<Document> chunkDocs = new ArrayList<>();
+        for (Document document : documents) {
+            List<Chunk> chunks = chunker.extract(document.getText());
+
+            Map<String, Object> metadata = document.getMetadata();
+            String url = (String) metadata.get("url");
+
+            for (Chunk chunk : chunks) {
+                Map<String, Object> metadataCopy = copyMetadata(metadata);
+                metadataCopy.put("size", chunk.text().length());
+                if (chunk.anchor() != null) {
+                    metadataCopy.put("url", url + chunk.anchor());
+                }
+                Document chunkDoc = createDocument(chunk.text(), metadataCopy);
+                chunkDocs.add(chunkDoc);
+            }
+        }
+        return chunkDocs;
+    }
+
+    private Map<String, Object> copyMetadata(Map<String, Object> metadata) {
+        return metadata.entrySet()
+                .stream()
+                .filter(e -> e.getKey() != null && e.getValue() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }
