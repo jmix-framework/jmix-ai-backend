@@ -1,6 +1,7 @@
-package io.jmix.ai.backend.vectorstore;
+package io.jmix.ai.backend.vectorstore.uisamples;
 
-import io.jmix.ai.backend.vectorstore.chunking.Chunk;
+import io.jmix.ai.backend.vectorstore.AbstractIngester;
+import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.core.TimeSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,7 +92,7 @@ public class UiSamplesIngester extends AbstractIngester {
     protected List<Document> splitToChunks(List<Document> documents) {
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : documents) {
-            if (document.getText().length() <= 30_000) {
+            if (document.getText().length() <= MAX_CHUNK_SIZE) {
                 chunkDocs.add(document);
             } else {
                 log.warn("Document {} is too long: {}", document.getMetadata().get("url"), document.getText().length());

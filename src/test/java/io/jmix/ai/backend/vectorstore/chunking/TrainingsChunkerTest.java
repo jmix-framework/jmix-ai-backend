@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore.chunking;
 
+import io.jmix.ai.backend.vectorstore.Chunker;
 import io.jmix.ai.backend.vectorstore.trainings.TrainingsChunker;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
@@ -15,10 +16,10 @@ public class TrainingsChunkerTest {
     @Test
     void test() throws IOException {
         TrainingsChunker chunker = new TrainingsChunker(5_000, 200);
-        List<Chunk> chunks = chunker.extract(IOUtils.resourceToString("/test_support/sources/training-1.adoc", StandardCharsets.UTF_8));
+        List<Chunker.Chunk> chunks = chunker.extract(IOUtils.resourceToString("/test_support/sources/training-1.adoc", StandardCharsets.UTF_8));
 
         for (int i = 0; i < chunks.size(); i++) {
-            Chunk chunk = chunks.get(i);
+            Chunker.Chunk chunk = chunks.get(i);
             System.out.println("Chunk #: " + i + " " + chunk.title() + " " + chunk.text().length());
         }
 

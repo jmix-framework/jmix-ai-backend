@@ -100,6 +100,11 @@ class IngesterSpecificBehaviorTest {
         }
 
         @Override
+        protected List<Document> splitToChunks(List<Document> documents) {
+            return List.of();
+        }
+
+        @Override
         protected boolean checkContent(Document document) {
             return super.checkContent(document);
         }

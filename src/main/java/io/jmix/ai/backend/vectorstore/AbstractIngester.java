@@ -3,14 +3,11 @@ package io.jmix.ai.backend.vectorstore;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
-import io.jmix.ai.backend.vectorstore.chunking.Chunker;
 import io.jmix.core.TimeSource;
 import io.jmix.core.UuidProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.transformer.splitter.TextSplitter;
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
 
 import java.nio.charset.StandardCharsets;
@@ -22,37 +19,14 @@ import java.util.Objects;
 
 public abstract class AbstractIngester implements Ingester {
 
+    // 30_000 (~16 text pages) is about 6000 tokens, which is less than the OpenAI limit (8192).
+    public static final int MAX_CHUNK_SIZE = 30_000;
+
     private final Logger log = LoggerFactory.getLogger(AbstractIngester.class);
     
     protected final VectorStore vectorStore;
     protected final TimeSource timeSource;
     protected final VectorStoreRepository vectorStoreRepository;
-    protected TextSplitter textSplitter;
-
-    // A chunk size of 4000 tokens is roughly half the OpenAI limit (8192), providing a safe buffer for
-    // metadata, formatting, or encoding variations. For a 100KB document (~16,667-20,000 tokens),
-    // this would yield ~4-5 chunks, which is manageable for retrieval and maintains sufficient context.
-    // For a 20KB document (~3,333-4,000 tokens), it results in 1-2 chunks, which is efficient.
-    private static final int DEFAULT_CHUNK_SIZE = 4000;
-
-    // Assuming 5-6 characters per token, 1000 characters is ~167-200 tokens, ensuring chunks are substantial
-    // enough to capture meaningful content (e.g., a few sentences or a paragraph). This is higher than
-    // the default (350) to avoid overly small chunks for larger documents, which may contain
-    // structured content like headings or lists.
-    private static final int MIN_CHUNK_SIZE_CHARS = 1000;
-
-    // This ensures that only chunks with sufficient content (e.g., a sentence or two) are embedded,
-    // filtering out trivial fragments. A value of 50 tokens (~250-300 characters) is reasonable for documents,
-    // which may have short sections or list items that should still be included.
-    private static final int MIN_CHUNK_LENGTH_TO_EMBED = 50;
-
-    // A 100KB document (~16,667-20,000 tokens) split into 4000-token chunks could produce ~4-5 chunks,
-    // but larger or more complex documents might generate more. Setting maxNumChunks to 100 provides ample
-    // headroom for larger documents while preventing excessive splitting. This is much lower than the default (10,000),
-    // which is unnecessarily high for the use case.
-    private static final int MAX_NUM_CHUNKS = 100;
-
-    private static final boolean KEEP_SEPARATOR = true;
 
     protected AbstractIngester(
             VectorStore vectorStore,
@@ -61,12 +35,6 @@ public abstract class AbstractIngester implements Ingester {
         this.vectorStore = vectorStore;
         this.timeSource = timeSource;
         this.vectorStoreRepository = vectorStoreRepository;
-        this.textSplitter = createTextSplitter();
-    }
-
-    protected TextSplitter createTextSplitter() {
-        return new TokenTextSplitter(
-                DEFAULT_CHUNK_SIZE, MIN_CHUNK_SIZE_CHARS, MIN_CHUNK_LENGTH_TO_EMBED, MAX_NUM_CHUNKS, KEEP_SEPARATOR);
     }
 
     @Override
@@ -187,13 +155,11 @@ public abstract class AbstractIngester implements Ingester {
         return hash32.toString();
     }
 
-    protected List<Document> splitToChunks(List<Document> documents) {
-        return textSplitter.apply(documents);
-    }
-
     protected abstract List<String> loadSources();
 
     protected abstract int getSourceLimit();
 
     protected abstract Document loadDocument(String source);
+
+    protected abstract List<Document> splitToChunks(List<Document> documents);
 }

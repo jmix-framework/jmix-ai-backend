@@ -1,5 +1,6 @@
-package io.jmix.ai.backend.vectorstore.chunking;
+package io.jmix.ai.backend.vectorstore.docs;
 
+import io.jmix.ai.backend.vectorstore.Chunker;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;

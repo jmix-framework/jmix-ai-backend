@@ -1,8 +1,8 @@
-package io.jmix.ai.backend.vectorstore;
+package io.jmix.ai.backend.vectorstore.docs;
 
-import io.jmix.ai.backend.vectorstore.chunking.Chunk;
-import io.jmix.ai.backend.vectorstore.chunking.Chunker;
-import io.jmix.ai.backend.vectorstore.chunking.DocsChunker;
+import io.jmix.ai.backend.vectorstore.AbstractIngester;
+import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
+import io.jmix.ai.backend.vectorstore.Chunker;
 import io.jmix.core.TimeSource;
 import org.jsoup.Jsoup;
 import org.jsoup.select.Elements;
@@ -27,7 +27,7 @@ public class DocsIngester extends AbstractIngester {
     private final String baseUrl;
     private final String initialPage;
     private final int limit;
-    protected final Chunker chunker;
+    private final Chunker chunker;
 
     public DocsIngester(
             @Value("${docs.base-url}") String baseUrl,
@@ -40,11 +40,7 @@ public class DocsIngester extends AbstractIngester {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
         this.initialPage = initialPage;
         this.limit = limit;
-        this.chunker = createChunker();
-    }
-
-    protected Chunker createChunker() {
-        return new DocsChunker(20_000, 400, 300);
+        this.chunker = new DocsChunker(MAX_CHUNK_SIZE, 400, 300);
     }
 
     @Override
@@ -99,12 +95,12 @@ public class DocsIngester extends AbstractIngester {
     protected List<Document> splitToChunks(List<Document> documents) {
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : documents) {
-            List<Chunk> chunks = chunker.extract(document.getText());
+            List<Chunker.Chunk> chunks = chunker.extract(document.getText());
 
             Map<String, Object> metadata = document.getMetadata();
             String url = (String) metadata.get("url");
 
-            for (Chunk chunk : chunks) {
+            for (Chunker.Chunk chunk : chunks) {
                 Map<String, Object> metadataCopy = copyMetadata(metadata);
                 metadataCopy.put("size", chunk.text().length());
                 if (chunk.anchor() != null) {

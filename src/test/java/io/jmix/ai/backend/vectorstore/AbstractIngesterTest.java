@@ -11,17 +11,20 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.transformer.splitter.TextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,9 +39,6 @@ class AbstractIngesterTest {
     @Mock
     private VectorStoreRepository vectorStoreRepository;
     
-    @Mock
-    private TextSplitter textSplitter;
-    
     private TestIngester ingester;
     
     private final UUID mockUuid = UUID.randomUUID();
@@ -46,7 +46,7 @@ class AbstractIngesterTest {
 
     @BeforeEach
     void setUp() {
-        ingester = new TestIngester(vectorStore, timeSource, vectorStoreRepository, textSplitter);
+        ingester = new TestIngester(vectorStore, timeSource, vectorStoreRepository);
         ingester = spy(ingester);
         lenient().when(timeSource.now()).thenReturn(now.atZone(ZoneId.systemDefault()));
     }
@@ -135,7 +135,7 @@ class AbstractIngesterTest {
         doReturn(doc1).when(ingester).loadDocument("source1");
         doReturn(doc2).when(ingester).loadDocument("source2");
         doReturn(true).when(ingester).checkContent(any());
-        when(textSplitter.apply(anyList())).thenReturn(chunks);
+        doReturn(chunks).when(ingester).splitToChunks(List.of(doc1, doc2));
         when(timeSource.currentTimeMillis()).thenReturn(1000L, 5000L);
         
         String result = ingester.updateAll();
@@ -144,7 +144,6 @@ class AbstractIngesterTest {
         verify(ingester).loadSources();
         verify(ingester).loadDocument("source1");
         verify(ingester).loadDocument("source2");
-        verify(textSplitter).apply(List.of(doc1, doc2));
         verify(vectorStore).add(chunks);
         assertThat(result).isEqualTo("loaded: 2, added: 2 documents in 2 chunks");
     }
@@ -163,17 +162,16 @@ class AbstractIngesterTest {
         
         Document document = new Document("1", "content", Map.of("sourceHash", "hash1"));
         List<Document> chunks = List.of(new Document("2", "chunk", Map.of()));
-        
+
         doReturn("source1").when(ingester).getSource(entity);
         doReturn(document).when(ingester).loadDocument("source1");
         doReturn(false).when(ingester).isContentSame(document, entity);
-        when(textSplitter.apply(anyList())).thenReturn(chunks);
-        
+        doReturn(chunks).when(ingester).splitToChunks(List.of(document));
+
         String result = ingester.update(entity);
         
         verify(ingester).prepareUpdate();
         verify(ingester).deleteExistingEntities(entity);
-        verify(textSplitter).apply(List.of(document));
         verify(vectorStore).add(chunks);
         assertThat(result).isEqualTo("updated 1 document");
     }
@@ -199,7 +197,6 @@ class AbstractIngesterTest {
         
         verify(ingester).prepareUpdate();
         verify(ingester, never()).deleteExistingEntities(any());
-        verify(textSplitter, never()).apply(anyList());
         verify(vectorStore, never()).add(anyList());
         assertThat(result).isEqualTo("no changes");
     }
@@ -207,10 +204,8 @@ class AbstractIngesterTest {
     // Test implementation of AbstractIngester
     private static class TestIngester extends AbstractIngester {
         
-        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository, TextSplitter textSplitter) {
+        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
             super(vectorStore, timeSource, vectorStoreRepository);
-            // Override the textSplitter field directly
-            this.textSplitter = textSplitter;
         }
 
         @Override
@@ -231,6 +226,11 @@ class AbstractIngesterTest {
         @Override
         protected Document loadDocument(String source) {
             return null;
+        }
+
+        @Override
+        protected List<Document> splitToChunks(List<Document> documents) {
+            return List.of();
         }
     }
 }

@@ -1,5 +1,7 @@
 package io.jmix.ai.backend.vectorstore.chunking;
 
+import io.jmix.ai.backend.vectorstore.Chunker;
+import io.jmix.ai.backend.vectorstore.docs.DocsChunker;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
 
@@ -14,7 +16,7 @@ public class DocsChunkerTest {
     @Test
     void testComplexDocument() throws Exception{
         DocsChunker extractor = new DocsChunker(1000, 10, 10);
-        List<Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"));
+        List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"));
 
         assertThat(chunks).size().isEqualTo(6);
 
@@ -42,7 +44,7 @@ public class DocsChunkerTest {
     @Test
     void testSkipTooShortDocPreamble() throws Exception {
         DocsChunker extractor = new DocsChunker(1000, 500, 10);
-        List<Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"));
+        List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"));
 
         assertThat(chunks).size().isEqualTo(5);
 
@@ -54,7 +56,7 @@ public class DocsChunkerTest {
     @Test
     void testSkipTooShortSect1Preamble() throws Exception {
         DocsChunker extractor = new DocsChunker(1000, 10, 500);
-        List<Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"));
+        List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"));
 
         assertThat(chunks).size().isEqualTo(5);
 
@@ -66,7 +68,7 @@ public class DocsChunkerTest {
     @Test
     void testDocWithoutSections() throws Exception {
         DocsChunker extractor = new DocsChunker(1000, 10, 10);
-        List<Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-2.html"));
+        List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-2.html"));
 
         assertThat(chunks).size().isEqualTo(1);
 
@@ -78,7 +80,7 @@ public class DocsChunkerTest {
     @Test
     void testSkipTooShortDocWithoutSections() throws Exception {
         DocsChunker extractor = new DocsChunker(1000, 500, 10);
-        List<Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-2.html"));
+        List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-2.html"));
 
         assertThat(chunks).isEmpty();
     }

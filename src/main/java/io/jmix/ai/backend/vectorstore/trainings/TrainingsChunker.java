@@ -1,7 +1,6 @@
 package io.jmix.ai.backend.vectorstore.trainings;
 
-import io.jmix.ai.backend.vectorstore.chunking.Chunk;
-import io.jmix.ai.backend.vectorstore.chunking.Chunker;
+import io.jmix.ai.backend.vectorstore.Chunker;
 
 import java.util.List;
 

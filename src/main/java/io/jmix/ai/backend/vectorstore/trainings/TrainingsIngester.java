@@ -2,8 +2,7 @@ package io.jmix.ai.backend.vectorstore.trainings;
 
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
-import io.jmix.ai.backend.vectorstore.chunking.Chunk;
-import io.jmix.ai.backend.vectorstore.chunking.Chunker;
+import io.jmix.ai.backend.vectorstore.Chunker;
 import io.jmix.core.CoreProperties;
 import io.jmix.core.TimeSource;
 import org.apache.commons.lang3.stream.Streams;
@@ -50,11 +49,7 @@ public class TrainingsIngester extends AbstractIngester {
         this.whitelist = whitelist;
         gitLocalPath = Path.of(coreProperties.getWorkDir(), "trainings");
         this.blacklist = blacklist;
-        chunker = createChunker();
-    }
-
-    private Chunker createChunker() {
-        return new TrainingsChunker(20_000, 300);
+        chunker = new TrainingsChunker(MAX_CHUNK_SIZE, 300);
     }
 
     @Override
@@ -144,12 +139,12 @@ public class TrainingsIngester extends AbstractIngester {
     protected List<Document> splitToChunks(List<Document> documents) {
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : documents) {
-            List<Chunk> chunks = chunker.extract(document.getText());
+            List<Chunker.Chunk> chunks = chunker.extract(document.getText());
 
             Map<String, Object> metadata = document.getMetadata();
             String url = (String) metadata.get("url");
 
-            for (Chunk chunk : chunks) {
+            for (Chunker.Chunk chunk : chunks) {
                 Map<String, Object> metadataCopy = copyMetadata(metadata);
                 metadataCopy.put("size", chunk.text().length());
                 if (chunk.anchor() != null) {
