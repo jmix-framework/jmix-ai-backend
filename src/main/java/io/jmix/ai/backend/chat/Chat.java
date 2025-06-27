@@ -8,10 +8,12 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -27,7 +29,22 @@ public class Chat {
     public record Options(boolean useRag, String systemMessage) {
     }
     
-    public record StructuredResponse(String text, List<String> sourceLinks) {
+    public record StructuredResponse(String text, @Nullable List<Document> retrievedDocuments, @Nullable List<String> sourceLinks) {
+
+        public StructuredResponse(String text, @Nullable List<Document> retrievedDocuments) {
+            this(text, retrievedDocuments, getSourceLinks(retrievedDocuments));
+        }
+
+        private static List<String> getSourceLinks(@Nullable List<Document> retrievedDocuments) {
+            if (retrievedDocuments == null) {
+                return null;
+            }
+            return retrievedDocuments.stream()
+                    .map(document -> document.getMetadata().get("url"))
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .toList();
+        }
     }
 
     public Chat(ChatClient.Builder chatClientBuilder,
@@ -63,16 +80,8 @@ public class Chat {
 
         String response = request.call().content();
 
-        List<String> sourceLinks = null;
-        if (retriever != null) {
-            sourceLinks = retriever.getRetrievedDocuments().stream()
-                    .map(document -> document.getMetadata().get("url"))
-                    .filter(Objects::nonNull)
-                    .map(Object::toString)
-                    .toList();
-        }
-
-        return new StructuredResponse(response, sourceLinks);
+        List<Document> retrievedDocuments = retriever != null ? retriever.getRetrievedDocuments() : null;
+        return new StructuredResponse(response, retrievedDocuments);
     }
 
     private Prompt buildPrompt(String userPrompt, Options options) {
