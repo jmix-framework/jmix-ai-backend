@@ -3,11 +3,11 @@ package io.jmix.ai.backend.chat;
 import io.jmix.ai.backend.entity.ParametersEntity;
 
 public interface ParametersRepositoryExt {
-    ParametersEntity loadInUse();
+    ParametersEntity loadActive();
 
     ParametersEntity copy(ParametersEntity parameters);
 
     String loadDefaultSystemMessage();
 
-    void setInUse(ParametersEntity parametersEntity);
+    void activate(ParametersEntity parametersEntity);
 }

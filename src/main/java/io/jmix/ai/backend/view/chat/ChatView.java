@@ -68,7 +68,7 @@ public class ChatView extends StandardView {
     @Subscribe
     public void onInit(final InitEvent event) {
         modelOptionsDiv.setText("Using " + chat.getModelOptions().toString());
-        parametersPicker.setValue(parametersRepository.loadInUse());
+        parametersPicker.setValue(parametersRepository.loadActive());
 
         urlQueryParameters.registerBinder(new UrlBinder());
     }

@@ -45,8 +45,8 @@ public class ParametersEntity {
     @Column(name = "LAST_MODIFIED_BY")
     private String lastModifiedBy;
 
-    @Column(name = "IN_USE")
-    private Boolean inUse;
+    @Column(name = "ACTIVE")
+    private Boolean active;
 
     @Column(name = "DESCRIPTION")
     private String description;
@@ -71,12 +71,12 @@ public class ParametersEntity {
         this.createdBy = createdBy;
     }
 
-    public Boolean getInUse() {
-        return inUse;
+    public Boolean getActive() {
+        return active;
     }
 
-    public void setInUse(Boolean inUse) {
-        this.inUse = inUse;
+    public void setActive(Boolean active) {
+        this.active = active;
     }
 
     public OffsetDateTime getLastModifiedDate() {

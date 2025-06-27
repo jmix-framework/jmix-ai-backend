@@ -23,9 +23,9 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
     }
 
     @Override
-    public ParametersEntity loadInUse() {
+    public ParametersEntity loadActive() {
         List<ParametersEntity> list = dataManager.load(ParametersEntity.class)
-                .query("e.inUse = true")
+                .query("e.active = true")
                 .maxResults(1)
                 .list();
         if (list.isEmpty()) {
@@ -50,7 +50,7 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
         copy.setLastModifiedDate(null);
         copy.setLastModifiedBy(null);
         copy.setDescription("Copy of " + parameters.getDescription());
-        copy.setInUse(false);
+        copy.setActive(false);
         ParametersEntity savedCopy = save(copy);
         return savedCopy;
     }
@@ -62,10 +62,10 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
     }
 
     @Override
-    public void setInUse(ParametersEntity parametersEntity) {
+    public void activate(ParametersEntity parametersEntity) {
         List<ParametersEntity> list = dataManager.load(ParametersEntity.class).all().list();
         for (ParametersEntity entity : list) {
-            entity.setInUse(entity.equals(parametersEntity));
+            entity.setActive(entity.equals(parametersEntity));
         }
         dataManager.saveWithoutReload(list);
     }

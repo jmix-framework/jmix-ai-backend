@@ -57,13 +57,13 @@ public class ParametersListView extends StandardListView<ParametersEntity> {
         parametersEntitiesDataGrid.select(copy);
     }
 
-    @Subscribe("parametersEntitiesDataGrid.setInUseAction")
-    public void onParametersEntitiesDataGridSetInUseAction(final ActionPerformedEvent event) {
+    @Subscribe("parametersEntitiesDataGrid.activateAction")
+    public void onParametersEntitiesDataGridActivateAction(final ActionPerformedEvent event) {
         ParametersEntity parameters = parametersEntitiesDataGrid.getSingleSelectedItem();
         if (parameters == null)
             return;
 
-        repository.setInUse(parameters);
+        repository.activate(parameters);
         parametersEntitiesDl.load();
 
         parametersEntitiesDataGrid.select(parameters);

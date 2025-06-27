@@ -24,7 +24,7 @@
             <button id="copyButton" action="parametersEntitiesDataGrid.copyAction"/>
             <button id="editButton" action="parametersEntitiesDataGrid.editAction"/>
             <button id="removeButton" action="parametersEntitiesDataGrid.removeAction"/>
-            <button id="setInUseButton" action="parametersEntitiesDataGrid.setInUseAction"/>
+            <button id="activateButton" action="parametersEntitiesDataGrid.activateAction"/>
         </hbox>
         <dataGrid id="parametersEntitiesDataGrid"
                   width="100%"
@@ -44,14 +44,14 @@
                     </properties>
                 </action>
                 <action id="removeAction" type="list_remove"/>
-                <action id="setInUseAction" type="list_itemTracking" text="Set In Use"/>
+                <action id="activateAction" type="list_itemTracking" text="Activate"/>
             </actions>
             <columns resizable="true">
-                <column property="lastModifiedDate"/>
-                <column property="lastModifiedBy"/>
-                <column property="inUse"/>
+                <column property="active"/>
                 <column property="description"/>
                 <column property="systemMessage"/>
+                <column property="lastModifiedDate"/>
+                <column property="lastModifiedBy"/>
             </columns>
         </dataGrid>
         <hbox id="lookupActions" visible="false">

@@ -21,7 +21,7 @@
             <responsiveSteps>
                 <responsiveStep minWidth="0" columns="1"/>
             </responsiveSteps>
-            <checkbox id="inUseField" property="inUse" enabled="false"/>
+            <checkbox id="activeField" property="active" enabled="false"/>
             <textField id="descriptionField" property="description"/>
             <textArea id="systemMessageField" height="30em" property="systemMessage">
                 <suffix>
