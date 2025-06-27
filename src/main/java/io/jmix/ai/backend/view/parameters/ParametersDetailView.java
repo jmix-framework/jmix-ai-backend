@@ -12,6 +12,7 @@ import io.jmix.flowui.component.UiComponentUtils;
 import io.jmix.flowui.component.textarea.JmixTextArea;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.view.*;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Set;
@@ -33,7 +34,10 @@ public class ParametersDetailView extends StandardDetailView<ParametersEntity> {
 
     @Subscribe
     public void onInitEntity(final InitEntityEvent<ParametersEntity> event) {
-        event.getEntity().setSystemMessage(repository.loadDefaultSystemMessage());
+        ParametersEntity parameters = event.getEntity();
+        parameters.setSystemMessage(repository.loadDefaultSystemMessage());
+        parameters.setSimilarityThreshold(SearchRequest.SIMILARITY_THRESHOLD_ACCEPT_ALL);
+        parameters.setTopK(SearchRequest.DEFAULT_TOP_K);
     }
 
     @Install(to = "parametersEntityDl", target = Target.DATA_LOADER)

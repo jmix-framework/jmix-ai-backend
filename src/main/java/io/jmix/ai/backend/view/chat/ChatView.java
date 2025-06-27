@@ -89,9 +89,12 @@ public class ChatView extends StandardView {
         if (StringUtils.isBlank(userMessageField.getValue())) {
             notifications.show("Enter a question");
         } else {
+            ParametersEntity parameters = parametersRepository.findById(parametersPicker.getValue().getId()).orElseThrow();
             Chat.Options options = new Chat.Options(
                     ragCheckbox.getValue(),
-                    parametersPicker.getValue().getSystemMessage()
+                    parameters.getSystemMessage(),
+                    parameters.getSimilarityThreshold(),
+                    parameters.getTopK()
             );
             dialogs.createBackgroundTaskDialog(
                             new BackgroundTask<Integer, Chat.StructuredResponse>(60, this) {

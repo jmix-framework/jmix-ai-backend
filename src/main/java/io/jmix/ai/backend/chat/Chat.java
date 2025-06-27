@@ -2,7 +2,6 @@ package io.jmix.ai.backend.chat;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
-import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -11,7 +10,6 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -26,7 +24,7 @@ public class Chat {
     private final ChatModel chatModel;
     private final VectorStore vectorStore;
 
-    public record Options(boolean useRag, String systemMessage) {
+    public record Options(boolean useRag, String systemMessage, double similarityThreshold, int topK) {
     }
     
     public record StructuredResponse(String text, @Nullable List<Document> retrievedDocuments, @Nullable List<String> sourceLinks) {
@@ -54,19 +52,6 @@ public class Chat {
         this.vectorStore = vectorStore;
     }
 
-    public String requestText(String userPrompt, Options options) {
-        ChatClient chatClient = buildClient();
-
-        ChatClient.ChatClientRequestSpec request = chatClient.prompt(buildPrompt(userPrompt, options));
-        if (options.useRag) {
-            request.advisors(buildAdvisor());
-        }
-
-        String response = request.call().content();
-
-        return response;
-    }
-
     public StructuredResponse requestStructured(String userPrompt, Options options) {
         ChatClient chatClient = buildClient();
 
@@ -74,7 +59,7 @@ public class Chat {
 
         CustomDocumentRetriever retriever = null;
         if (options.useRag) {
-            retriever = buildCustomDocumentRetriever();
+            retriever = buildCustomDocumentRetriever(options);
             request.advisors(buildTrackingAdvisor(retriever));
         }
 
@@ -95,25 +80,16 @@ public class Chat {
         return chatClientBuilder.build();
     }
 
-    private Advisor buildAdvisor() {
-        return QuestionAnswerAdvisor.builder(vectorStore)
-                .searchRequest(SearchRequest.builder()
-                        .similarityThreshold(SearchRequest.SIMILARITY_THRESHOLD_ACCEPT_ALL)
-                        .topK(SearchRequest.DEFAULT_TOP_K)
-                        .build())
-                .build();
-    }
-
     private Advisor buildTrackingAdvisor(DocumentRetriever documentRetriever) {
         return RetrievalAugmentationAdvisor.builder()
                 .documentRetriever(documentRetriever)
                 .build();
     }
 
-    private CustomDocumentRetriever buildCustomDocumentRetriever() {
+    private CustomDocumentRetriever buildCustomDocumentRetriever(Options options) {
         return CustomDocumentRetriever.builder()
-                .similarityThreshold(SearchRequest.SIMILARITY_THRESHOLD_ACCEPT_ALL)
-                .topK(SearchRequest.DEFAULT_TOP_K)
+                .similarityThreshold(options.similarityThreshold)
+                .topK(options.topK)
                 .vectorStore(vectorStore)
                 .build();
     }

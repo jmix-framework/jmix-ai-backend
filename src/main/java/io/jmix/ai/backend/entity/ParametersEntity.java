@@ -55,6 +55,28 @@ public class ParametersEntity {
     @Lob
     private String systemMessage;
 
+    @Column(name = "SIMILARITY_THRESHOLD")
+    private Double similarityThreshold;
+
+    @Column(name = "TOP_K")
+    private Integer topK;
+
+    public Integer getTopK() {
+        return topK;
+    }
+
+    public void setTopK(Integer topK) {
+        this.topK = topK;
+    }
+
+    public Double getSimilarityThreshold() {
+        return similarityThreshold;
+    }
+
+    public void setSimilarityThreshold(Double similarityThreshold) {
+        this.similarityThreshold = similarityThreshold;
+    }
+
     public OffsetDateTime getCreatedDate() {
         return createdDate;
     }

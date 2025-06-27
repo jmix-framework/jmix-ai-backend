@@ -19,16 +19,18 @@
     <layout>
         <formLayout id="form" dataContainer="parametersEntityDc">
             <responsiveSteps>
-                <responsiveStep minWidth="0" columns="1"/>
+                <responsiveStep minWidth="0px" columns="1"/>
+                <responsiveStep minWidth="40em" columns="2"/>
             </responsiveSteps>
-            <checkbox id="activeField" property="active" enabled="false"/>
-            <textField id="descriptionField" property="description"/>
-            <textArea id="systemMessageField" height="30em" property="systemMessage">
+            <textField id="descriptionField" property="description" colspan="2"/>
+            <textArea id="systemMessageField" height="30em" property="systemMessage" colspan="2">
                 <suffix>
                     <button id="copyToClipboardButton" icon="CLIPBOARD" title="Copy to clipboard"
                             themeNames="tertiary-inline" tabIndex="-1"/>
                 </suffix>
             </textArea>
+            <textField id="similarityThresholdField" property="similarityThreshold"/>
+            <textField id="topKField" property="topK"/>
         </formLayout>
         <hbox id="detailActions">
             <button id="saveAndCloseButton" action="saveAction"/>
