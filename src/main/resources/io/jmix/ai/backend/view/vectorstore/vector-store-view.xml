@@ -11,7 +11,7 @@
     </data>
     <facets>
         <dataLoadCoordinator auto="true"/>
-        <urlQueryParameters>
+        <urlQueryParameters id="urlQueryParameters">
             <pagination component="pagination"/>
         </urlQueryParameters>
         <settings auto="true"/>
@@ -25,7 +25,12 @@
             <span text="Metadata filter:" minWidth="8em"/>
             <textField id="filterField" width="100%" datatype="string">
                 <suffix>
-                    <button id="filterHelpButton" themeNames="tertiary-inline" icon="vaadin:question-circle-o"/>
+                    <hbox spacing="false">
+                        <button id="filterClearButton" themeNames="tertiary-inline" icon="vaadin:close-small"
+                                title="Clear"/>
+                        <button id="filterHelpButton" themeNames="tertiary-inline" icon="vaadin:question-circle-o"
+                                title="Help"/>
+                    </hbox>
                 </suffix>
             </textField>
         </hbox>

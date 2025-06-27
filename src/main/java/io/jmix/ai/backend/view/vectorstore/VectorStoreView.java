@@ -1,8 +1,10 @@
 package io.jmix.ai.backend.view.vectorstore;
 
 import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.ai.backend.vectorstore.IngesterManager;
@@ -19,6 +21,8 @@ import io.jmix.flowui.component.SupportsTypedValue;
 import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.component.textfield.TypedTextField;
 import io.jmix.flowui.exception.DefaultUiExceptionHandler;
+import io.jmix.flowui.facet.UrlQueryParametersFacet;
+import io.jmix.flowui.facet.urlqueryparameters.AbstractUrlQueryParametersBinder;
 import io.jmix.flowui.kit.action.ActionVariant;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.kit.component.combobutton.ComboButton;
@@ -60,6 +64,8 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private ComboButton updateButton;
     @ViewComponent
     private DataGrid<VectorStoreEntity> vectorStoreDataGrid;
+    @ViewComponent
+    private UrlQueryParametersFacet urlQueryParameters;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -88,6 +94,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                     )
                     .open();
         });
+        urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
     }
 
 
@@ -183,6 +190,11 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         return entities;
     }
 
+    @Subscribe(id = "filterClearButton", subject = "clickListener")
+    public void onFilterClearButtonClick(final ClickEvent<JmixButton> event) {
+        filterField.setValue("");
+    }
+
     private class UpdateTask extends BackgroundTask<Integer, String> {
 
         protected UpdateTask() {
@@ -235,6 +247,28 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
             return ingesterManager.updateByEntity(entity);
+        }
+    }
+
+    private class FilterUrlQueryParametersBinder extends AbstractUrlQueryParametersBinder {
+
+        public FilterUrlQueryParametersBinder() {
+            filterField.addValueChangeListener(event -> {
+                String text = event.getValue();
+                QueryParameters qp = QueryParameters.of("filter", text);
+                fireQueryParametersChanged(new UrlQueryParametersFacet.UrlQueryParametersChangeEvent(this, qp));
+            });
+        }
+
+        @Override
+        public void updateState(QueryParameters queryParameters) {
+            String text = queryParameters.getSingleParameter("filter").orElse("");
+            filterField.setValue(text);
+        }
+
+        @Override
+        public Component getComponent() {
+            return null;
         }
     }
 }
