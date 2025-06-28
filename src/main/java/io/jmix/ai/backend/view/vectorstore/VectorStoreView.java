@@ -29,6 +29,7 @@ import io.jmix.flowui.kit.component.combobutton.ComboButton;
 import io.jmix.flowui.model.CollectionLoader;
 import io.jmix.flowui.util.RemoveOperation;
 import io.jmix.flowui.view.*;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Collection;
@@ -140,10 +141,10 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     public void onRemoveAllButtonClick(final ClickEvent<JmixButton> event) {
         dialogs.createOptionDialog()
                 .withHeader("Warning")
-                .withText("Remove all vector store data?")
+                .withText("Remove all vector store data" + (StringUtils.isBlank(filterField.getTypedValue()) ? "?" : " for the current filter?"))
                 .withActions(
                         new DialogAction(DialogAction.Type.YES).withHandler(e -> {
-                            vectorStoreRepository.deleteAll();
+                            vectorStoreRepository.delete(filterField.getTypedValue());
                             vectorStoreDl.load();
                         }),
                         new DialogAction(DialogAction.Type.NO)

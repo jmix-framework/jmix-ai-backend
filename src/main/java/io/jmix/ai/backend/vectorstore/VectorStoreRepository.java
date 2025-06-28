@@ -109,6 +109,19 @@ public class VectorStoreRepository {
         jdbcTemplate.update("DELETE FROM vector_store WHERE id IN (" + ids + ")");
     }
 
+    public void delete(@Nullable String filterString) {
+        Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
+        String sql;
+        if (filterExpression != null) {
+            String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
+            sql = "DELETE FROM vector_store " +
+                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath ";
+        } else {
+            sql = "DELETE FROM vector_store ";
+        }
+        jdbcTemplate.update(sql);
+    }
+
     public void deleteAll() {
         jdbcTemplate.update("DELETE FROM vector_store");
     }
