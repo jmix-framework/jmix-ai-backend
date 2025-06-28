@@ -14,7 +14,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class DocsChunkerTest {
 
     @Test
-    void testComplexDocument() throws Exception{
+    void testComplexDocumentFits() throws IOException {
+        DocsChunker chunker = new DocsChunker(10_000, 10, 10);
+        List<Chunker.Chunk> chunks = chunker.extract(loadResourceAsString("/test_support/sources/doc-1.html"));
+
+        assertThat(chunks).size().isEqualTo(1);
+
+        assertThat(chunks.get(0).text()).startsWith("# Web Development Fundamentals\nWeb development encompasses").endsWith("in development teams.");
+        assertThat(chunks.get(0).title()).isEqualTo("Web Development Fundamentals");
+        assertThat(chunks.get(0).anchor()).isNull();
+    }
+
+    @Test
+    void testComplexDocument() throws Exception {
         DocsChunker extractor = new DocsChunker(1000, 10, 10);
         List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"));
 

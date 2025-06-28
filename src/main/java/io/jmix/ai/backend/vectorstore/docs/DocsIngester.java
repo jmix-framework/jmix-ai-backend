@@ -95,10 +95,11 @@ public class DocsIngester extends AbstractIngester {
     protected List<Document> splitToChunks(List<Document> documents) {
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : documents) {
-            List<Chunker.Chunk> chunks = chunker.extract(document.getText());
-
             Map<String, Object> metadata = document.getMetadata();
             String url = (String) metadata.get("url");
+
+            log.debug("Splitting doc: {}", url);
+            List<Chunker.Chunk> chunks = chunker.extract(document.getText());
 
             for (Chunker.Chunk chunk : chunks) {
                 Map<String, Object> metadataCopy = copyMetadata(metadata);
