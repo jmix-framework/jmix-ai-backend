@@ -97,7 +97,7 @@ public class ChatView extends StandardView {
                     parameters.getTopK()
             );
             dialogs.createBackgroundTaskDialog(
-                            new BackgroundTask<Integer, Chat.StructuredResponse>(60, this) {
+                            new BackgroundTask<Integer, Chat.StructuredResponse>(600, this) {
                                 @Override
                                 public Chat.StructuredResponse run(TaskLifeCycle<Integer> taskLifeCycle) {
                                     Chat.StructuredResponse response = chat.requestStructured(userMessageField.getValue(), options);
@@ -162,8 +162,10 @@ public class ChatView extends StandardView {
 
     private String getDocLinkText(Document document) {
         Object type = document.getMetadata().get("type");
+        Double score = document.getScore();
         String text = StringUtils.abbreviate(Objects.toString(document.getText(), ""), 80);
         return "[" + type + "] " +
+                (score == null ? "" : String.format("(%.2f)", score)) + " " +
                 text.replaceAll("\n", " ").replaceAll("<", "&lt;")
                         .replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
                         .replaceAll("'", "&#39;");

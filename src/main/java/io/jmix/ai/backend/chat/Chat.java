@@ -10,10 +10,13 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
+import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -57,15 +60,13 @@ public class Chat {
 
         ChatClient.ChatClientRequestSpec request = chatClient.prompt(buildPrompt(userPrompt, options));
 
-        CustomDocumentRetriever retriever = null;
+        List<Document> retrievedDocuments = new ArrayList<>();
         if (options.useRag) {
-            retriever = buildCustomDocumentRetriever(options);
-            request.advisors(buildTrackingAdvisor(retriever));
+            request.advisors(buildRagAdvisor(options, retrievedDocuments));
         }
 
         String response = request.call().content();
 
-        List<Document> retrievedDocuments = retriever != null ? retriever.getRetrievedDocuments() : null;
         return new StructuredResponse(response, retrievedDocuments);
     }
 
@@ -80,14 +81,16 @@ public class Chat {
         return chatClientBuilder.build();
     }
 
-    private Advisor buildTrackingAdvisor(DocumentRetriever documentRetriever) {
+    private Advisor buildRagAdvisor(Options options, List<Document> retrievedDocuments) {
         return RetrievalAugmentationAdvisor.builder()
-                .documentRetriever(documentRetriever)
+                .documentRetriever(buildDocumentRetriever(options))
+                .documentPostProcessors(new CustomDocumentPostProcessor(options, retrievedDocuments))
                 .build();
     }
 
-    private CustomDocumentRetriever buildCustomDocumentRetriever(Options options) {
-        return CustomDocumentRetriever.builder()
+    private DocumentRetriever buildDocumentRetriever(Options options) {
+        return VectorStoreDocumentRetriever.builder()
+//                .filterExpression(new FilterExpressionBuilder().eq("type", "docs").build())
                 .similarityThreshold(options.similarityThreshold)
                 .topK(options.topK)
                 .vectorStore(vectorStore)
