@@ -10,7 +10,7 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinServletRequest;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chat.ParametersRepository;
-import io.jmix.ai.backend.entity.ParametersEntity;
+import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.flowui.Dialogs;
 import io.jmix.flowui.Notifications;
@@ -58,15 +58,13 @@ public class ChatView extends StandardView {
     @ViewComponent
     private Div responseDiv;
     @ViewComponent
-    private JmixCheckbox ragCheckbox;
-    @ViewComponent
     private Div modelOptionsDiv;
     @ViewComponent
     private JmixButton clearButton;
     @ViewComponent
     private JmixButton copyButton;
     @ViewComponent
-    private EntityPicker<ParametersEntity> parametersPicker;
+    private EntityPicker<Parameters> parametersPicker;
     @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
 
@@ -89,18 +87,12 @@ public class ChatView extends StandardView {
         if (StringUtils.isBlank(userMessageField.getValue())) {
             notifications.show("Enter a question");
         } else {
-            ParametersEntity parameters = parametersRepository.findById(parametersPicker.getValue().getId()).orElseThrow();
-            Chat.Options options = new Chat.Options(
-                    ragCheckbox.getValue(),
-                    parameters.getSystemMessage(),
-                    parameters.getSimilarityThreshold(),
-                    parameters.getTopK()
-            );
+            Parameters parameters = parametersRepository.findById(parametersPicker.getValue().getId()).orElseThrow();
             dialogs.createBackgroundTaskDialog(
                             new BackgroundTask<Integer, Chat.StructuredResponse>(600, this) {
                                 @Override
                                 public Chat.StructuredResponse run(TaskLifeCycle<Integer> taskLifeCycle) {
-                                    Chat.StructuredResponse response = chat.requestStructured(userMessageField.getValue(), options);
+                                    Chat.StructuredResponse response = chat.requestStructured(userMessageField.getValue(), parameters);
                                     return response;
                                 }
                                 @Override

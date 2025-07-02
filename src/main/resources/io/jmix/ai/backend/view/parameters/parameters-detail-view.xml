@@ -4,7 +4,7 @@
       focusComponent="form">
     <data>
         <instance id="parametersEntityDc"
-                  class="io.jmix.ai.backend.entity.ParametersEntity">
+                  class="io.jmix.ai.backend.entity.Parameters">
             <fetchPlan extends="_base"/>
             <loader id="parametersEntityDl"/>
         </instance>
@@ -20,17 +20,42 @@
         <formLayout id="form" dataContainer="parametersEntityDc">
             <responsiveSteps>
                 <responsiveStep minWidth="0px" columns="1"/>
-                <responsiveStep minWidth="40em" columns="2"/>
             </responsiveSteps>
-            <textField id="descriptionField" property="description" colspan="2"/>
-            <textArea id="systemMessageField" height="30em" property="systemMessage" colspan="2">
+            <hbox alignItems="CENTER">
+                <textField id="descriptionField" property="description" width="20em" placeholder="Description"/>
+                <checkbox id="useToolsField" property="useTools" label="Use tools"/>
+            </hbox>
+            <textArea id="systemMessageField" height="20em" property="systemMessage" colspan="2">
                 <suffix>
                     <button id="copyToClipboardButton" icon="CLIPBOARD" title="Copy to clipboard"
                             themeNames="tertiary-inline" tabIndex="-1"/>
                 </suffix>
             </textArea>
-            <textField id="similarityThresholdField" property="similarityThreshold"/>
-            <textField id="topKField" property="topK"/>
+            <details summaryText="Docs tool" opened="true">
+                <hbox width="100%">
+                    <textArea id="docsToolDescriptionField" property="docsToolDescription" height="10em" width="40em" label="Description"/>
+                    <textField id="docsToolSimilarityThresholdField" property="docsToolSimilarityThreshold" label="Similarity threshold"/>
+                    <textField id="docsToolTopKField" property="docsToolTopK" label="Top K"/>
+                </hbox>
+            </details>
+            <details summaryText="UI Samples tool" opened="true">
+                <hbox width="100%">
+                    <textArea id="uiSamplesToolDescriptionField" property="uiSamplesToolDescription" height="10em" width="40em" label="Description"/>
+                    <textField id="uiSamplesToolSimilarityThresholdField" property="uiSamplesToolSimilarityThreshold" label="Similarity threshold"/>
+                    <textField id="uiSamplesToolTopKField" property="uiSamplesToolTopK" label="Top K"/>
+                </hbox>
+            </details>
+            <details summaryText="Trainings tool" opened="true">
+                <hbox width="100%">
+                    <textArea id="trainingsToolDescriptionField" property="trainingsToolDescription" height="10em" width="40em" label="Description"/>
+                    <textField id="trainingsToolSimilarityThresholdField" property="trainingsToolSimilarityThreshold" label="Similarity threshold"/>
+                    <textField id="trainingsToolTopKField" property="trainingsToolTopK" label="Top K"/>
+                </hbox>
+            </details>
+            <details summaryText="RAG" colspan="2" width="100%">
+                <textField id="similarityThresholdField" property="similarityThreshold"/>
+                <textField id="topKField" property="topK"/>
+            </details>
         </formLayout>
         <hbox id="detailActions">
             <button id="saveAndCloseButton" action="saveAction"/>

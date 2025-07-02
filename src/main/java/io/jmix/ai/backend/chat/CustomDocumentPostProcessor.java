@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.chat;
 
+import io.jmix.ai.backend.entity.Parameters;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
@@ -15,7 +16,7 @@ public class CustomDocumentPostProcessor implements DocumentPostProcessor {
 
     private final List<Document> retrievedDocuments;
 
-    public CustomDocumentPostProcessor(Chat.Options options, List<Document> retrievedDocuments) {
+    public CustomDocumentPostProcessor(Parameters parameters, List<Document> retrievedDocuments) {
         this.retrievedDocuments = retrievedDocuments;
     }
 

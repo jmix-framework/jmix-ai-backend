@@ -1,6 +1,6 @@
 package io.jmix.ai.backend.chat;
 
-import io.jmix.ai.backend.entity.ParametersEntity;
+import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.core.MetadataTools;
 import io.jmix.core.Resources;
 import io.jmix.core.UnconstrainedDataManager;
@@ -23,27 +23,27 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
     }
 
     @Override
-    public ParametersEntity loadActive() {
-        List<ParametersEntity> list = dataManager.load(ParametersEntity.class)
+    public Parameters loadActive() {
+        List<Parameters> list = dataManager.load(Parameters.class)
                 .query("e.active = true")
                 .maxResults(1)
                 .list();
         if (list.isEmpty()) {
-            ParametersEntity parametersEntity = dataManager.create(ParametersEntity.class);
-            parametersEntity.setSystemMessage(loadDefaultSystemMessage());
-            return parametersEntity;
+            Parameters parameters = dataManager.create(Parameters.class);
+            parameters.setSystemMessage(loadDefaultSystemMessage());
+            return parameters;
         } else {
             return list.get(0);
         }
     }
 
-    public ParametersEntity save(ParametersEntity parametersEntity) {
-        return dataManager.save(parametersEntity);
+    public Parameters save(Parameters parameters) {
+        return dataManager.save(parameters);
     }
 
     @Override
-    public ParametersEntity copy(ParametersEntity parameters) {
-        ParametersEntity copy = metadataTools.copy(parameters);
+    public Parameters copy(Parameters parameters) {
+        Parameters copy = metadataTools.copy(parameters);
         copy.setId(UuidProvider.createUuidV7());
         copy.setCreatedDate(null);
         copy.setCreatedBy(null);
@@ -51,7 +51,7 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
         copy.setLastModifiedBy(null);
         copy.setDescription("Copy of " + parameters.getDescription());
         copy.setActive(false);
-        ParametersEntity savedCopy = save(copy);
+        Parameters savedCopy = save(copy);
         return savedCopy;
     }
 
@@ -62,10 +62,10 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
     }
 
     @Override
-    public void activate(ParametersEntity parametersEntity) {
-        List<ParametersEntity> list = dataManager.load(ParametersEntity.class).all().list();
-        for (ParametersEntity entity : list) {
-            entity.setActive(entity.equals(parametersEntity));
+    public void activate(Parameters parameters) {
+        List<Parameters> list = dataManager.load(Parameters.class).all().list();
+        for (Parameters entity : list) {
+            entity.setActive(entity.equals(parameters));
         }
         dataManager.saveWithoutReload(list);
     }

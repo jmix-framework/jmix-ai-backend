@@ -2,7 +2,7 @@ package io.jmix.ai.backend.view.parameters;
 
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.chat.ParametersRepository;
-import io.jmix.ai.backend.entity.ParametersEntity;
+import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.LoadContext;
 import io.jmix.flowui.component.grid.DataGrid;
@@ -23,35 +23,35 @@ import static io.jmix.core.repository.JmixDataRepositoryUtils.buildRepositoryCon
 @ViewDescriptor(path = "parameters-list-view.xml")
 @LookupComponent("parametersEntitiesDataGrid")
 @DialogMode(width = "64em")
-public class ParametersListView extends StandardListView<ParametersEntity> {
+public class ParametersListView extends StandardListView<Parameters> {
 
     @ViewComponent
-    private DataGrid<ParametersEntity> parametersEntitiesDataGrid;
+    private DataGrid<Parameters> parametersEntitiesDataGrid;
     @ViewComponent
-    private CollectionContainer<ParametersEntity> parametersEntitiesDc;
+    private CollectionContainer<Parameters> parametersEntitiesDc;
     @Autowired
     private ParametersRepository repository;
 
     @ViewComponent
-    private CollectionLoader<ParametersEntity> parametersEntitiesDl;
+    private CollectionLoader<Parameters> parametersEntitiesDl;
 
     @Install(to = "parametersEntitiesDl", target = Target.DATA_LOADER)
-    private List<ParametersEntity> parametersEntitiesDlLoadDelegate(final LoadContext<ParametersEntity> context) {
+    private List<Parameters> parametersEntitiesDlLoadDelegate(final LoadContext<Parameters> context) {
         return repository.findAll(Pageable.unpaged(), buildRepositoryContext(context)).getContent();
     }
 
     @Install(to = "parametersEntitiesDataGrid.removeAction", subject = "delegate")
-    private void parametersEntitiesDataGridRemoveActionDelegate(final Collection<ParametersEntity> collection) {
+    private void parametersEntitiesDataGridRemoveActionDelegate(final Collection<Parameters> collection) {
         repository.deleteAll(collection);
     }
 
     @Subscribe("parametersEntitiesDataGrid.copyAction")
     public void onParametersEntitiesDataGridCopyAction(final ActionPerformedEvent event) {
-        ParametersEntity parameters = parametersEntitiesDataGrid.getSingleSelectedItem();
+        Parameters parameters = parametersEntitiesDataGrid.getSingleSelectedItem();
         if (parameters == null)
             return;
 
-        ParametersEntity copy = repository.copy(parameters);
+        Parameters copy = repository.copy(parameters);
         parametersEntitiesDc.getMutableItems().add(0, copy);
 
         parametersEntitiesDataGrid.select(copy);
@@ -59,7 +59,7 @@ public class ParametersListView extends StandardListView<ParametersEntity> {
 
     @Subscribe("parametersEntitiesDataGrid.activateAction")
     public void onParametersEntitiesDataGridActivateAction(final ActionPerformedEvent event) {
-        ParametersEntity parameters = parametersEntitiesDataGrid.getSingleSelectedItem();
+        Parameters parameters = parametersEntitiesDataGrid.getSingleSelectedItem();
         if (parameters == null)
             return;
 

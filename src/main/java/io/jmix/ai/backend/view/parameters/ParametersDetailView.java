@@ -3,7 +3,7 @@ package io.jmix.ai.backend.view.parameters;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.chat.ParametersRepository;
-import io.jmix.ai.backend.entity.ParametersEntity;
+import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.LoadContext;
 import io.jmix.core.SaveContext;
@@ -23,7 +23,7 @@ import static io.jmix.core.repository.JmixDataRepositoryUtils.extractEntityId;
 @ViewController(id = "Parameters.detail")
 @ViewDescriptor(path = "parameters-detail-view.xml")
 @EditedEntityContainer("parametersEntityDc")
-public class ParametersDetailView extends StandardDetailView<ParametersEntity> {
+public class ParametersDetailView extends StandardDetailView<Parameters> {
 
     @Autowired
     private ParametersRepository repository;
@@ -33,15 +33,15 @@ public class ParametersDetailView extends StandardDetailView<ParametersEntity> {
     private JmixTextArea systemMessageField;
 
     @Subscribe
-    public void onInitEntity(final InitEntityEvent<ParametersEntity> event) {
-        ParametersEntity parameters = event.getEntity();
+    public void onInitEntity(final InitEntityEvent<Parameters> event) {
+        Parameters parameters = event.getEntity();
         parameters.setSystemMessage(repository.loadDefaultSystemMessage());
         parameters.setSimilarityThreshold(SearchRequest.SIMILARITY_THRESHOLD_ACCEPT_ALL);
         parameters.setTopK(SearchRequest.DEFAULT_TOP_K);
     }
 
     @Install(to = "parametersEntityDl", target = Target.DATA_LOADER)
-    private ParametersEntity parametersEntityDlLoadDelegate(final LoadContext<ParametersEntity> context) {
+    private Parameters parametersEntityDlLoadDelegate(final LoadContext<Parameters> context) {
         return repository.getById(extractEntityId(context), context.getFetchPlan());
     }
 

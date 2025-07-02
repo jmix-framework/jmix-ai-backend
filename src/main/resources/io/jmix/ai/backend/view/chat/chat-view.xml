@@ -14,7 +14,7 @@
         <hbox width="100%" alignItems="CENTER">
             <button id="sendButton" text="Send" themeNames="primary"/>
             <span text="Parameters"/>
-            <entityPicker id="parametersPicker" metaClass="ParametersEntity" required="true" width="100%">
+            <entityPicker id="parametersPicker" metaClass="Parameters" required="true" width="100%">
                 <actions>
                     <action id="lookupAction" type="entity_lookup">
                         <properties>
@@ -28,7 +28,6 @@
                     </action>
                 </actions>
             </entityPicker>
-            <checkbox id="ragCheckbox" label="Use RAG" value="true" width="10em"/>
         </hbox>
         <div id="modelOptionsDiv" width="100%"/>
         <hbox>

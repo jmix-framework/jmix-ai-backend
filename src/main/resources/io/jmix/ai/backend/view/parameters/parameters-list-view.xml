@@ -5,7 +5,7 @@
       focusComponent="parametersEntitiesDataGrid">
     <data>
         <collection id="parametersEntitiesDc"
-                    class="io.jmix.ai.backend.entity.ParametersEntity">
+                    class="io.jmix.ai.backend.entity.Parameters">
             <fetchPlan extends="_base"/>
             <loader id="parametersEntitiesDl" readOnly="true"/>
         </collection>
@@ -49,6 +49,7 @@
             <columns resizable="true">
                 <column property="active"/>
                 <column property="description"/>
+                <column property="useTools"/>
                 <column property="systemMessage"/>
                 <column property="similarityThreshold"/>
                 <column property="topK"/>
