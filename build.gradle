@@ -1,5 +1,5 @@
 plugins {
-    id 'io.jmix' version '2.6.0-M1'
+    id 'io.jmix' version '2.6.0'
     id 'java'
     id 'org.jetbrains.gradle.plugin.idea-ext' version '1.1.9'
 }
@@ -28,6 +28,11 @@ dependencies {
     implementation "org.springframework.ai:spring-ai-pgvector-store:$springAiVersion"
     implementation "org.springframework.ai:spring-ai-advisors-vector-store:$springAiVersion"
     implementation "org.springframework.ai:spring-ai-rag:$springAiVersion"
+
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:1.32.1-alpha'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
 
     implementation 'org.commonmark:commonmark:0.24.0'
     implementation 'org.jsoup:jsoup:1.17.2'

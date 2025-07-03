@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Console Appender:
+         Outputs logs to the console. The pattern includes a timestamp, thread, log level, logger name.
+    -->
+    <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+                %d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+            </pattern>
+
+<!--     The pattern includes a timestamp, thread,
+         log level, logger name, and prints all MDC (Mapped Diagnostic Context) key/value pairs using %X. -->
+<!--            <pattern>-->
+<!--                %d{HH:mm:ss.SSS} [%thread] [%X] %-5level %logger{36} - %msg%n-->
+<!--            </pattern>-->
+        </encoder>
+    </appender>
+
+    <!-- OpenTelemetry Appender:
+         Sends log events to an OpenTelemetry Collector with all MDC attributes are captured.
+
+         OpenTelemetryAppender automatically puts trace_id and span_id into the logs so that it is possible to correlate them with traces
+    -->
+    <appender name="OpenTelemetry" class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
+        <captureMdcAttributes>*</captureMdcAttributes>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="console"/>
+        <appender-ref ref="OpenTelemetry"/>
+    </root>
+
+    <logger name="org.atmosphere" level="warn"/>
+
+    <logger name="org.springframework.security" level="info"/>
+
+    <logger name="eclipselink.logging.sql" level="info"/>
+
+    <logger name="io.jmix" level="info"/>
+
+    <logger name="io.jmix.core.datastore" level="info"/>
+
+    <logger name="io.jmix.core.AccessLogger" level="info"/>
+
+    <logger name="io.jmix.ai.backend" level="debug"/>
+
+</configuration>
