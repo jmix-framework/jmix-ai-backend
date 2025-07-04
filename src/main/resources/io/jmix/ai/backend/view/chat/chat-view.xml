@@ -29,7 +29,6 @@
                 </actions>
             </entityPicker>
         </hbox>
-        <div id="modelOptionsDiv" width="100%"/>
         <hbox>
             <button id="clearButton" text="Clear" themeNames="small" enabled="false"/>
             <button id="copyButton" text="Copy" themeNames="small" enabled="false"/>

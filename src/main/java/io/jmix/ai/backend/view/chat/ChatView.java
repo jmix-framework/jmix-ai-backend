@@ -57,8 +57,6 @@ public class ChatView extends StandardView {
     @ViewComponent
     private Div responseDiv;
     @ViewComponent
-    private Div modelOptionsDiv;
-    @ViewComponent
     private JmixButton clearButton;
     @ViewComponent
     private JmixButton copyButton;
@@ -73,7 +71,6 @@ public class ChatView extends StandardView {
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        modelOptionsDiv.setText("Using " + chat.getModelOptions().toString());
         parametersPicker.setValue(parametersRepository.loadActive());
 
         urlQueryParameters.registerBinder(new UrlBinder());
@@ -182,8 +179,10 @@ public class ChatView extends StandardView {
 
     @Subscribe(id = "copyToClipboardButton", subject = "clickListener")
     public void onCopyToClipboardButtonClick(final ClickEvent<JmixButton> event) {
-        UiComponentUtils.copyToClipboard(userMessageField.getValue())
-                .then(jsonValue -> notifications.show("Copied!"));
+        if (StringUtils.isNotBlank(userMessageField.getValue())) {
+            UiComponentUtils.copyToClipboard(userMessageField.getValue())
+                    .then(jsonValue -> notifications.show("Copied!"));
+        }
     }
 
     private class UrlBinder extends AbstractUrlQueryParametersBinder {

@@ -25,6 +25,7 @@ import static io.jmix.core.repository.JmixDataRepositoryUtils.extractEntityId;
 @ViewController(id = "Parameters.detail")
 @ViewDescriptor(path = "parameters-detail-view.xml")
 @EditedEntityContainer("parametersEntityDc")
+@DialogMode(width = "80%", height = "80%")
 public class ParametersDetailView extends StandardDetailView<Parameters> {
 
     @Autowired

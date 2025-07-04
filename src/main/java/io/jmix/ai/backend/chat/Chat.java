@@ -11,9 +11,11 @@ import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
@@ -30,8 +32,6 @@ public class Chat {
 
     private static final Logger log = LoggerFactory.getLogger(Chat.class);
 
-    private final ChatClient.Builder chatClientBuilder;
-    private final ChatModel chatModel;
     private final VectorStore vectorStore;
     private final ParametersRepository parametersRepository;
 
@@ -53,10 +53,7 @@ public class Chat {
         }
     }
 
-    public Chat(ChatClient.Builder chatClientBuilder,
-                ChatModel chatModel, VectorStore vectorStore, ParametersRepository parametersRepository) {
-        this.chatClientBuilder = chatClientBuilder;
-        this.chatModel = chatModel;
+    public Chat(VectorStore vectorStore, ParametersRepository parametersRepository) {
         this.vectorStore = vectorStore;
         this.parametersRepository = parametersRepository;
     }
@@ -65,18 +62,20 @@ public class Chat {
         long start = System.currentTimeMillis();
         log.debug("Sending prompt: {}", StringUtils.abbreviate(userPrompt, 200));
 
-        ChatClient chatClient = buildClient();
-
         ParametersReader parametersReader = parametersRepository.getReader(parameters);
+
+        ChatModel chatModel = buildChatModel(parametersReader);
+
+        ChatClient chatClient = buildClient(chatModel);
 
         ChatClient.ChatClientRequestSpec request = chatClient.prompt(buildPrompt(userPrompt, parametersReader));
 
         List<Document> retrievedDocuments = new ArrayList<>();
         if (!parametersReader.getBoolean("useTools")) {
-            log.debug("Using RAG");
+            log.debug("Using {} with RAG", chatModel.getDefaultOptions());
             request.advisors(buildRagAdvisor(parametersReader, retrievedDocuments));
         } else {
-            log.debug("Using tools");
+            log.debug("Using {} with tools", chatModel.getDefaultOptions());
             DocsTool docsTool = new DocsTool(vectorStore, parametersReader);
             UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader);
             TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader);
@@ -97,8 +96,27 @@ public class Chat {
         ));
     }
 
-    private ChatClient buildClient() {
-        return chatClientBuilder.build();
+    private ChatModel buildChatModel(ParametersReader parametersReader) {
+        String openaiApiKey = System.getenv("OPENAI_API_KEY");
+        if (StringUtils.isBlank(openaiApiKey)) {
+            throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
+        }
+        OpenAiApi openAiApi = OpenAiApi.builder()
+                .apiKey(openaiApiKey)
+                .build();
+        OpenAiChatOptions openAiChatOptions = OpenAiChatOptions.builder()
+                .model(parametersReader.getString("model.name", "gpt-4.1-mini"))
+                .temperature(parametersReader.getDouble("model.temperature", 1.0))
+//                .maxTokens(200)
+                .build();
+        return OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
+                .defaultOptions(openAiChatOptions)
+                .build();
+    }
+
+    private ChatClient buildClient(ChatModel chatModel) {
+        return ChatClient.builder(chatModel).build();
     }
 
     private Advisor buildRagAdvisor(ParametersReader parametersReader, List<Document> retrievedDocuments) {
@@ -114,9 +132,5 @@ public class Chat {
                 .topK(parametersReader.getInteger("rag.topK"))
                 .vectorStore(vectorStore)
                 .build();
-    }
-
-    public ChatOptions getModelOptions() {
-        return chatModel.getDefaultOptions();
     }
 }

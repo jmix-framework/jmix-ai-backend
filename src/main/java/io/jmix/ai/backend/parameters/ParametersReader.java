@@ -11,23 +11,39 @@ public class ParametersReader {
     }
 
     public String getString(String key) {
+        return getString(key, "");
+    }
+
+    public String getString(String key, String defaultValue) {
         Object value = getValue(key);
-        return value != null ? value.toString() : null;
+        return value != null ? value.toString() : defaultValue;
     }
 
     public Integer getInteger(String key) {
+        return getInteger(key, 0);
+    }
+
+    public Integer getInteger(String key, Integer defaultValue) {
         Object value = getValue(key);
-        return value != null ? (Integer) value : 0;
+        return value != null ? (Integer) value : defaultValue;
     }
 
     public Double getDouble(String key) {
+        return getDouble(key, 0.0);
+    }
+
+    public Double getDouble(String key, Double defaultValue) {
         Object value = getValue(key);
-        return value != null ? (Double) value : 0.0;
+        return value != null ? (Double) value : defaultValue;
     }
 
     public Boolean getBoolean(String key) {
+        return getBoolean(key, false);
+    }
+
+    public Boolean getBoolean(String key, Boolean defaultValue) {
         Object value = getValue(key);
-        return value != null ? (Boolean) value : false;
+        return value != null ? (Boolean) value : defaultValue;
     }
 
     /**
