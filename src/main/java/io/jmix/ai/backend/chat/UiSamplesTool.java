@@ -10,11 +10,12 @@ import org.springframework.util.ReflectionUtils;
 
 import java.lang.reflect.Method;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public class UiSamplesTool extends AbstractRagTool {
 
-    public UiSamplesTool(VectorStore vectorStore, ParametersReader parametersReader) {
-        super(vectorStore, "uisamples", "url",
+    public UiSamplesTool(VectorStore vectorStore, ParametersReader parametersReader, Consumer<String> logger) {
+        super(vectorStore, logger, "uisamples", "url",
                 parametersReader.getString("tools.uisamples.description"),
                 parametersReader.getDouble("tools.uisamples.similarityThreshold"),
                 parametersReader.getInteger("tools.uisamples.topK")

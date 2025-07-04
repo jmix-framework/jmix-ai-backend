@@ -35,6 +35,7 @@ import org.springframework.lang.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Route(value = "chat", layout = MainView.class)
 @ViewController(id = "ChatView")
@@ -68,6 +69,8 @@ public class ChatView extends StandardView {
     private String lastResultText;
 
     private String contextPath;
+    @ViewComponent
+    private JmixTextArea logField;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -108,6 +111,8 @@ public class ChatView extends StandardView {
     }
 
     private void showResult(Chat.StructuredResponse result) {
+        logField.setValue(String.join("\n", result.logMessages()));
+
         lastResultText = result.text();
 
         Parser parser = Parser.builder().build();
@@ -166,6 +171,7 @@ public class ChatView extends StandardView {
 
     @Subscribe(id = "clearButton", subject = "clickListener")
     public void onClearButtonClick(final ClickEvent<JmixButton> event) {
+        logField.setValue("");
         responseDiv.getElement().setProperty("innerHTML", "");
         enableResultButtons(false);
         lastResultText = null;

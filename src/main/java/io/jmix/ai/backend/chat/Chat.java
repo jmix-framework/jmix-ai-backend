@@ -8,9 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
+import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -23,9 +26,15 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Consumer;
+
+import static org.apache.commons.lang3.StringUtils.abbreviate;
 
 @Component
 public class Chat {
@@ -35,10 +44,11 @@ public class Chat {
     private final VectorStore vectorStore;
     private final ParametersRepository parametersRepository;
 
-    public record StructuredResponse(String text, @Nullable List<Document> retrievedDocuments, @Nullable List<String> sourceLinks) {
+    public record StructuredResponse(String text, List<String> logMessages,
+                                     @Nullable List<Document> retrievedDocuments, @Nullable List<String> sourceLinks) {
 
-        public StructuredResponse(String text, @Nullable List<Document> retrievedDocuments) {
-            this(text, retrievedDocuments, getSourceLinks(retrievedDocuments));
+        public StructuredResponse(String text, List<String> logMessages, @Nullable List<Document> retrievedDocuments) {
+            this(text, logMessages, retrievedDocuments, getSourceLinks(retrievedDocuments));
         }
 
         private static List<String> getSourceLinks(@Nullable List<Document> retrievedDocuments) {
@@ -60,7 +70,8 @@ public class Chat {
 
     public StructuredResponse requestStructured(String userPrompt, Parameters parameters) {
         long start = System.currentTimeMillis();
-        log.debug("Sending prompt: {}", StringUtils.abbreviate(userPrompt, 200));
+        List<String> logMessages = new ArrayList<>();
+        addLogMessage(logMessages, "Sending prompt: %s".formatted(abbreviate(userPrompt, 200)));
 
         ParametersReader parametersReader = parametersRepository.getReader(parameters);
 
@@ -72,21 +83,44 @@ public class Chat {
 
         List<Document> retrievedDocuments = new ArrayList<>();
         if (!parametersReader.getBoolean("useTools")) {
-            log.debug("Using {} with RAG", chatModel.getDefaultOptions());
+            addLogMessage(logMessages, "Using %s with RAG".formatted(chatModel.getDefaultOptions()));
             request.advisors(buildRagAdvisor(parametersReader, retrievedDocuments));
         } else {
-            log.debug("Using {} with tools", chatModel.getDefaultOptions());
-            DocsTool docsTool = new DocsTool(vectorStore, parametersReader);
-            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader);
-            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader);
+            addLogMessage(logMessages, "Using %s with tools".formatted(chatModel.getDefaultOptions()));
+            Consumer<String> logger = message -> addLogMessage(logMessages, message);
+            DocsTool docsTool = new DocsTool(vectorStore, parametersReader, logger);
+            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader, logger);
+            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader, logger);
             request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
         }
 
-        String response = request.call().content();
+        ChatResponse chatResponse = request.call().chatResponse();
+        if (chatResponse == null) {
+            addLogMessage(logMessages, "No response received from the chat model");
+            return new StructuredResponse("", logMessages, retrievedDocuments);
+        }
+        String responseText = getContentFromChatResponse(chatResponse);
+        Integer promptTokens = chatResponse.getMetadata().getUsage().getPromptTokens();
+        Integer completionTokens = chatResponse.getMetadata().getUsage().getCompletionTokens();
 
-        log.debug("Received response in {}ms: {}", System.currentTimeMillis() - start, StringUtils.abbreviate(response, 100));
+        addLogMessage(logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
+                System.currentTimeMillis() - start, promptTokens, completionTokens, abbreviate(responseText, 100)));
 
-        return new StructuredResponse(response, retrievedDocuments);
+        return new StructuredResponse(responseText, logMessages, retrievedDocuments);
+    }
+
+    private void addLogMessage(List<String> logMessages, String message) {
+        String time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+        logMessages.add(time + " " + message);
+        log.debug(message);
+    }
+
+    private static String getContentFromChatResponse(@Nullable ChatResponse chatResponse) {
+        return Optional.ofNullable(chatResponse)
+                .map(ChatResponse::getResult)
+                .map(Generation::getOutput)
+                .map(AbstractMessage::getText)
+                .orElse(null);
     }
 
     private Prompt buildPrompt(String userPrompt, ParametersReader parametersReader) {

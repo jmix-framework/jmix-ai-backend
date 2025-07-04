@@ -10,12 +10,13 @@ import org.springframework.util.ReflectionUtils;
 
 import java.lang.reflect.Method;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public class DocsTool extends AbstractRagTool {
 
 
-    protected DocsTool(VectorStore vectorStore, ParametersReader parametersReader) {
-        super(vectorStore, "docs", "url",
+    protected DocsTool(VectorStore vectorStore, ParametersReader parametersReader, Consumer<String> logger) {
+        super(vectorStore, logger, "docs", "url",
                 parametersReader.getString("tools.docs.description"),
                 parametersReader.getDouble("tools.docs.similarityThreshold"),
                 parametersReader.getInteger("tools.docs.topK")

@@ -10,11 +10,12 @@ import org.springframework.util.ReflectionUtils;
 
 import java.lang.reflect.Method;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public class TrainingsTool extends AbstractRagTool {
 
-    public TrainingsTool(VectorStore vectorStore, ParametersReader parametersReader) {
-        super(vectorStore, "trainings", "source",
+    public TrainingsTool(VectorStore vectorStore, ParametersReader parametersReader, Consumer<String> logger) {
+        super(vectorStore, logger, "trainings", "source",
                 parametersReader.getString("tools.trainings.description"),
                 parametersReader.getDouble("tools.trainings.similarityThreshold"),
                 parametersReader.getInteger("tools.trainings.topK")

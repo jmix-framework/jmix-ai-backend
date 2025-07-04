@@ -33,6 +33,8 @@
             <button id="clearButton" text="Clear" themeNames="small" enabled="false"/>
             <button id="copyButton" text="Copy" themeNames="small" enabled="false"/>
         </hbox>
+        <textArea id="logField" width="100%" readOnly="true"
+                  css="font-family: monospace; font-size: smaller;"/>
         <div id="responseDiv" width="100%"/>
     </layout>
 </view>
