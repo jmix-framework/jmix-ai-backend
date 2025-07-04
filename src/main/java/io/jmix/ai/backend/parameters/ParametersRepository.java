@@ -1,4 +1,4 @@
-package io.jmix.ai.backend.chat;
+package io.jmix.ai.backend.parameters;
 
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.core.repository.JmixDataRepository;

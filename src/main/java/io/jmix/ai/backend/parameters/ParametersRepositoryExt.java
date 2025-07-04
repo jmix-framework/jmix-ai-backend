@@ -1,4 +1,4 @@
-package io.jmix.ai.backend.chat;
+package io.jmix.ai.backend.parameters;
 
 import io.jmix.ai.backend.entity.Parameters;
 
@@ -7,7 +7,9 @@ public interface ParametersRepositoryExt {
 
     Parameters copy(Parameters parameters);
 
-    String loadDefaultSystemMessage();
+    String loadDefaultContent();
 
     void activate(Parameters parameters);
+
+    ParametersReader getReader(Parameters parameters);
 }

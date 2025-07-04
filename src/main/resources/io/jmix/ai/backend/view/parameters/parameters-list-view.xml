@@ -49,10 +49,6 @@
             <columns resizable="true">
                 <column property="active"/>
                 <column property="description"/>
-                <column property="useTools"/>
-                <column property="systemMessage"/>
-                <column property="similarityThreshold"/>
-                <column property="topK"/>
                 <column property="lastModifiedDate"/>
                 <column property="lastModifiedBy"/>
             </columns>

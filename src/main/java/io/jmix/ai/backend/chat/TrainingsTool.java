@@ -1,6 +1,6 @@
 package io.jmix.ai.backend.chat;
 
-import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.parameters.ParametersReader;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.method.MethodToolCallback;
@@ -13,9 +13,12 @@ import java.util.Objects;
 
 public class TrainingsTool extends AbstractRagTool {
 
-    public TrainingsTool(VectorStore vectorStore, Parameters parameters) {
+    public TrainingsTool(VectorStore vectorStore, ParametersReader parametersReader) {
         super(vectorStore, "trainings", "source",
-                parameters.getTrainingsToolDescription(), parameters.getTrainingsToolSimilarityThreshold(), parameters.getTrainingsToolTopK());
+                parametersReader.getString("tools.trainings.description"),
+                parametersReader.getDouble("tools.trainings.similarityThreshold"),
+                parametersReader.getInteger("tools.trainings.topK")
+        );
     }
 
     @Override

@@ -1,6 +1,6 @@
 package io.jmix.ai.backend.chat;
 
-import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.parameters.ParametersReader;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.method.MethodToolCallback;
@@ -13,9 +13,12 @@ import java.util.Objects;
 
 public class UiSamplesTool extends AbstractRagTool {
 
-    public UiSamplesTool(VectorStore vectorStore, Parameters parameters) {
+    public UiSamplesTool(VectorStore vectorStore, ParametersReader parametersReader) {
         super(vectorStore, "uisamples", "url",
-                parameters.getUiSamplesToolDescription(), parameters.getUiSamplesToolSimilarityThreshold(), parameters.getUiSamplesToolTopK());
+                parametersReader.getString("tools.uisamples.description"),
+                parametersReader.getDouble("tools.uisamples.similarityThreshold"),
+                parametersReader.getInteger("tools.uisamples.topK")
+        );
     }
 
     @Override

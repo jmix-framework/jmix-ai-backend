@@ -1,6 +1,8 @@
 package io.jmix.ai.backend.chat;
 
 import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.parameters.ParametersReader;
+import io.jmix.ai.backend.parameters.ParametersRepository;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,7 @@ public class Chat {
     private final ChatClient.Builder chatClientBuilder;
     private final ChatModel chatModel;
     private final VectorStore vectorStore;
+    private final ParametersRepository parametersRepository;
 
     public record StructuredResponse(String text, @Nullable List<Document> retrievedDocuments, @Nullable List<String> sourceLinks) {
 
@@ -51,10 +54,11 @@ public class Chat {
     }
 
     public Chat(ChatClient.Builder chatClientBuilder,
-                ChatModel chatModel, VectorStore vectorStore) {
+                ChatModel chatModel, VectorStore vectorStore, ParametersRepository parametersRepository) {
         this.chatClientBuilder = chatClientBuilder;
         this.chatModel = chatModel;
         this.vectorStore = vectorStore;
+        this.parametersRepository = parametersRepository;
     }
 
     public StructuredResponse requestStructured(String userPrompt, Parameters parameters) {
@@ -63,17 +67,19 @@ public class Chat {
 
         ChatClient chatClient = buildClient();
 
-        ChatClient.ChatClientRequestSpec request = chatClient.prompt(buildPrompt(userPrompt, parameters));
+        ParametersReader parametersReader = parametersRepository.getReader(parameters);
+
+        ChatClient.ChatClientRequestSpec request = chatClient.prompt(buildPrompt(userPrompt, parametersReader));
 
         List<Document> retrievedDocuments = new ArrayList<>();
-        if (!parameters.getUseTools()) {
+        if (!parametersReader.getBoolean("useTools")) {
             log.debug("Using RAG");
-            request.advisors(buildRagAdvisor(parameters, retrievedDocuments));
+            request.advisors(buildRagAdvisor(parametersReader, retrievedDocuments));
         } else {
             log.debug("Using tools");
-            DocsTool docsTool = new DocsTool(vectorStore, parameters);
-            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parameters);
-            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parameters);
+            DocsTool docsTool = new DocsTool(vectorStore, parametersReader);
+            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader);
+            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader);
             request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
         }
 
@@ -84,9 +90,9 @@ public class Chat {
         return new StructuredResponse(response, retrievedDocuments);
     }
 
-    private Prompt buildPrompt(String userPrompt, Parameters parameters) {
+    private Prompt buildPrompt(String userPrompt, ParametersReader parametersReader) {
         return new Prompt(List.of(
-                new SystemMessage(parameters.getSystemMessage()),
+                new SystemMessage(parametersReader.getString("systemMessage")),
                 new UserMessage(userPrompt)
         ));
     }
@@ -95,17 +101,17 @@ public class Chat {
         return chatClientBuilder.build();
     }
 
-    private Advisor buildRagAdvisor(Parameters parameters, List<Document> retrievedDocuments) {
+    private Advisor buildRagAdvisor(ParametersReader parametersReader, List<Document> retrievedDocuments) {
         return RetrievalAugmentationAdvisor.builder()
-                .documentRetriever(buildDocumentRetriever(parameters))
-                .documentPostProcessors(new CustomDocumentPostProcessor(parameters, retrievedDocuments))
+                .documentRetriever(buildDocumentRetriever(parametersReader))
+                .documentPostProcessors(new CustomDocumentPostProcessor(parametersReader, retrievedDocuments))
                 .build();
     }
 
-    private DocumentRetriever buildDocumentRetriever(Parameters parameters) {
+    private DocumentRetriever buildDocumentRetriever(ParametersReader parametersReader) {
         return VectorStoreDocumentRetriever.builder()
-                .similarityThreshold(parameters.getSimilarityThreshold())
-                .topK(parameters.getTopK())
+                .similarityThreshold(parametersReader.getDouble("rag.similarityThreshold"))
+                .topK(parametersReader.getInteger("rag.topK"))
                 .vectorStore(vectorStore)
                 .build();
     }

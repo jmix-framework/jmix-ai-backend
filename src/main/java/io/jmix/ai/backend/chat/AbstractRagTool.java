@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.chat;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -34,9 +35,9 @@ public abstract class AbstractRagTool {
     }
 
     protected String executeSearch(String queryText, double similarityThreshold, int topK) {
-        log.debug("Using {} tool: {}", this.getClass().getSimpleName(), queryText);
-//        log.trace("Tool description: {}\nSimilarity threshold: {}, TopK: {}", description, similarityThreshold, topK);
-        
+        log.debug("Using {} tool ['{}', {}, {}]: {}",
+                this.getClass().getSimpleName(), StringUtils.abbreviate(description, 10), similarityThreshold, topK, queryText);
+
         SearchRequest searchRequest = SearchRequest.builder()
                 .filterExpression(new FilterExpressionBuilder().eq("type", type).build())
                 .query(queryText)

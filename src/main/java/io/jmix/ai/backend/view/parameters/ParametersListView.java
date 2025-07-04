@@ -1,7 +1,7 @@
 package io.jmix.ai.backend.view.parameters;
 
 import com.vaadin.flow.router.Route;
-import io.jmix.ai.backend.chat.ParametersRepository;
+import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.LoadContext;
