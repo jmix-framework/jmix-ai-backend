@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://chatProgressView.title">
+    <layout>
+        <textArea id="logField" height="100%" width="100%" readOnly="true"
+                  css="font-family: monospace; font-size: smaller;"/>
+    </layout>
+</view>

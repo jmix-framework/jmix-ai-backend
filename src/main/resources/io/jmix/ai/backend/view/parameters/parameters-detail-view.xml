@@ -13,7 +13,8 @@
         <dataLoadCoordinator auto="true"/>
     </facets>
     <actions>
-        <action id="saveAction" type="detail_saveClose"/>
+        <action id="saveAndCloseAction" type="detail_saveClose" text="Save and close"/>
+        <action id="saveAction" type="detail_save"/>
         <action id="closeAction" type="detail_close"/>
     </actions>
     <layout>
@@ -24,11 +25,12 @@
             </startSlot>
             <endSlot>
                 <checkbox label="Active" dataContainer="parametersEntityDc" property="active" readOnly="true"/>
-                <button id="saveAndCloseButton" action="saveAction"/>
+                <button id="saveAndCloseButton" action="saveAndCloseAction"/>
+                <button id="saveButton" action="saveAction"/>
                 <button id="closeButton" action="closeAction"/>
             </endSlot>
         </hbox>
         <codeEditor id="contentField" property="content" dataContainer="parametersEntityDc" height="100%" width="100%"
-                    mode="YAML"/>
+                    mode="YAML" textWrap="true" fontSize="0.9rem"/>
     </layout>
 </view>

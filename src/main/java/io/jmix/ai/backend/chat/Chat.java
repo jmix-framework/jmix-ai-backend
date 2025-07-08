@@ -68,7 +68,7 @@ public class Chat {
         this.parametersRepository = parametersRepository;
     }
 
-    public StructuredResponse requestStructured(String userPrompt, Parameters parameters) {
+    public StructuredResponse requestStructured(String userPrompt, Parameters parameters, @Nullable Consumer<String> externalLogger) {
         long start = System.currentTimeMillis();
         List<String> logMessages = new ArrayList<>();
         addLogMessage(logMessages, "Sending prompt: %s".formatted(abbreviate(userPrompt, 200)));
@@ -87,10 +87,14 @@ public class Chat {
             request.advisors(buildRagAdvisor(parametersReader, retrievedDocuments));
         } else {
             addLogMessage(logMessages, "Using %s with tools".formatted(chatModel.getDefaultOptions()));
-            Consumer<String> logger = message -> addLogMessage(logMessages, message);
-            DocsTool docsTool = new DocsTool(vectorStore, parametersReader, logger);
-            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader, logger);
-            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader, logger);
+            Consumer<String> internalLogger = message -> {
+                if (externalLogger != null)
+                    externalLogger.accept(message);
+                addLogMessage(logMessages, message);
+            };
+            DocsTool docsTool = new DocsTool(vectorStore, parametersReader, internalLogger);
+            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader, internalLogger);
+            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader, internalLogger);
             request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
         }
 
@@ -163,7 +167,7 @@ public class Chat {
     private DocumentRetriever buildDocumentRetriever(ParametersReader parametersReader) {
         return VectorStoreDocumentRetriever.builder()
                 .similarityThreshold(parametersReader.getDouble("rag.similarityThreshold"))
-                .topK(parametersReader.getInteger("rag.topK"))
+                .topK(parametersReader.getInt("rag.topK"))
                 .vectorStore(vectorStore)
                 .build();
     }

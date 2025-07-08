@@ -9,12 +9,14 @@ import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinServletRequest;
 import io.jmix.ai.backend.chat.Chat;
-import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
-import io.jmix.flowui.Dialogs;
+import io.jmix.flowui.DialogWindows;
 import io.jmix.flowui.Notifications;
 import io.jmix.flowui.backgroundtask.BackgroundTask;
+import io.jmix.flowui.backgroundtask.BackgroundTaskHandler;
+import io.jmix.flowui.backgroundtask.BackgroundWorker;
 import io.jmix.flowui.backgroundtask.TaskLifeCycle;
 import io.jmix.flowui.component.UiComponentUtils;
 import io.jmix.flowui.component.textarea.JmixTextArea;
@@ -35,7 +37,7 @@ import org.springframework.lang.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 @Route(value = "chat", layout = MainView.class)
 @ViewController(id = "ChatView")
@@ -47,11 +49,13 @@ public class ChatView extends StandardView {
     @Autowired
     private Notifications notifications;
     @Autowired
-    private Dialogs dialogs;
-    @Autowired
     private ParametersRepository parametersRepository;
     @Autowired
     private DefaultUiExceptionHandler defaultUiExceptionHandler;
+    @Autowired
+    private BackgroundWorker backgroundWorker;
+    @Autowired
+    private DialogWindows dialogWindows;
 
     @ViewComponent
     private JmixTextArea userMessageField;
@@ -87,26 +91,14 @@ public class ChatView extends StandardView {
             notifications.show("Enter a question");
         } else {
             Parameters parameters = parametersRepository.findById(parametersPicker.getValue().getId()).orElseThrow();
-            dialogs.createBackgroundTaskDialog(
-                            new BackgroundTask<Integer, Chat.StructuredResponse>(600, this) {
-                                @Override
-                                public Chat.StructuredResponse run(TaskLifeCycle<Integer> taskLifeCycle) {
-                                    Chat.StructuredResponse response = chat.requestStructured(userMessageField.getValue(), parameters);
-                                    return response;
-                                }
-                                @Override
-                                public void done(Chat.StructuredResponse result) {
-                                    showResult(result);
-                                }
-                                @Override
-                                public boolean handleException(Exception ex) {
-                                    return defaultUiExceptionHandler.handle(ex);
-                                }
-                            }
-                    )
-                    .withHeader("Please wait")
-                    .withText("Processing request...")
-                    .open();
+
+            DialogWindow<ChatProgressView> chatProgressWindow = dialogWindows.view(this, ChatProgressView.class).build();
+            chatProgressWindow.open();
+
+            final BackgroundTaskHandler<Chat.StructuredResponse> taskHandler = backgroundWorker.handle(
+                    new ChatBackgroundTask(chatProgressWindow.getView(), parameters)
+            );
+            taskHandler.execute();
         }
     }
 
@@ -209,6 +201,47 @@ public class ChatView extends StandardView {
         @Override
         public Component getComponent() {
             return null;
+        }
+    }
+
+    private class ChatBackgroundTask extends BackgroundTask<String, Chat.StructuredResponse> {
+
+        private final ChatProgressView chatProgressView;
+        private final Parameters parameters;
+
+        public ChatBackgroundTask(ChatProgressView chatProgressView, Parameters parameters) {
+            super(600, ChatView.this);
+            this.chatProgressView = chatProgressView;
+            this.parameters = parameters;
+        }
+
+        @Override
+        public Chat.StructuredResponse run(TaskLifeCycle<String> taskLifeCycle) throws Exception {
+            Consumer<String> logger = s -> {
+                try {
+                    taskLifeCycle.publish(s);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            };
+            Chat.StructuredResponse response = chat.requestStructured(userMessageField.getValue(), parameters, logger);
+            return response;
+        }
+
+        @Override
+        public void progress(List<String> changes) {
+            chatProgressView.addLogMessages(changes);
+        }
+
+        @Override
+        public void done(Chat.StructuredResponse result) {
+            chatProgressView.closeWithDefaultAction();
+            showResult(result);
+        }
+
+        @Override
+        public boolean handleException(Exception ex) {
+            return defaultUiExceptionHandler.handle(ex);
         }
     }
 }

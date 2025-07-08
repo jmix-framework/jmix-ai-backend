@@ -19,7 +19,7 @@ public class ParametersReader {
         return value != null ? value.toString() : defaultValue;
     }
 
-    public Integer getInteger(String key) {
+    public int getInt(String key) {
         return getInteger(key, 0);
     }
 
@@ -28,7 +28,7 @@ public class ParametersReader {
         return value != null ? (Integer) value : defaultValue;
     }
 
-    public Double getDouble(String key) {
+    public double getDouble(String key) {
         return getDouble(key, 0.0);
     }
 
@@ -37,7 +37,7 @@ public class ParametersReader {
         return value != null ? (Double) value : defaultValue;
     }
 
-    public Boolean getBoolean(String key) {
+    public boolean getBoolean(String key) {
         return getBoolean(key, false);
     }
 
