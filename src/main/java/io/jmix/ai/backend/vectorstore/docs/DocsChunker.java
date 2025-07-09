@@ -25,7 +25,7 @@ public class DocsChunker implements Chunker {
         this.minSect1PreambleSize = minSect1PreambleSize;
     }
 
-    public List<Chunk> extract(String content) {
+    public List<Chunk> extract(String content, String docPath) {
         List<Chunk> chunks = new ArrayList<>();
 
         Document document = Jsoup.parse(content);
@@ -35,11 +35,6 @@ public class DocsChunker implements Chunker {
             return chunks;
         }
         Element docTitleEl = articleEl.select("h1").first();
-        if (docTitleEl == null) {
-            log.warn("No doc title element found in the HTML content");
-            return chunks;
-        }
-        String docTitle = docTitleEl.text();
 
         String articleText = articleEl.text();
         if (articleText.length() >= maxChunkSize) {
@@ -49,16 +44,16 @@ public class DocsChunker implements Chunker {
                 Elements preambleElements = articleEl.select("div#preamble");
                 String preambleText = preambleElements.text();
                 if (preambleText.length() >= minDocPreambleSize) {
-                    String chunkTitle = createChunkTitle(docTitle);
-                    chunks.add(new Chunk(getTextWithHeader(preambleText, chunkTitle), chunkTitle, null));
+                    String chunkTitle = createChunkTitle(docPath);
+                    chunks.add(new Chunk(getTextWithHeader(preambleText, chunkTitle), null));
                 } else {
-                    log.debug("Skipping doc '{}' preamble because it is too short", docTitle);
+                    log.debug("Skipping doc '{}' preamble because it is too short", docPath);
                 }
 
                 for (Element s1El : sect1Elements) {
                     Element s1TitleEl = s1El.select("h2").first();
                     if (s1TitleEl == null) {
-                        log.warn("Skipping doc '{}' sect1 because it has no title", docTitle);
+                        log.warn("Skipping doc '{}' sect1 because it has no title", docPath);
                         continue;
                     }
                     String s1Title = s1TitleEl.text();
@@ -66,8 +61,8 @@ public class DocsChunker implements Chunker {
                     s1TitleEl.remove();
                     String s1Text = s1El.text();
                     if (s1Text.length() <= maxChunkSize) {
-                        String chunkTitle = createChunkTitle(docTitle, s1Title);
-                        chunks.add(new Chunk(getTextWithHeader(s1Text, chunkTitle), chunkTitle, s1Anchor));
+                        String chunkTitle = createChunkTitle(docPath, s1Title);
+                        chunks.add(new Chunk(getTextWithHeader(s1Text, chunkTitle), s1Anchor));
                     } else {
                         Element s1ContentEl = s1El.select("div.sectionbody").first();
                         if (s1ContentEl == null) {
@@ -76,23 +71,23 @@ public class DocsChunker implements Chunker {
                         Elements s1PreambleElements = s1ContentEl.children().not("div.sect2");
                         String s1PreambleText = s1PreambleElements.text();
                         if (s1PreambleText.length() >= minSect1PreambleSize) {
-                            String chunkTitle = createChunkTitle(docTitle, s1Title);
-                            chunks.add(new Chunk(getTextWithHeader(s1PreambleText, chunkTitle), chunkTitle, s1Anchor));
+                            String chunkTitle = createChunkTitle(docPath, s1Title);
+                            chunks.add(new Chunk(getTextWithHeader(s1PreambleText, chunkTitle), s1Anchor));
                         }
 
                         Elements s2Elements = s1ContentEl.select("div.sect2");
                         for (Element s2El : s2Elements) {
                             Element s2TitleEl = s2El.select("h3").first();
                             if (s2TitleEl == null) {
-                                log.warn("Skipping doc '{}' sect2 '{}' because it has no title", docTitle, s1Title);
+                                log.warn("Skipping doc '{}' sect2 '{}' because it has no title", docPath, s1Title);
                                 continue;
                             }
                             String s2Anchor = getAnchor(s2TitleEl);
                             s2TitleEl.remove();
                             String s2Text = s2El.text();
-                            String chunkTitle = createChunkTitle(docTitle, s1Title, s2TitleEl.text());
+                            String chunkTitle = createChunkTitle(docPath, s1Title, s2TitleEl.text());
                             if (s2Text.length() < maxChunkSize) {
-                                chunks.add(new Chunk(getTextWithHeader(s2Text, chunkTitle), chunkTitle, s2Anchor));
+                                chunks.add(new Chunk(getTextWithHeader(s2Text, chunkTitle), s2Anchor));
                             } else {
                                 log.warn("Skipping chunk with title '{}' because it is too long", chunkTitle);
                             }
@@ -105,8 +100,9 @@ public class DocsChunker implements Chunker {
         } else {
             // Adding the whole document
             if (articleText.length() >= minDocPreambleSize) {
-                docTitleEl.remove();
-                chunks.add(new Chunk(getTextWithHeader(articleEl.text(), docTitle), docTitle, null));
+                if (docTitleEl != null)
+                    docTitleEl.remove();
+                chunks.add(new Chunk(getTextWithHeader(articleEl.text(), createChunkTitle(docPath)), null));
             }
         }
 
@@ -118,7 +114,7 @@ public class DocsChunker implements Chunker {
     }
 
     private String getTextWithHeader(String text, String title) {
-        return "# " + title + "\n" + text;
+        return title + text;
     }
 
     private String createChunkTitle(String... titles) {
@@ -126,13 +122,13 @@ public class DocsChunker implements Chunker {
         for (String s : titles) {
             if (s != null && !s.isBlank()) {
                 if (!sb.isEmpty()) {
-                    if (!s.endsWith(".") && !s.endsWith("?") && !s.endsWith("!"))
-                        sb.append(".");
-                    sb.append(" ");
+                    sb.append(" > ");
                 }
                 sb.append(s);
             }
         }
+        sb.insert(0, "Path: ");
+        sb.append("\n\n");
         return sb.toString();
     }
 }

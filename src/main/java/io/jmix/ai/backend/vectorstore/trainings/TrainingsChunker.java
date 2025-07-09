@@ -15,7 +15,7 @@ public class TrainingsChunker implements Chunker {
     }
 
     @Override
-    public List<Chunk> extract(String content) {
+    public List<Chunk> extract(String content, String docPath) {
         AsciidocPreprocessor preprocessor = new AsciidocPreprocessor();
         AsciidocBlockGrouper blockGrouper = new AsciidocBlockGrouper(maxChunkSize, minChunkSize);
 
@@ -24,7 +24,7 @@ public class TrainingsChunker implements Chunker {
 
         List<Chunk> chunks = groupedBlocks.stream()
                 .map(block ->
-                        new Chunk(getTextWithHeader(block.text(), block.sectionPath()), block.sectionPath(), null))
+                        new Chunk(getTextWithHeader(block.text(), block.sectionPath()), null))
                 .toList();
 
         return chunks;

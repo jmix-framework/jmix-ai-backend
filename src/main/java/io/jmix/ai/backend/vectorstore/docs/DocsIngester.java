@@ -5,6 +5,7 @@ import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.vectorstore.Chunker;
 import io.jmix.core.TimeSource;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,7 +78,8 @@ public class DocsIngester extends AbstractIngester {
         try {
             doc = Jsoup.connect(url).get();
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load web page: " + url, e);
+            log.warn("Failed to load web page: {}", url);
+            return null;
         }
 
         Elements elements = doc.select("article.doc");
@@ -85,7 +87,15 @@ public class DocsIngester extends AbstractIngester {
         elements.select("div.feedback-form").remove();
         String htmlContent = elements.outerHtml();
 
+        Elements pathElements = doc.select("nav.breadcrumbs");
+        String docPath = pathElements.select("ul li")
+                .stream()
+                .skip(1)
+                .map(Element::text)
+                .collect(Collectors.joining(" > "));
+
         Map<String, Object> metadata = createMetadata(source, htmlContent);
+        metadata.put("docPath", docPath);
         metadata.put("url", url);
 
         return createDocument(htmlContent, metadata);
@@ -97,9 +107,10 @@ public class DocsIngester extends AbstractIngester {
         for (Document document : documents) {
             Map<String, Object> metadata = document.getMetadata();
             String url = (String) metadata.get("url");
+            String docPath = (String) metadata.get("docPath");
 
             log.debug("Splitting doc: {}", url);
-            List<Chunker.Chunk> chunks = chunker.extract(document.getText());
+            List<Chunker.Chunk> chunks = chunker.extract(document.getText(), docPath);
 
             for (Chunker.Chunk chunk : chunks) {
                 Map<String, Object> metadataCopy = copyMetadata(metadata);

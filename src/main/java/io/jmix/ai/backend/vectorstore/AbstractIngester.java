@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.lang.Nullable;
 
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
@@ -74,6 +75,9 @@ public abstract class AbstractIngester implements Ingester {
         String source = getSource(entity);
         log.info("Loading source: {}", source);
         Document document = loadDocument(source);
+        if (document == null) {
+            return "source not found: " + source;
+        }
 
         if (!isContentSame(document, entity)) {
             deleteExistingEntities(entity);
@@ -90,6 +94,10 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     protected boolean checkContent(Document document) {
+        if (document == null) {
+            return false;
+        }
+
         String source = getSourceFromDocument(document);
 
         List<VectorStoreEntity> entities = vectorStoreRepository.loadList(
@@ -159,6 +167,7 @@ public abstract class AbstractIngester implements Ingester {
 
     protected abstract int getSourceLimit();
 
+    @Nullable
     protected abstract Document loadDocument(String source);
 
     protected abstract List<Document> splitToChunks(List<Document> documents);

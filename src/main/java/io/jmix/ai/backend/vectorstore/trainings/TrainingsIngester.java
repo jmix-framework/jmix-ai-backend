@@ -128,7 +128,8 @@ public class TrainingsIngester extends AbstractIngester {
         try {
             textContent = Files.readString(docPath);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to load training doc: " + docPath, e);
+            log.warn("Failed to load training doc: {}", docPath);
+            return null;
         }
 
         Map<String, Object> metadata = createMetadata(source, textContent);
@@ -139,7 +140,7 @@ public class TrainingsIngester extends AbstractIngester {
     protected List<Document> splitToChunks(List<Document> documents) {
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : documents) {
-            List<Chunker.Chunk> chunks = chunker.extract(document.getText());
+            List<Chunker.Chunk> chunks = chunker.extract(document.getText(), "");
 
             Map<String, Object> metadata = document.getMetadata();
             String url = (String) metadata.get("url");

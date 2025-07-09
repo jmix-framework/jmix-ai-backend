@@ -72,12 +72,22 @@ public class UiSamplesIngester extends AbstractIngester {
         log.debug("Loading sample: {}", url);
 
         String textContent = restTemplate.getForObject(url, String.class);
+        if (textContent == null) {
+            log.warn("Failed to load sample: {}", url);
+            return null;
+        }
 
+        textContent = updateHeader(textContent);
+        
         Map<String, Object> metadata = createMetadata(source, textContent);
         metadata.put("url", getSampleUrl(source));
         metadata.put("docUrl", url);
 
         return createDocument(textContent, metadata);
+    }
+
+    private String updateHeader(String textContent) {
+        return textContent.replaceAll("<Path>(.*?)</Path>", "Path: $1");
     }
 
     private String getDocUrl(String sampleId) {
