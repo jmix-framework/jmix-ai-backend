@@ -28,10 +28,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Consumer;
 
 import static org.apache.commons.lang3.StringUtils.abbreviate;
@@ -56,9 +53,16 @@ public class Chat {
                 return null;
             }
             return retrievedDocuments.stream()
+                    .sorted(
+                            Comparator.comparing(
+                                    document -> document.getScore() == null ? 0.0 : document.getScore(),
+                                    Comparator.reverseOrder()
+                            )
+                    )
                     .map(document -> document.getMetadata().get("url"))
                     .filter(Objects::nonNull)
                     .map(Object::toString)
+                    .distinct()
                     .toList();
         }
     }
@@ -92,9 +96,9 @@ public class Chat {
                     externalLogger.accept(message);
                 addLogMessage(logMessages, message);
             };
-            DocsTool docsTool = new DocsTool(vectorStore, parametersReader, internalLogger);
-            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader, internalLogger);
-            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader, internalLogger);
+            DocsTool docsTool = new DocsTool(vectorStore, parametersReader, retrievedDocuments, internalLogger);
+            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader, retrievedDocuments, internalLogger);
+            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader, retrievedDocuments, internalLogger);
             request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
         }
 

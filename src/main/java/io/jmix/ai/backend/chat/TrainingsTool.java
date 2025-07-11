@@ -4,12 +4,14 @@ import io.jmix.ai.backend.parameters.ParametersReader;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 public class TrainingsTool extends AbstractRagTool {
 
-    public TrainingsTool(VectorStore vectorStore, ParametersReader parametersReader, Consumer<String> logger) {
-        super("trainings_retriever", "trainings", vectorStore, parametersReader, logger);
+    public TrainingsTool(VectorStore vectorStore, ParametersReader parametersReader,
+                         List<Document> retrievedDocuments, Consumer<String> logger) {
+        super("trainings_retriever", "trainings", vectorStore, parametersReader, retrievedDocuments, logger);
     }
 
     @Override

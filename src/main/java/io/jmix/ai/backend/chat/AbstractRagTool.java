@@ -22,6 +22,7 @@ public abstract class AbstractRagTool {
 
     protected final String toolName;
     protected final VectorStore vectorStore;
+    private final List<Document> retrievedDocuments;
     private final Consumer<String> logger;
     protected final String type;
     protected String description;
@@ -31,9 +32,10 @@ public abstract class AbstractRagTool {
     private String noResultsMessage;
 
     protected AbstractRagTool(String toolName, String type, VectorStore vectorStore,
-                              ParametersReader parametersReader, Consumer<String> logger) {
+                              ParametersReader parametersReader, List<Document> retrievedDocuments, Consumer<String> logger) {
         this.toolName = toolName;
         this.vectorStore = vectorStore;
+        this.retrievedDocuments = retrievedDocuments;
         this.logger = logger;
         this.type = type;
         init(parametersReader);
@@ -100,7 +102,9 @@ public abstract class AbstractRagTool {
         if (filteredDocuments.isEmpty()) {
             return getNoResultsMessage();
         }
-        
+
+        retrievedDocuments.addAll(filteredDocuments);
+
         return filteredDocuments.stream()
                 .map(Document::getText)
                 .collect(Collectors.joining("\n\n"));
