@@ -22,19 +22,23 @@ public abstract class AbstractRagTool {
 
     protected final String toolName;
     protected final VectorStore vectorStore;
+    private final Reranker reranker;
     private final List<Document> retrievedDocuments;
     private final Consumer<String> logger;
     protected final String type;
     protected String description;
     protected double similarityThreshold;
     protected int topK;
+    protected int topReranked;
     private double minScore;
+    private double minRerankedScore;
     private String noResultsMessage;
 
-    protected AbstractRagTool(String toolName, String type, VectorStore vectorStore,
+    protected AbstractRagTool(String toolName, String type, VectorStore vectorStore, Reranker reranker,
                               ParametersReader parametersReader, List<Document> retrievedDocuments, Consumer<String> logger) {
         this.toolName = toolName;
         this.vectorStore = vectorStore;
+        this.reranker = reranker;
         this.retrievedDocuments = retrievedDocuments;
         this.logger = logger;
         this.type = type;
@@ -49,7 +53,9 @@ public abstract class AbstractRagTool {
         description = parametersReader.getString(getToolRootKey() + ".description");
         similarityThreshold = parametersReader.getDouble(getToolRootKey() + ".similarityThreshold");
         topK = parametersReader.getInt(getToolRootKey() + ".topK");
+        topReranked = parametersReader.getInt(getToolRootKey() + ".topReranked");
         minScore = parametersReader.getDouble(getToolRootKey() + ".minScore");
+        minRerankedScore = parametersReader.getDouble(getToolRootKey() + ".minRerankedScore");
         noResultsMessage = parametersReader.getString(getToolRootKey() + ".noResultsMessage", "No results found for the query. Try rephrasing your query or using another tool.");
     }
 
@@ -88,16 +94,30 @@ public abstract class AbstractRagTool {
             logger.accept("No documents found for the query");
             return getNoResultsMessage();
         }
+        logger.accept("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
 
-        List<Document> filteredDocuments = documents.stream()
-                .filter(document ->
-                        minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                .toList();
+        List<Document> filteredDocuments;
 
-        List<String> links = filteredDocuments.stream()
-                .map(this::getLogMessage)
-                .toList();
-        logger.accept("Found documents (%d total, %d filtered): %s".formatted(documents.size(), links.size(), links));
+        List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
+
+        if (rerankResults == null) {
+            logger.accept("Reranking failed, filtering by minScore");
+            filteredDocuments = documents.stream()
+                    .filter(document ->
+                            minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
+                    .toList();
+            logger.accept("Filtered documents (%d): %s".formatted(filteredDocuments.size(), getDocSourcesAsString(filteredDocuments)));
+
+        } else {
+            List<Reranker.Result> filteredRerankResults = rerankResults.stream()
+                    .filter(rr -> rr.score() >= minRerankedScore)
+                    .toList();
+            logger.accept("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
+
+            filteredDocuments = filteredRerankResults.stream()
+                    .map(Reranker.Result::document)
+                    .toList();
+        }
 
         if (filteredDocuments.isEmpty()) {
             return getNoResultsMessage();
@@ -114,7 +134,28 @@ public abstract class AbstractRagTool {
         return noResultsMessage;
     };
 
-    protected String getLogMessage(Document document) {
-        return "(" + String.format("%.3f", document.getScore()) + ") " + document.getMetadata().get("url");
+    private String getUrlOrSource(Document document) {
+        String url = (String) document.getMetadata().get("url");
+        if (url != null)
+            return url;
+        else
+            return (String) document.getMetadata().get("source");
     }
+
+    private String getDocSourcesAsString(List<Document> documents) {
+        return documents.stream()
+                .map(document ->
+                        "(" + String.format("%.3f", document.getScore()) + ") " + getUrlOrSource(document))
+                .toList()
+                .toString();
+    }
+
+    private String getRerankResultsAsString(List<Reranker.Result> rerankResults) {
+        return rerankResults.stream()
+                .map(rr ->
+                        "(" + String.format("%.3f", rr.score()) + ") " + getUrlOrSource(rr.document()))
+                .toList()
+                .toString();
+    }
+
 }

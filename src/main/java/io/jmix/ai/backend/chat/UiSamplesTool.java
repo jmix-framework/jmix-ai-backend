@@ -9,8 +9,8 @@ import java.util.function.Consumer;
 
 public class UiSamplesTool extends AbstractRagTool {
 
-    public UiSamplesTool(VectorStore vectorStore, ParametersReader parametersReader,
+    public UiSamplesTool(VectorStore vectorStore, Reranker reranker, ParametersReader parametersReader,
                          List<Document> retrievedDocuments, Consumer<String> logger) {
-        super("uisamples_retriever", "uisamples", vectorStore, parametersReader, retrievedDocuments, logger);
+        super("uisamples_retriever", "uisamples", vectorStore, reranker, parametersReader, retrievedDocuments, logger);
     }
 }

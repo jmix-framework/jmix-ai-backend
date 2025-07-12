@@ -39,6 +39,7 @@ public class Chat {
     private static final Logger log = LoggerFactory.getLogger(Chat.class);
 
     private final VectorStore vectorStore;
+    private final Reranker reranker;
     private final ParametersRepository parametersRepository;
 
     public record StructuredResponse(String text, List<String> logMessages,
@@ -67,8 +68,9 @@ public class Chat {
         }
     }
 
-    public Chat(VectorStore vectorStore, ParametersRepository parametersRepository) {
+    public Chat(VectorStore vectorStore, Reranker reranker, ParametersRepository parametersRepository) {
         this.vectorStore = vectorStore;
+        this.reranker = reranker;
         this.parametersRepository = parametersRepository;
     }
 
@@ -96,9 +98,9 @@ public class Chat {
                     externalLogger.accept(message);
                 addLogMessage(logMessages, message);
             };
-            DocsTool docsTool = new DocsTool(vectorStore, parametersReader, retrievedDocuments, internalLogger);
-            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, parametersReader, retrievedDocuments, internalLogger);
-            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, parametersReader, retrievedDocuments, internalLogger);
+            DocsTool docsTool = new DocsTool(vectorStore, reranker, parametersReader, retrievedDocuments, internalLogger);
+            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, reranker, parametersReader, retrievedDocuments, internalLogger);
+            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, reranker, parametersReader, retrievedDocuments, internalLogger);
             request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
         }
 
