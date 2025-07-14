@@ -18,6 +18,9 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static io.jmix.ai.backend.chat.Utils.getDocSourcesAsString;
+import static io.jmix.ai.backend.chat.Utils.getRerankResultsAsString;
+
 public abstract class AbstractRagTool {
 
     protected final String toolName;
@@ -114,6 +117,10 @@ public abstract class AbstractRagTool {
                     .toList();
             logger.accept("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
 
+            for (Reranker.Result result : filteredRerankResults) {
+                result.document().getMetadata().put("rerankScore", result.score());
+            }
+
             filteredDocuments = filteredRerankResults.stream()
                     .map(Reranker.Result::document)
                     .toList();
@@ -134,28 +141,5 @@ public abstract class AbstractRagTool {
         return noResultsMessage;
     };
 
-    private String getUrlOrSource(Document document) {
-        String url = (String) document.getMetadata().get("url");
-        if (url != null)
-            return url;
-        else
-            return (String) document.getMetadata().get("source");
-    }
-
-    private String getDocSourcesAsString(List<Document> documents) {
-        return documents.stream()
-                .map(document ->
-                        "(" + String.format("%.3f", document.getScore()) + ") " + getUrlOrSource(document))
-                .toList()
-                .toString();
-    }
-
-    private String getRerankResultsAsString(List<Reranker.Result> rerankResults) {
-        return rerankResults.stream()
-                .map(rr ->
-                        "(" + String.format("%.3f", rr.score()) + ") " + getUrlOrSource(rr.document()))
-                .toList()
-                .toString();
-    }
 
 }

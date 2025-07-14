@@ -183,12 +183,29 @@ public class ChatView extends StandardView {
     private String getDocLinkText(Document document) {
         Object type = document.getMetadata().get("type");
         Double score = document.getScore();
+        Double rerankScore = (Double) document.getMetadata().get("rerankScore");
         String text = StringUtils.abbreviate(Objects.toString(document.getText(), ""), 80);
         return "[" + type + "] " +
-                (score == null ? "" : String.format("(%.2f)", score)) + " " +
+                getScoreString(score, rerankScore) + " " +
                 text.replaceAll("\n", " ").replaceAll("<", "&lt;")
                         .replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
                         .replaceAll("'", "&#39;");
+    }
+
+    private static String getScoreString(Double score, Double rerankScore) {
+        if (score == null && rerankScore == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("(");
+        if (score != null) {
+            sb.append(String.format("%.2f", score));
+        }
+        sb.append("/");
+        if (rerankScore != null) {
+            sb.append(String.format("%.2f", rerankScore));
+        }
+        sb.append(")");
+        return sb.toString();
     }
 
     private void enableResultButtons(boolean enable) {

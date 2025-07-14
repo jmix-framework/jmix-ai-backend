@@ -63,8 +63,8 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
 
     @Override
     public String loadDefaultContent() {
-        String message = resources.getResourceAsString("io/jmix/ai/backend/init/default-params.yml");
-        return message;
+        String content = resources.getResourceAsString("io/jmix/ai/backend/init/default-params.yml");
+        return content;
     }
 
     @Override
@@ -88,7 +88,16 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
         try {
             //noinspection unchecked
             Map<String, Object> data = objectMapper.readValue(parameters.getContent(), Map.class);
-            return data;
+
+            String resourcePath = (String) data.get("resourcePath");
+            if (resourcePath != null) {
+                String resourceContent = resources.getResourceAsString(resourcePath);
+                //noinspection unchecked
+                Map<String, Object> resourceData = objectMapper.readValue(resourceContent, Map.class);
+                return resourceData;
+            } else {
+                return data;
+            }
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
