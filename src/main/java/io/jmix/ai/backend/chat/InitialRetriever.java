@@ -4,6 +4,7 @@ import io.jmix.ai.backend.parameters.ParametersReader;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -16,10 +17,12 @@ import static org.apache.commons.lang3.StringUtils.abbreviate;
 @Component
 public class InitialRetriever {
 
+    private final ApplicationContext applicationContext;
     public final VectorStore vectorStore;
     public final Reranker reranker;
 
-    public InitialRetriever(VectorStore vectorStore, Reranker reranker) {
+    public InitialRetriever(ApplicationContext applicationContext, VectorStore vectorStore, Reranker reranker) {
+        this.applicationContext = applicationContext;
         this.vectorStore = vectorStore;
         this.reranker = reranker;
     }
@@ -46,9 +49,16 @@ public class InitialRetriever {
 
         logger.accept("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
 
-        List<Document> filteredDocuments;
+        PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(PostRetrievalProcessor.class, parametersReader, logger);
+        documents = postRetrievalProcessor.process(queryText, documents);
+        if (documents.isEmpty()) {
+            logger.accept("All documents filtered out by PostRetrievalProcessor");
+            return List.of();
+        }
 
         List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
+
+        List<Document> filteredDocuments;
 
         if (rerankResults == null) {
             logger.accept("Reranking failed, filtering by minScore");

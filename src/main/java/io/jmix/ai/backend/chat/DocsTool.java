@@ -9,8 +9,8 @@ import java.util.function.Consumer;
 
 public class DocsTool extends AbstractRagTool {
 
-    protected DocsTool(VectorStore vectorStore, Reranker reranker, ParametersReader parametersReader,
+    protected DocsTool(VectorStore vectorStore, PostRetrievalProcessor postRetrievalProcessor, Reranker reranker, ParametersReader parametersReader,
                        List<Document> retrievedDocuments, Consumer<String> logger) {
-        super("documentation_retriever", "docs", vectorStore, reranker, parametersReader, retrievedDocuments, logger);
+        super("documentation_retriever", "docs", vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, logger);
     }
 }

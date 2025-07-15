@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.parameters;
 
+import java.util.List;
 import java.util.Map;
 
 public class ParametersReader {
@@ -44,6 +45,12 @@ public class ParametersReader {
     public Boolean getBoolean(String key, Boolean defaultValue) {
         Object value = getValue(key);
         return value != null ? (Boolean) value : defaultValue;
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getList(String key) {
+        Object value = getValue(key);
+        return value == null ? List.of() : (List<Map<String, Object>>) value;
     }
 
     /**

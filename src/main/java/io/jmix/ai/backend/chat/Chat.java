@@ -19,6 +19,7 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -34,6 +35,7 @@ public class Chat {
 
     private static final Logger log = LoggerFactory.getLogger(Chat.class);
 
+    private final ApplicationContext applicationContext;
     private final InitialRetriever initialRetriever;
     private final VectorStore vectorStore;
     private final Reranker reranker;
@@ -58,7 +60,9 @@ public class Chat {
         }
     }
 
-    public Chat(InitialRetriever initialRetriever, VectorStore vectorStore, Reranker reranker, ParametersRepository parametersRepository) {
+    public Chat(ApplicationContext applicationContext, InitialRetriever initialRetriever,
+                VectorStore vectorStore, Reranker reranker, ParametersRepository parametersRepository) {
+        this.applicationContext = applicationContext;
         this.initialRetriever = initialRetriever;
         this.vectorStore = vectorStore;
         this.reranker = reranker;
@@ -96,9 +100,10 @@ public class Chat {
 
         } else {
             internalLogger.accept("Using tools");
-            DocsTool docsTool = new DocsTool(vectorStore, reranker, parametersReader, retrievedDocuments, internalLogger);
-            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, reranker, parametersReader, retrievedDocuments, internalLogger);
-            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, reranker, parametersReader, retrievedDocuments, internalLogger);
+            PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(PostRetrievalProcessor.class, parametersReader, internalLogger);
+            DocsTool docsTool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
 
             request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage.tools")));
             request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());

@@ -8,7 +8,10 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.Scope;
 import org.springframework.lang.Nullable;
+import org.springframework.stereotype.Component;
 import reactor.core.scheduler.Scheduler;
 
 import java.util.HashMap;
@@ -19,6 +22,8 @@ import java.util.stream.Collectors;
 /**
  * Based on {@code org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor}
  */
+@Component
+@Scope(BeanDefinition.SCOPE_PROTOTYPE)
 public class RagAdvisor implements BaseAdvisor {
 
     public static final String RETRIEVED_DOCUMENTS = "qa_retrieved_documents";

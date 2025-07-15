@@ -1,0 +1,15 @@
+
+postRetrievalProcessor:
+  rules:
+    - name: Tabbed Mode Add-on
+      script: |
+        !(
+          document.getText() =~ /(?i)Path: Add-ons > Tabbed Application Mode/ && 
+          !(userQuery =~ /(?i)tab/)
+        )
+    - name: BPM Add-on
+      script: |
+        !(
+          document.getText() =~ /(?i)Path: Add-ons > BPM/ && 
+          !(userQuery =~ /(?i)(bpm|business|process)/)
+        )

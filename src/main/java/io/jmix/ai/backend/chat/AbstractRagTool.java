@@ -25,6 +25,7 @@ public abstract class AbstractRagTool {
 
     protected final String toolName;
     protected final VectorStore vectorStore;
+    private final PostRetrievalProcessor postRetrievalProcessor;
     private final Reranker reranker;
     private final List<Document> retrievedDocuments;
     private final Consumer<String> logger;
@@ -37,10 +38,12 @@ public abstract class AbstractRagTool {
     private double minRerankedScore;
     private String noResultsMessage;
 
-    protected AbstractRagTool(String toolName, String type, VectorStore vectorStore, Reranker reranker,
+    protected AbstractRagTool(String toolName, String type, VectorStore vectorStore,
+                              PostRetrievalProcessor postRetrievalProcessor, Reranker reranker,
                               ParametersReader parametersReader, List<Document> retrievedDocuments, Consumer<String> logger) {
         this.toolName = toolName;
         this.vectorStore = vectorStore;
+        this.postRetrievalProcessor = postRetrievalProcessor;
         this.reranker = reranker;
         this.retrievedDocuments = retrievedDocuments;
         this.logger = logger;
@@ -98,6 +101,12 @@ public abstract class AbstractRagTool {
             return getNoResultsMessage();
         }
         logger.accept("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
+
+        documents = postRetrievalProcessor.process(queryText, documents);
+        if (documents.isEmpty()) {
+            logger.accept("All documents filtered out by PostRetrievalProcessor");
+            return getNoResultsMessage();
+        }
 
         List<Document> filteredDocuments;
 

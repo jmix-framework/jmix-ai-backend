@@ -9,12 +9,8 @@ import java.util.function.Consumer;
 
 public class TrainingsTool extends AbstractRagTool {
 
-    public TrainingsTool(VectorStore vectorStore, Reranker reranker, ParametersReader parametersReader,
+    public TrainingsTool(VectorStore vectorStore, PostRetrievalProcessor postRetrievalProcessor, Reranker reranker, ParametersReader parametersReader,
                          List<Document> retrievedDocuments, Consumer<String> logger) {
-        super("trainings_retriever", "trainings", vectorStore, reranker, parametersReader, retrievedDocuments, logger);
-    }
-
-    protected String getLogMessage(Document document) {
-        return "(" + String.format("%.3f", document.getScore()) + ") " + document.getMetadata().get("source");
+        super("trainings_retriever", "trainings", vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, logger);
     }
 }
