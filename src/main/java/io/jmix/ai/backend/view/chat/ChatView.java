@@ -107,49 +107,16 @@ public class ChatView extends StandardView {
 
         lastResultText = result.text();
 
-        String htmlText = escapeHtmlOutsideCodeBlocks(result.text());
+        String htmlText = result.text();
 
         Parser parser = Parser.builder().build();
         Node document = parser.parse(htmlText);
-        HtmlRenderer renderer = HtmlRenderer.builder().build();
+        HtmlRenderer renderer = HtmlRenderer.builder().escapeHtml(true).build();
         String html = renderer.render(document) + addSourceLinks(result.sourceLinks()) + addRetrievedDocs(result.retrievedDocuments());
 
         responseDiv.getElement().setProperty("innerHTML", html);
 
         enableResultButtons(true);
-    }
-
-    private String escapeHtmlOutsideCodeBlocks(String text) {
-        StringBuilder result = new StringBuilder();
-        boolean inCodeBlock = false;
-        String[] lines = text.split("\n");
-
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-
-            // Check for code block markers
-            if (line.trim().startsWith("```")) {
-                inCodeBlock = !inCodeBlock;
-                result.append(line).append("\n");
-                continue;
-            }
-
-            // Process the line based on whether we're in a code block
-            if (inCodeBlock) {
-                // In code block - don't escape
-                result.append(line);
-            } else {
-                // Outside code block - escape < and >
-                result.append(line.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
-            }
-
-            // Add newline if not the last line
-            if (i < lines.length - 1) {
-                result.append("\n");
-            }
-        }
-
-        return result.toString();
     }
 
     private String addSourceLinks(@Nullable List<String> strings) {
