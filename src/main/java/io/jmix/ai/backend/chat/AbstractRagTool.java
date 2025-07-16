@@ -85,7 +85,7 @@ public abstract class AbstractRagTool {
     }
 
     protected String executeSearch(String queryText, double similarityThreshold, int topK) {
-        logger.accept("Using %s ['%s', %.2f, %d, %.2f]: %s".formatted(
+        logger.accept(">>> Using %s ['%s', %.2f, %d, %.2f]: %s".formatted(
                 toolName, StringUtils.abbreviate(description, 10), similarityThreshold, topK, minScore, queryText));
 
         SearchRequest searchRequest = SearchRequest.builder()

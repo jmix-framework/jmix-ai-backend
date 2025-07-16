@@ -1,6 +1,8 @@
 package io.jmix.ai.backend.chat;
 
 import io.jmix.ai.backend.parameters.ParametersReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -17,6 +19,8 @@ import java.util.function.Consumer;
 @Component
 @Scope(BeanDefinition.SCOPE_PROTOTYPE)
 public class PostRetrievalProcessor {
+
+    private static final Logger log = LoggerFactory.getLogger(PostRetrievalProcessor.class);
 
     private final List<Rule> rules;
 
@@ -44,18 +48,23 @@ public class PostRetrievalProcessor {
     }
 
     private boolean applyRules(String userQuery, Document document) {
-        for (Rule rule : rules) {
-            Boolean result = (Boolean) scriptEvaluator.evaluate(
-                    new StaticScriptSource(rule.script),
-                    Map.of("userQuery", userQuery, "document", document)
-            );
-            if (result != null && !result) {
-                if (logger != null) {
-                    logger.accept("Rule '" + rule.name + "' failed for document " + Utils.getUrlOrSource(document));
+            for (Rule rule : rules) {
+                Boolean result = null;
+                try {
+                    result = (Boolean) scriptEvaluator.evaluate(
+                            new StaticScriptSource(rule.script),
+                            Map.of("userQuery", userQuery, "document", document)
+                    );
+                } catch (Exception e) {
+                    log.error("Rule {} evaluation failed for document {}", rule.name(), Utils.getUrlOrSource(document), e);
                 }
-                return false;
+                if (result != null && !result) {
+                    if (logger != null) {
+                        logger.accept("Rule '" + rule.name + "' filtered out " + Utils.getUrlOrSource(document));
+                    }
+                    return false;
+                }
             }
-        }
-        return true;
+            return true;
     }
 }

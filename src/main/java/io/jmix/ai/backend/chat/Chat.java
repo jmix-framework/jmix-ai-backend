@@ -36,7 +36,6 @@ public class Chat {
     private static final Logger log = LoggerFactory.getLogger(Chat.class);
 
     private final ApplicationContext applicationContext;
-    private final InitialRetriever initialRetriever;
     private final VectorStore vectorStore;
     private final Reranker reranker;
     private final ParametersRepository parametersRepository;
@@ -60,10 +59,8 @@ public class Chat {
         }
     }
 
-    public Chat(ApplicationContext applicationContext, InitialRetriever initialRetriever,
-                VectorStore vectorStore, Reranker reranker, ParametersRepository parametersRepository) {
+    public Chat(ApplicationContext applicationContext, VectorStore vectorStore, Reranker reranker, ParametersRepository parametersRepository) {
         this.applicationContext = applicationContext;
-        this.initialRetriever = initialRetriever;
         this.vectorStore = vectorStore;
         this.reranker = reranker;
         this.parametersRepository = parametersRepository;
@@ -90,24 +87,14 @@ public class Chat {
 
         ChatClient.ChatClientRequestSpec request;
 
-        List<Document> documents = initialRetriever.retrieve(userPrompt, parametersReader, internalLogger);
-        if (!documents.isEmpty()) {
-            internalLogger.accept("Using RagAdvisor");
-            retrievedDocuments.addAll(documents);
+        PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(PostRetrievalProcessor.class, parametersReader, internalLogger);
 
-            request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage.rag")));
-            request.advisors(new RagAdvisor(documents));
+        DocsTool docsTool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+        UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+        TrainingsTool trainingsTool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
 
-        } else {
-            internalLogger.accept("Using tools");
-            PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(PostRetrievalProcessor.class, parametersReader, internalLogger);
-            DocsTool docsTool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-
-            request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage.tools")));
-            request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
-        }
+        request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage")));
+        request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
 
         ChatResponse chatResponse = request.call().chatResponse();
 
