@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.security;
 
 import io.jmix.core.JmixSecurityFilterChainOrder;
+import io.jmix.security.util.JmixHttpSecurityUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -39,10 +40,12 @@ public class JmixAiBackendSecurityConfiguration {
     @Bean
     @Order(JmixSecurityFilterChainOrder.CUSTOM)
     SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/actuator/**")
+        http.securityMatcher("/actuator/**", "/chat")
                 .authorizeHttpRequests(authorize ->
                         authorize.anyRequest().permitAll()
-                );
+                )
+                .csrf(csrf -> csrf.disable());
+        JmixHttpSecurityUtils.configureAnonymous(http);
         return http.build();
     }
 }

@@ -44,7 +44,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-@Route(value = "chat", layout = MainView.class)
+@Route(value = "chat-view", layout = MainView.class)
 @ViewController(id = "ChatView")
 @ViewDescriptor(path = "chat-view.xml")
 public class ChatView extends StandardView {
