@@ -5,6 +5,8 @@ import com.google.common.base.Strings;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Hr;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinServletRequest;
@@ -12,13 +14,16 @@ import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
+import io.jmix.core.UuidProvider;
 import io.jmix.flowui.DialogWindows;
 import io.jmix.flowui.Notifications;
+import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.backgroundtask.BackgroundTask;
 import io.jmix.flowui.backgroundtask.BackgroundTaskHandler;
 import io.jmix.flowui.backgroundtask.BackgroundWorker;
 import io.jmix.flowui.backgroundtask.TaskLifeCycle;
 import io.jmix.flowui.component.UiComponentUtils;
+import io.jmix.flowui.component.scroller.JmixScroller;
 import io.jmix.flowui.component.textarea.JmixTextArea;
 import io.jmix.flowui.component.valuepicker.EntityPicker;
 import io.jmix.flowui.exception.DefaultUiExceptionHandler;
@@ -56,25 +61,23 @@ public class ChatView extends StandardView {
     private BackgroundWorker backgroundWorker;
     @Autowired
     private DialogWindows dialogWindows;
+    @Autowired
+    private UiComponents uiComponents;
 
     @ViewComponent
     private JmixTextArea userMessageField;
     @ViewComponent
-    private Div responseDiv;
-    @ViewComponent
-    private JmixButton clearButton;
-    @ViewComponent
-    private JmixButton copyButton;
-    @ViewComponent
     private EntityPicker<Parameters> parametersPicker;
     @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
-
-    private String lastResultText;
+    @ViewComponent
+    private JmixScroller scroller;
+    @ViewComponent
+    private VerticalLayout responseBox;
 
     private String contextPath;
-    @ViewComponent
-    private JmixTextArea logField;
+
+    private String conversationId;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -83,6 +86,12 @@ public class ChatView extends StandardView {
         urlQueryParameters.registerBinder(new UrlBinder());
 
         contextPath = VaadinServletRequest.getCurrent().getContextPath();
+
+        updateConversationId();
+    }
+
+    private void updateConversationId() {
+        conversationId = UuidProvider.createUuidV7().toString();
     }
 
     @Subscribe(id = "sendButton", subject = "clickListener")
@@ -102,10 +111,31 @@ public class ChatView extends StandardView {
         }
     }
 
-    private void showResult(Chat.StructuredResponse result) {
-        logField.setValue(String.join("\n", result.logMessages()));
+    @Subscribe(id = "newChatButton", subject = "clickListener")
+    public void onNewChatButtonClick(final ClickEvent<JmixButton> event) {
+        responseBox.removeAll();
+        updateConversationId();
+    }
 
-        lastResultText = result.text();
+    private void showResult(Chat.StructuredResponse result) {
+        if (responseBox.getChildren().findAny().isPresent()) {
+            responseBox.add(uiComponents.create(Hr.class));
+        }
+
+        Div requestDiv = uiComponents.create(Div.class);
+        requestDiv.setText(StringUtils.abbreviate(userMessageField.getValue(), 100));
+        requestDiv.getStyle().set("font-weight", "bold");
+        responseBox.add(requestDiv);
+
+        JmixTextArea logField = uiComponents.create(JmixTextArea.class);
+        logField.setWidthFull();
+        logField.setReadOnly(true);
+        logField.getStyle().set("font-family", "monospace");
+        logField.getStyle().set("font-size", "smaller");
+        String logText = "Conversion ID: " + conversationId + "\n" +
+                String.join("\n", result.logMessages());
+        logField.setValue(logText);
+        responseBox.add(logField);
 
         String htmlText = result.text();
 
@@ -114,9 +144,12 @@ public class ChatView extends StandardView {
         HtmlRenderer renderer = HtmlRenderer.builder().escapeHtml(true).build();
         String html = renderer.render(document) + addSourceLinks(result.sourceLinks()) + addRetrievedDocs(result.retrievedDocuments());
 
+        Div responseDiv = uiComponents.create(Div.class);
         responseDiv.getElement().setProperty("innerHTML", html);
 
-        enableResultButtons(true);
+        responseBox.add(responseDiv);
+
+        scroller.scrollToBottom();
     }
 
     private String addSourceLinks(@Nullable List<String> strings) {
@@ -175,25 +208,6 @@ public class ChatView extends StandardView {
         return sb.toString();
     }
 
-    private void enableResultButtons(boolean enable) {
-        clearButton.setEnabled(enable);
-        copyButton.setEnabled(enable);
-    }
-
-    @Subscribe(id = "clearButton", subject = "clickListener")
-    public void onClearButtonClick(final ClickEvent<JmixButton> event) {
-        logField.setValue("");
-        responseDiv.getElement().setProperty("innerHTML", "");
-        enableResultButtons(false);
-        lastResultText = null;
-    }
-
-    @Subscribe(id = "copyButton", subject = "clickListener")
-    public void onCopyButtonClick(final ClickEvent<JmixButton> event) {
-        UiComponentUtils.copyToClipboard(lastResultText)
-                .then(jsonValue -> notifications.show("Copied!"));
-    }
-
     @Subscribe(id = "copyToClipboardButton", subject = "clickListener")
     public void onCopyToClipboardButtonClick(final ClickEvent<JmixButton> event) {
         if (StringUtils.isNotBlank(userMessageField.getValue())) {
@@ -243,7 +257,8 @@ public class ChatView extends StandardView {
                     throw new RuntimeException(e);
                 }
             };
-            Chat.StructuredResponse response = chat.requestStructured(userMessageField.getValue(), parameters, logger);
+            Chat.StructuredResponse response = chat.requestStructured(
+                    userMessageField.getValue(), parameters, conversationId, logger);
             return response;
         }
 

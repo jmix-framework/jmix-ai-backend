@@ -13,6 +13,7 @@
         </textArea>
         <hbox width="100%" alignItems="CENTER">
             <button id="sendButton" text="Send" themeNames="primary"/>
+            <button id="newChatButton" text="New chat"/>
             <span text="Parameters"/>
             <entityPicker id="parametersPicker" metaClass="Parameters" required="true" width="100%">
                 <actions>
@@ -29,12 +30,8 @@
                 </actions>
             </entityPicker>
         </hbox>
-        <hbox>
-            <button id="clearButton" text="Clear" themeNames="small" enabled="false"/>
-            <button id="copyButton" text="Copy" themeNames="small" enabled="false"/>
-        </hbox>
-        <textArea id="logField" width="100%" readOnly="true"
-                  css="font-family: monospace; font-size: smaller;"/>
-        <div id="responseDiv" width="100%"/>
+        <scroller id="scroller" width="100%">
+            <vbox id="responseBox" width="100%"/>
+        </scroller>
     </layout>
 </view>

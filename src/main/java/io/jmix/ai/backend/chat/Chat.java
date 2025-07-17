@@ -3,16 +3,24 @@ package io.jmix.ai.backend.chat;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
 import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.observation.ChatModelObservationContext;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -39,6 +47,9 @@ public class Chat {
     private final VectorStore vectorStore;
     private final Reranker reranker;
     private final ParametersRepository parametersRepository;
+    private final ChatMemory chatMemory;
+    private final ObservationRegistry observationRegistry;
+
 
     public record StructuredResponse(String text, List<String> logMessages,
                                      @Nullable List<Document> retrievedDocuments, @Nullable List<String> sourceLinks) {
@@ -59,14 +70,24 @@ public class Chat {
         }
     }
 
-    public Chat(ApplicationContext applicationContext, VectorStore vectorStore, Reranker reranker, ParametersRepository parametersRepository) {
+    public Chat(ApplicationContext applicationContext, VectorStore vectorStore, JdbcChatMemoryRepository chatMemoryRepository,
+                Reranker reranker, ParametersRepository parametersRepository) {
         this.applicationContext = applicationContext;
         this.vectorStore = vectorStore;
         this.reranker = reranker;
         this.parametersRepository = parametersRepository;
+
+        chatMemory = MessageWindowChatMemory.builder()
+                .chatMemoryRepository(chatMemoryRepository)
+                .maxMessages(10)
+                .build();
+
+        observationRegistry = ObservationRegistry.create();
+        observationRegistry.observationConfig().observationHandler(getChatObservationHandler());
     }
 
-    public StructuredResponse requestStructured(String userPrompt, Parameters parameters, @Nullable Consumer<String> externalLogger) {
+    public StructuredResponse requestStructured(String userPrompt, Parameters parameters, @Nullable String conversationId,
+                                                @Nullable Consumer<String> externalLogger) {
         long start = System.currentTimeMillis();
         List<String> logMessages = new ArrayList<>();
 
@@ -94,6 +115,9 @@ public class Chat {
         TrainingsTool trainingsTool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
 
         request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage")));
+        if (conversationId != null) {
+            request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
+        }
         request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
 
         ChatResponse chatResponse = request.call().chatResponse();
@@ -167,17 +191,39 @@ public class Chat {
                 .apiKey(openaiApiKey)
                 .build();
         OpenAiChatOptions openAiChatOptions = OpenAiChatOptions.builder()
-                .model(parametersReader.getString("model.name", "gpt-4.1-mini"))
+                .model(parametersReader.getString("model.name", "gpt-4.1"))
                 .temperature(parametersReader.getDouble("model.temperature", 1.0))
 //                .maxTokens(200)
                 .build();
         return OpenAiChatModel.builder()
                 .openAiApi(openAiApi)
                 .defaultOptions(openAiChatOptions)
+                .observationRegistry(observationRegistry)
                 .build();
     }
 
     private ChatClient buildClient(ChatModel chatModel) {
-        return ChatClient.builder(chatModel).build();
+        return ChatClient.builder(chatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build();
+    }
+
+    private ObservationHandler<ChatModelObservationContext> getChatObservationHandler() {
+        return new ObservationHandler<>() {
+            @Override
+            public void onStart(ChatModelObservationContext context) {
+                log.trace("LLM Request:\n{}", context.getRequest());
+            }
+
+            @Override
+            public void onStop(ChatModelObservationContext context) {
+                log.trace("LLM Response:\n{}", context.getResponse());
+            }
+
+            @Override
+            public boolean supportsContext(Observation.Context context) {
+                return context instanceof ChatModelObservationContext;
+            }
+        };
     }
 }
