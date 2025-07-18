@@ -3,6 +3,7 @@ package io.jmix.ai.backend.chat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
@@ -21,10 +22,13 @@ public class Reranker {
     private static final Logger log = LoggerFactory.getLogger(Reranker.class);
 
     private final RestTemplate restTemplate;
-    private final String rerankerServiceUrl = "http://localhost:8000/rerank";
+    private final String rerankerServiceUrl;
 
-    public Reranker() {
+    public Reranker(
+            @Value("${reranker.url:http://localhost:8000/rerank}") String rerankerServiceUrl
+    ) {
         this.restTemplate = new RestTemplate();
+        this.rerankerServiceUrl = rerankerServiceUrl;
     }
 
     @SuppressWarnings("unchecked")

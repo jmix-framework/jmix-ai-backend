@@ -99,7 +99,8 @@ public class ChatView extends StandardView {
         if (StringUtils.isBlank(userMessageField.getValue())) {
             notifications.show("Enter a question");
         } else {
-            Parameters parameters = parametersRepository.findById(parametersPicker.getValue().getId()).orElseThrow();
+            Parameters parameters = parametersRepository.findById(parametersPicker.getValue().getId())
+                    .orElse(parametersRepository.loadActive());
 
             DialogWindow<ChatProgressView> chatProgressWindow = dialogWindows.view(this, ChatProgressView.class).build();
             chatProgressWindow.open();

@@ -4,21 +4,27 @@ services:
     ports:
       - "4318:4318"
     volumes:
-      - ./docker/otelcol-config.yaml:/config.yaml
+      - ./otelcol-config.yaml:/config.yaml
     command:
       - --config=file:/config.yaml
+    networks:
+      - jmix-ai-network
 
   loki:
     image: grafana/loki
+    networks:
+      - jmix-ai-network
 
   prometheus:
     image: prom/prometheus
     ports:
       - "9090:9090"
     volumes:
-      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - jmix-ai-network
 
   grafana:
     image: grafana/grafana
@@ -29,8 +35,10 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana-storage:/var/lib/grafana
-      - ./docker/grafana/provisioning:/etc/grafana/provisioning
-      - ./docker/grafana/dashboards:/etc/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+    networks:
+      - jmix-ai-network
     depends_on:
       - prometheus
       - loki
@@ -39,5 +47,5 @@ volumes:
   grafana-storage:
 
 networks:
-  default:
-    name: jmix-ai
+  jmix-ai-network:
+    external: true

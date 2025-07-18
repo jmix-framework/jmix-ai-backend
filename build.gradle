@@ -81,3 +81,8 @@ idea {
 vaadin {
     optimizeBundle = false
 }
+
+tasks.named("bootBuildImage") {
+    imageName = "jmix-ai-backend"
+    environment["BPE_APPEND_JAVA_TOOL_OPTIONS"] = " -Dspring.profiles.active=prod"
+}

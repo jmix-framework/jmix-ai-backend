@@ -1,9 +1,8 @@
 package io.jmix.ai.backend.vectorstore.trainings;
 
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
-import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.vectorstore.Chunker;
-import io.jmix.core.CoreProperties;
+import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.core.TimeSource;
 import org.apache.commons.lang3.stream.Streams;
 import org.slf4j.Logger;
@@ -27,27 +26,27 @@ public class TrainingsIngester extends AbstractIngester {
 
     private static final Logger log = LoggerFactory.getLogger(TrainingsIngester.class);
 
-    private final String gitUrl;
+//    private final String gitUrl;
     private final int limit;
     private final List<String> whitelist;
     private final List<String> blacklist;
-    private final Path gitLocalPath;
+    private final Path localPath;
     private final Chunker chunker;
 
     public TrainingsIngester(
-            @Value("${trainings.git-url}") String gitUrl,
+//            @Value("${trainings.git-url}") String gitUrl,
+            @Value("${trainings.local-path}") String localPath,
             @Value("${trainings.limit}") int limit,
             @Value("${trainings.whitelist}") List<String> whitelist,
             @Value("${trainings.blacklist}") List<String> blacklist,
-            CoreProperties coreProperties,
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository) {
         super(vectorStore, timeSource, vectorStoreRepository);
-        this.gitUrl = gitUrl;
+//        this.gitUrl = gitUrl;
         this.limit = limit;
         this.whitelist = whitelist;
-        gitLocalPath = Path.of(coreProperties.getWorkDir(), "trainings");
+        this.localPath = Path.of(localPath);
         this.blacklist = blacklist;
         chunker = new TrainingsChunker(MAX_CHUNK_SIZE, 300);
     }
@@ -57,42 +56,42 @@ public class TrainingsIngester extends AbstractIngester {
         return "trainings";
     }
 
-    @Override
-    protected void prepareUpdate() {
-         updateLocalGitRepo();
-    }
-
-    private void updateLocalGitRepo() {
-        Path repoDir = gitLocalPath;
-        try {
-            if (!(Files.exists(repoDir)
-                    && Files.isDirectory(repoDir)
-                    && Files.exists(repoDir.resolve(".git")))) {
-                log.info("Cloning repository from {}", gitUrl);
-                executeCommand("git", "clone", gitUrl, gitLocalPath.toString());
-            } else {
-                log.info("Pulling updates for repository at {}", gitLocalPath);
-                executeCommand("git", "-C", gitLocalPath.toString(), "pull");
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException("Failed to update local git repository", e);
-        }
-    }
-
-    private void executeCommand(String... command) throws IOException, InterruptedException {
-        int exitCode = new ProcessBuilder(command)
-                .inheritIO()
-                .start()
-                .waitFor();
-        if (exitCode != 0) {
-            throw new RuntimeException("Command failed with exit code: " + exitCode);
-        }
-    }
+//    @Override
+//    protected void prepareUpdate() {
+//         updateLocalGitRepo();
+//    }
+//
+//    private void updateLocalGitRepo() {
+//        Path repoDir = localPath;
+//        try {
+//            if (!(Files.exists(repoDir)
+//                    && Files.isDirectory(repoDir)
+//                    && Files.exists(repoDir.resolve(".git")))) {
+//                log.info("Cloning repository from {}", gitUrl);
+//                executeCommand("git", "clone", gitUrl, localPath.toString());
+//            } else {
+//                log.info("Pulling updates for repository at {}", localPath);
+//                executeCommand("git", "-C", localPath.toString(), "pull");
+//            }
+//        } catch (IOException | InterruptedException e) {
+//            throw new RuntimeException("Failed to update local git repository", e);
+//        }
+//    }
+//
+//    private void executeCommand(String... command) throws IOException, InterruptedException {
+//        int exitCode = new ProcessBuilder(command)
+//                .inheritIO()
+//                .start()
+//                .waitFor();
+//        if (exitCode != 0) {
+//            throw new RuntimeException("Command failed with exit code: " + exitCode);
+//        }
+//    }
 
     @Override
     protected List<String> loadSources() {
         return loadListOfTrainingDocs().stream()
-                .map(path -> gitLocalPath.relativize(path).toString())
+                .map(path -> localPath.relativize(path).toString())
                 .toList();
     }
 
@@ -102,7 +101,8 @@ public class TrainingsIngester extends AbstractIngester {
     }
 
     private List<Path> loadListOfTrainingDocs() {
-        try (Stream<Path> walk = Files.walk(gitLocalPath)) {
+        log.info("Loading list of trainings from {}", localPath);
+        try (Stream<Path> walk = Files.walk(localPath)) {
             return walk.filter(Files::isRegularFile)
                     .filter(this::isValidTrainingFile)
                     .toList();
@@ -121,7 +121,7 @@ public class TrainingsIngester extends AbstractIngester {
 
     @Override
     protected Document loadDocument(String source) {
-        Path docPath = gitLocalPath.resolve(source);
+        Path docPath = localPath.resolve(source);
         log.debug("Loading training doc: {}", docPath);
 
         String textContent;
