@@ -35,18 +35,4 @@ docker build -t jmix-ai-reranker .
 
 ## Running in production
 
-Create shared network:
-```shell
-docker network create jmix-ai-network
-```
-
-Run observability stack:
-```shell
-docker-compose -f docker/observability/docker-compose.yml up -d
-```
-
-Run app stack:
-```shell
-export TRAININGS_REPO_PATH=<local path to jmix-flowui-trainings repo>
-docker-compose -f docker/backend/docker-compose.yml up -d
-```
+See <https://github.com/jmix-framework/jmix-ai-deploy>
