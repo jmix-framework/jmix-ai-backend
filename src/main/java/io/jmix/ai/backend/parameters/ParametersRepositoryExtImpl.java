@@ -8,6 +8,7 @@ import io.jmix.core.MetadataTools;
 import io.jmix.core.Resources;
 import io.jmix.core.UnconstrainedDataManager;
 import io.jmix.core.UuidProvider;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -78,16 +79,21 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
 
     @Override
     public ParametersReader getReader(Parameters parameters) {
-        return new ParametersReader(getObjectMap(parameters)) ;
+        return new ParametersReader(getObjectMap(parameters));
     }
 
-    private Map<String, Object> getObjectMap(Parameters parameters) {
-        if (parameters.getContent() == null) {
+    @Override
+    public ParametersReader getReader(@Nullable String parametersYaml) {
+        return new ParametersReader(getObjectMap(parametersYaml));
+    }
+
+    private Map<String, Object> getObjectMap(String parametersYaml) {
+        if (parametersYaml == null) {
             return Map.of();
         }
         try {
             //noinspection unchecked
-            Map<String, Object> data = objectMapper.readValue(parameters.getContent(), Map.class);
+            Map<String, Object> data = objectMapper.readValue(parametersYaml, Map.class);
 
             String resourcePath = (String) data.get("resourcePath");
             if (resourcePath != null) {
@@ -101,5 +107,9 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Map<String, Object> getObjectMap(Parameters parameters) {
+        return getObjectMap(parameters.getContent());
     }
 }

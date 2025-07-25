@@ -2,6 +2,7 @@ package io.jmix.ai.backend.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.jmix.ai.backend.chat.Chat;
+import io.jmix.ai.backend.chat.ChatImpl;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,7 +25,7 @@ public class ChatController {
     @PostMapping("/chat")
     public Response chat(@RequestBody Request request) {
         Parameters parameters = parametersRepository.loadActive();
-        Chat.StructuredResponse chatResponse = chat.requestStructured(request.text(), parameters, request.conversationId(), null);
+        ChatImpl.StructuredResponse chatResponse = chat.requestStructured(request.text(), parameters.getContent(), request.conversationId(), null);
         return new Response(request.text(),
                 chatResponse.text(),
                 "",

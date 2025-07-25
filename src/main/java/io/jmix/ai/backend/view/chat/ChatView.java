@@ -4,13 +4,17 @@ package io.jmix.ai.backend.view.chat;
 import com.google.common.base.Strings;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Hr;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinServletRequest;
 import io.jmix.ai.backend.chat.Chat;
+import io.jmix.ai.backend.chat.ChatImpl;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
@@ -105,7 +109,7 @@ public class ChatView extends StandardView {
             DialogWindow<ChatProgressView> chatProgressWindow = dialogWindows.view(this, ChatProgressView.class).build();
             chatProgressWindow.open();
 
-            final BackgroundTaskHandler<Chat.StructuredResponse> taskHandler = backgroundWorker.handle(
+            final BackgroundTaskHandler<ChatImpl.StructuredResponse> taskHandler = backgroundWorker.handle(
                     new ChatBackgroundTask(chatProgressWindow.getView(), parameters)
             );
             taskHandler.execute();
@@ -118,7 +122,7 @@ public class ChatView extends StandardView {
         updateConversationId();
     }
 
-    private void showResult(Chat.StructuredResponse result) {
+    private void showResult(ChatImpl.StructuredResponse result) {
         if (responseBox.getChildren().findAny().isPresent()) {
             responseBox.add(uiComponents.create(Hr.class));
         }
@@ -138,10 +142,10 @@ public class ChatView extends StandardView {
         logField.setValue(logText);
         responseBox.add(logField);
 
-        String htmlText = result.text();
+        String mdText = result.text();
 
         Parser parser = Parser.builder().build();
-        Node document = parser.parse(htmlText);
+        Node document = parser.parse(mdText);
         HtmlRenderer renderer = HtmlRenderer.builder().escapeHtml(true).build();
         String html = renderer.render(document) + addSourceLinks(result.sourceLinks()) + addRetrievedDocs(result.retrievedDocuments());
 
@@ -149,6 +153,15 @@ public class ChatView extends StandardView {
         responseDiv.getElement().setProperty("innerHTML", html);
 
         responseBox.add(responseDiv);
+
+        Button copyButton = uiComponents.create(Button.class);
+        copyButton.setText("Copy");
+        copyButton.setIcon(new Icon(VaadinIcon.CLIPBOARD));
+        copyButton.addClickListener(clickEvent -> {
+            UiComponentUtils.copyToClipboard(mdText)
+                    .then(jsonValue -> notifications.show("Copied!"));
+        });
+        responseBox.add(copyButton);
 
         scroller.scrollToBottom();
     }
@@ -238,7 +251,7 @@ public class ChatView extends StandardView {
         }
     }
 
-    private class ChatBackgroundTask extends BackgroundTask<String, Chat.StructuredResponse> {
+    private class ChatBackgroundTask extends BackgroundTask<String, ChatImpl.StructuredResponse> {
 
         private final ChatProgressView chatProgressView;
         private final Parameters parameters;
@@ -250,7 +263,7 @@ public class ChatView extends StandardView {
         }
 
         @Override
-        public Chat.StructuredResponse run(TaskLifeCycle<String> taskLifeCycle) throws Exception {
+        public ChatImpl.StructuredResponse run(TaskLifeCycle<String> taskLifeCycle) throws Exception {
             Consumer<String> logger = s -> {
                 try {
                     taskLifeCycle.publish(s);
@@ -258,8 +271,8 @@ public class ChatView extends StandardView {
                     throw new RuntimeException(e);
                 }
             };
-            Chat.StructuredResponse response = chat.requestStructured(
-                    userMessageField.getValue(), parameters, conversationId, logger);
+            ChatImpl.StructuredResponse response = chat.requestStructured(
+                    userMessageField.getValue(), parameters.getContent(), conversationId, logger);
             return response;
         }
 
@@ -269,7 +282,7 @@ public class ChatView extends StandardView {
         }
 
         @Override
-        public void done(Chat.StructuredResponse result) {
+        public void done(ChatImpl.StructuredResponse result) {
             chatProgressView.closeWithDefaultAction();
             showResult(result);
         }

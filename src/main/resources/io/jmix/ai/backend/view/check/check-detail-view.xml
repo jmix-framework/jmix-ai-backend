@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://checkDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="checkDc"
+                  class="io.jmix.ai.backend.entity.Check">
+            <fetchPlan extends="_base"/>
+            <loader id="checkDl"/>
+        </instance>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <layout>
+        <formLayout id="form" dataContainer="checkDc">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+                <responsiveStep minWidth="40em" columns="3"/>
+            </responsiveSteps>
+            <textField id="categoryField" property="category"/>
+            <textArea id="questionField" minHeight="4em" property="question" colspan="3"/>
+            <textArea id="referenceAnswerField" minHeight="9.5em" property="referenceAnswer" colspan="3"/>
+            <textArea id="actualAnswerField" minHeight="9.5em" property="actualAnswer" colspan="3"/>
+            <textArea id="scriptField" minHeight="4em" property="script" colspan="3"/>
+            <textField id="scriptScoreField" property="scriptScore"/>
+            <textField id="rougeScoreField" property="rougeScore"/>
+            <textField id="bertScoreField" property="bertScore"/>
+            <textArea id="logField" minHeight="9.5em" property="log" colspan="3"/>
+        </formLayout>
+    </layout>
+</view>

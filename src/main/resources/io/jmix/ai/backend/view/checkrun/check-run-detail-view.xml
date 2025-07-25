@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://checkRunDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="checkRunDc"
+                  class="io.jmix.ai.backend.entity.CheckRun">
+            <fetchPlan extends="_base"/>
+            <loader id="checkRunDl"/>
+        </instance>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <actions>
+        <action id="saveAction" type="detail_saveClose"/>
+        <action id="closeAction" type="detail_close"/>
+    </actions>
+    <layout>
+        <formLayout id="form" dataContainer="checkRunDc">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+                <responsiveStep minWidth="40em" columns="3"/>
+            </responsiveSteps>
+            <entityPicker id="parametersPicker" metaClass="Parameters" visible="false"
+                          label="msg://io.jmix.ai.backend.entity/CheckRun.parameters" minWidth="40em">
+                <actions>
+                    <action id="entityLookup" type="entity_lookup"/>
+                    <action id="entityOpen" type="entity_open"/>
+                    <action id="entityClear" type="entity_clear"/>
+                </actions>
+            </entityPicker>
+            <textField id="createdDateField" property="createdDate" readOnly="true"/>
+            <textField id="createdByField" property="createdBy" readOnly="true" colspan="2"/>
+            <textField id="scriptScoreField" property="scriptScore" readOnly="true"/>
+            <textField id="rougeScoreField" property="rougeScore" readOnly="true"/>
+            <textField id="bertScoreField" property="bertScore" readOnly="true"/>
+            <textArea id="parametersField" minHeight="10em" property="parameters" colspan="3" readOnly="true"/>
+        </formLayout>
+        <hbox id="detailActions" visible="false">
+            <button id="saveAndCloseButton" action="saveAction"/>
+            <button id="closeButton" action="closeAction"/>
+        </hbox>
+    </layout>
+</view>

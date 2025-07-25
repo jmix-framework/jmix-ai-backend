@@ -12,4 +12,6 @@ public interface ParametersRepositoryExt {
     void activate(Parameters parameters);
 
     ParametersReader getReader(Parameters parameters);
+
+    ParametersReader getReader(String parametersYaml);
 }

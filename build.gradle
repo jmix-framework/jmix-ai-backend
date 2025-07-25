@@ -51,6 +51,7 @@ dependencies {
     implementation 'io.jmix.flowui:jmix-flowui-themes'
     implementation 'io.jmix.datatools:jmix-datatools-starter'
     implementation 'io.jmix.datatools:jmix-datatools-flowui-starter'
+    implementation 'io.jmix.gridexport:jmix-gridexport-flowui-starter'
 
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
@@ -60,6 +61,7 @@ dependencies {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
     }
     testImplementation 'io.jmix.flowui:jmix-flowui-test-assist'
+    testImplementation 'org.hsqldb:hsqldb'
 }
 
 configurations.implementation {

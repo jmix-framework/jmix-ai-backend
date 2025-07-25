@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
+      title="msg://checkDefListView.title"
+      focusComponent="checkDefsDataGrid">
+    <data>
+        <collection id="checkDefsDc"
+                    class="io.jmix.ai.backend.entity.CheckDef">
+            <fetchPlan extends="_base"/>
+            <loader id="checkDefsDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from CheckDef e]]>
+                </query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+        <settings auto="true"/>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <genericFilter id="genericFilter"
+                       dataLoader="checkDefsDl">
+            <properties include=".*"/>
+        </genericFilter>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="checkDefsDataGrid.createAction"/>
+            <button id="editButton" action="checkDefsDataGrid.editAction"/>
+            <button id="removeButton" action="checkDefsDataGrid.removeAction"/>
+            <button id="toggleActiveButton" text="Toggle active"/>
+            <dropdownButton text="Export">
+                <items>
+                    <actionItem id="excelExportAction" ref="checkDefsDataGrid.excelExportAction"/>
+                    <actionItem id="jsonExportActionItem" ref="checkDefsDataGrid.jsonExportAction"/>
+                </items>
+            </dropdownButton>
+            <simplePagination id="pagination" dataLoader="checkDefsDl"/>
+        </hbox>
+        <dataGrid id="checkDefsDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="checkDefsDc"
+                  columnReorderingAllowed="true" selectionMode="MULTI">
+            <actions>
+                <action id="createAction" type="list_create"/>
+                <action id="editAction" type="list_edit"/>
+                <action id="removeAction" type="list_remove"/>
+                <action id="excelExportAction" type="grdexp_excelExport"/>
+                <action id="jsonExportAction" text="JSON" icon="vaadin:curly-brackets"/>
+            </actions>
+            <columns resizable="true">
+                <column property="active"/>
+                <column property="category"/>
+                <column property="question"/>
+                <column property="answer"/>
+                <column property="script"/>
+                <column property="rouge"/>
+                <column property="bert"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>

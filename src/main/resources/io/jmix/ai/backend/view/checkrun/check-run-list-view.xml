@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
+      title="msg://checkRunListView.title"
+      focusComponent="checkRunsDataGrid">
+    <data>
+        <collection id="checkRunsDc"
+                    class="io.jmix.ai.backend.entity.CheckRun">
+            <fetchPlan extends="_base"/>
+            <loader id="checkRunsDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from CheckRun e order by e.id desc]]>
+                </query>
+            </loader>
+        </collection>
+        <collection id="checksDc" class="io.jmix.ai.backend.entity.Check">
+            <loader id="checksDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from Check_ e where e.checkRun = :container_checkRunsDc]]>
+                </query>
+            </loader>
+            <fetchPlan extends="_base"/>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+        <settings auto="true"/>
+    </facets>
+    <layout>
+        <genericFilter id="genericFilter"
+                       dataLoader="checkRunsDl" opened="false">
+            <properties include=".*"/>
+        </genericFilter>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="checkRunsDataGrid.createAction"/>
+            <button id="readButton" action="checkRunsDataGrid.readAction"/>
+            <button id="removeButton" action="checkRunsDataGrid.removeAction"/>
+            <simplePagination id="pagination" dataLoader="checkRunsDl"/>
+        </hbox>
+        <split orientation="VERTICAL" width="100%">
+            <dataGrid id="checkRunsDataGrid"
+                      width="100%"
+                      minHeight="10em"
+                      dataContainer="checkRunsDc"
+                      columnReorderingAllowed="true">
+                <actions>
+                    <action id="createAction" type="list_create" text="Run now">
+                        <properties>
+                            <property name="openMode" value="DIALOG"/>
+                        </properties>
+                    </action>
+                    <action id="readAction" type="list_read">
+                        <properties>
+                            <property name="openMode" value="DIALOG"/>
+                        </properties>
+                    </action>
+                    <action id="removeAction" type="list_remove"/>
+                </actions>
+                <columns resizable="true">
+                    <column property="createdDate"/>
+                    <column property="createdBy"/>
+                    <column property="parameters"/>
+                    <column property="scriptScore"/>
+                    <column property="rougeScore"/>
+                    <column property="bertScore"/>
+                </columns>
+            </dataGrid>
+            <dataGrid id="checksDataGrid" dataContainer="checksDc" minWidth="100px" width="100%" minHeight="10em">
+                <actions>
+                    <action id="readAction" type="list_read" icon="EYE">
+                        <properties>
+                            <property name="openMode" value="DIALOG"/>
+                        </properties>
+                    </action>
+                </actions>
+                <columns>
+                    <column key="link" sortable="false" autoWidth="true"/>
+                    <column property="category"/>
+                    <column property="question"/>
+                    <column property="referenceAnswer"/>
+                    <column property="actualAnswer"/>
+                    <column property="script"/>
+                    <column property="scriptScore"/>
+                    <column property="rougeScore"/>
+                    <column property="bertScore"/>
+                </columns>
+            </dataGrid>
+        </split>
+    </layout>
+</view>

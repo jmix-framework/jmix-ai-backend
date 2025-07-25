@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Virtual Environment
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Machine Learning Models
+*.bin
+*.safetensors
+
+# Local data and models
+model_cache/
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log

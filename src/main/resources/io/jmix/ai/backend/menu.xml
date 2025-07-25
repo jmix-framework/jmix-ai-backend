@@ -1,11 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <menu-config xmlns="http://jmix.io/schema/flowui/menu">
 
-    <menu id="application" title="msg://io.jmix.ai.backend/menu.application.title" opened="true">
-        <item view="ChatView" title="msg://io.jmix.ai.backend.view.chat/chatView.title"/>
+    <item view="ChatView" title="msg://io.jmix.ai.backend.view.chat/chatView.title" icon="vaadin:chat"/>
+    <menu id="config" title="msg://io.jmix.ai.backend/menu.config.title" opened="true">
         <item view="Parameters.list" title="msg://io.jmix.ai.backend.view.parameters/parametersListView.title"/>
         <item view="VectorStoreView" title="msg://io.jmix.ai.backend.view.vectorstore/vectorStoreView.title"/>
-        <item view="User.list" title="msg://io.jmix.ai.backend.view.user/UserListView.title"/>
+        <item view="datatl_entityInspectorListView"
+              title="msg://io.jmix.datatoolsflowui.view.entityinspector/listTitle"/>
     </menu>
-
+    <menu id="answerChecks" description="msg://io.jmix.ai.backend/menu_config.answerChecks.description"
+          title="msg://io.jmix.ai.backend/menu_config.answerChecks.title" opened="true">
+        <item view="CheckDef.list" title="msg://io.jmix.ai.backend.view.checkdef/checkDefListView.title"/>
+        <item view="CheckRun.list" title="msg://io.jmix.ai.backend.view.checkrun/checkRunListView.title"/>
+    </menu>
+    <menu id="security" title="msg://io.jmix.ai.backend/menu.security.title">
+        <item view="User.list" title="msg://io.jmix.ai.backend.view.user/UserListView.title"/>
+        <item view="sec_ResourceRoleModel.list"
+              title="msg://io.jmix.securityflowui.view.resourcerole/resourceRoleModelListView.menu"/>
+        <item view="sec_RowLevelRoleModel.list"
+              title="msg://io.jmix.securityflowui.view.rowlevelrole/rowLevelRoleModelListView.menu"/>
+    </menu>
 </menu-config>

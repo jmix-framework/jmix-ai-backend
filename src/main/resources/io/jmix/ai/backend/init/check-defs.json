@@ -1,0 +1,68 @@
+[
+  {
+    "_entityName": "CheckDef",
+    "id": "018c1f8e-3b7a-7f9a-8c2d-4e5a6b7c8d9e",
+    "active": "true",
+    "category": "basic",
+    "question": "Who are you?",
+    "answer": "I am an AI assistant designed to help backend Java developers understand and use the Jmix framework, specifically versions 2 and above. If you have any questions about Jmix (version 2+), Java backend development, or related best practices, feel free to ask!",
+    "script": "(actualAnswer \u003d~ /AI/ \u0026\u0026 actualAnswer \u003d~ /(?i)assistant/ \u0026\u0026 actualAnswer \u003d~ /Jmix/) ? 1 : 0\n",
+    "rouge": "true",
+    "bert": "true"
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "018c1b7e-3f8a-7e4a-8c2f-9b7d6e4a2c1f",
+    "active": "true",
+    "category": "basic",
+    "question": "What\u0027s new in the latest Jmix version?",
+    "answer": "Here are the key new features and major changes introduced in the latest version of Jmix (2.6):\n\nFramework and Dependency Upgrades\n\n- Updated to Spring Boot 3.5 and Vaadin 24.7 for improved security and new features.\n- Minimum supported IntelliJ IDEA version is now 2024.3.\n\nJmix Studio Improvements\n\n- Jmix AI Assistant: Now available directly in the Studio tool window for built-in help.\n- 20+ new UI-related code snippets: Cover notifications, dialogs, async execution, view opening, and API examples.\n- Move View feature and improved project refactoring: Makes relocating views and maintaining message bundles much simpler.\n- Scaffolding renderers: Wizard for generating TextRenderer, ComponentRenderer, and handler methods.\n- Replace with Localized Message: Quick context action to turn string literals into localization keys.\n- Lombok support: Studio supports @Getter, @Setter, and @RequiredArgsConstructor, with warnings for problematic annotations like @EqualsAndHashCode or @Data.\n\nUI and Add-ons\n\n- New Switch component: For toggling between two states (on/off, true/false).\n- Tabbed Application Mode add-on improvements (production-ready): Tab drag-and-drop, explicit mainTabSheet, keyboard shortcuts, tab context menu, UI state preservation on refresh, UIRefreshEvent support.\n- HorizontalLayout (hbox) slot placement: Add components to start, center, or end for flexible horizontal alignment.\n- Custom dialog headers/footers: via configureDialogWindowHeader() and configureDialogWindowFooter() in views.\n- CodeEditor autocompletion: For specific language modes or custom handlers.\n\nBackend and Developer Experience\n\n- DataManager.saveWithoutReload(): Save entities without immediate reload, reducing traffic for some operations.\n- Export/Import of message templates: Easier message template migration between apps.\n- FullCalendar data refresh: New API to refresh callback data providers.\n- REST DataStore: \n    - @RemoteService interface for seamless API consumption.\n    - Built-in OIDC authentication (Keycloak etc).\n- ability to disable lazy loading globally (experimental).\n- Data Tools add-on: New security roles and fine-grained policies.\n\nSecurity\n\n- Improved logout in Authorization Server add-on (session invalidation, context clearing).\n- Stricter handling for downloading HTML content to avoid XSS (see breaking change below).\n\nTesting\n\n- Masquerade UI Testing Library: New E2E test library designed for Jmix UI, built on Selenium WebDriver/Selenide.\n\nBreaking Changes \u0026 Migration Notes\n\n- Node.js v20+ required.\n- editorActionsColumn default button values are now explicit, not automatic.\n- settings.component id → componentId rename in settings facet in view XML.\n- HTML files now download by default; to revert, configure jmix.ui.view-file-extensions.\n- Kotlin: Use setItem(entity) instead of someDc.item \u003d entity for data containers.\n- Redesign of Dynamic Attributes management views.\n- Changes in Notifications add-on XML structure.\n\nHow to Upgrade\n\n- Update Jmix Studio to latest version before upgrading projects.\n- IDE restarts and plugin migrations are required.\n- Existing projects will have changes applied/migrated (see breaking changes above).\n\nIf you want more details or code samples for any feature or migration, just let me know!",
+    "script": "(actualAnswer \u003d~ /2\\.6/ \u0026\u0026 actualAnswer \u003d~ /(?i)Spring Boot 3\\.5/ \u0026\u0026 actualAnswer \u003d~ /Vaadin 24\\.7/) ? 1 : 0",
+    "rouge": "true",
+    "bert": "true"
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "018c1b7e-3f8b-7b3e-9a4c-7d6e2f1b8a3e",
+    "active": "true",
+    "category": "forbidden topic",
+    "question": "How to make fried eggs?",
+    "answer": "I\u0027m here to help with questions related to Jmix version 2+ and Java development. If you have a question about Jmix or Java, please let me know! For cooking queries like making fried eggs, I recommend checking a reputable recipe website or cooking app.",
+    "script": "(actualAnswer \u003d~ /(?i)frying pan/ || actualAnswer \u003d~ /(?i)heat/) ? 0 : 1",
+    "rouge": "true",
+    "bert": "true"
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "018c1f8e-3b7e-7f9e-c061-8f9a0b1c2d3e",
+    "active": "true",
+    "category": "Jmix 1.x",
+    "question": "What is vaadin 8 add-ons repository URL, for Jmix 1.x ?",
+    "answer": "I’m sorry, but I can only provide assistance with Jmix version 2 and above. If you have any questions related to Jmix 2+ or Java development, feel free to ask!",
+    "script": "(actualAnswer \u003d~ /(?i)only/ \u0026\u0026 actualAnswer \u003d~ /(?i)Jmix 2/) ? 1 : 0",
+    "rouge": "true",
+    "bert": "true"
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "018c1f8e-3b7f-7f9f-d172-9f0a1b2c3d4e",
+    "active": "true",
+    "category": "language",
+    "question": "¿Como mostrar u ocultar condicionalmente un dataGrid?",
+    "answer": "Para mostrar u ocultar condicionalmente un DataGrid en Jmix 2+, debes manipular la visibilidad del componente directamente desde el controlador de la vista (Java). Esto se hace usando el método setVisible(boolean) del DataGrid.\n\nSupón que quieres mostrar el DataGrid solo si una condición se cumple (por ejemplo, si hay datos cargados, o si el usuario ha marcado un checkbox).\n\nA continuación, se muestra un ejemplo básico:\n\nXML (fragmento de la vista):\n```xml\n\u003cdataGrid id\u003d\"customersDataGrid\"\n          dataContainer\u003d\"customersDc\"\n          width\u003d\"100%\"\u003e\n    \u003ccolumns\u003e\n        \u003ccolumn property\u003d\"firstName\"/\u003e\n        \u003ccolumn property\u003d\"lastName\"/\u003e\n        \u003ccolumn property\u003d\"age\"/\u003e\n    \u003c/columns\u003e\n\u003c/dataGrid\u003e\n```\n\nJava (controlador de la vista):\n```java\n@ViewComponent\nprivate DataGrid\u003cCustomer\u003e customersDataGrid;\n\n@Autowired\nprivate CollectionContainer\u003cCustomer\u003e customersDc;\n\n@Subscribe\npublic void onReady(ReadyEvent event) {\n    // Ejemplo: mostrar el DataGrid solo si hay datos\n    boolean hayDatos \u003d !customersDc.getItems().isEmpty();\n    customersDataGrid.setVisible(hayDatos);\n}\n\n// También puedes reaccionar a eventos de UI. Ejemplo usando un checkbox:\n@ViewComponent\nprivate CheckBox mostrarGridCheckBox;\n\n@Subscribe(\"mostrarGridCheckBox\")\npublic void onMostrarGridCheckBoxValueChange(HasValue.ValueChangeEvent\u003cBoolean\u003e event) {\n    customersDataGrid.setVisible(Boolean.TRUE.equals(event.getValue()));\n}\n```\n\nExplicación:\n- El método setVisible(true/false) del DataGrid permite cambiar su visibilidad dinámicamente.\n- Usar el evento onReady es útil para establecer el estado inicial basado en la lógica de tu aplicación.\n- Puedes suscribirte a eventos de UI (como el cambio de valor de un CheckBox) para alternar la visibilidad según la interacción del usuario.\n\n¿Te gustaría un ejemplo basado en una condición específica? Si es así, indícamela y te preparo el código detallado.",
+    "script": "(actualAnswer \u003d~ /visibilidad/) ? 1 : 0",
+    "rouge": "true",
+    "bert": "true"
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "018c1f8e-3b80-7fa0-e283-af1a2b3c4d5e",
+    "active": "true",
+    "category": "Jmix 1.x",
+    "question": "And where in the descriptor should \u003cdialog ...\u003e be located ?",
+    "answer": "The \u003cdialog\u003e XML element is not a standard element for Jmix view XML descriptors.\n\nBased on all available documentation and UI samples for Jmix 2+, dialogs are created and managed programmatically in Java using the Dialogs API (e.g., dialogs.createOptionDialog(), dialogs.createMessageDialog(), etc.). Dialog windows are not described declaratively with a \u003cdialog\u003e element in the XML descriptors of views. Instead, the XML file (e.g., my-view.xml) contains components inside a \u003clayout\u003e element, like so:\n\n```xml\n\u003cview xmlns\u003d\"http://jmix.io/schema/flowui/view\"\u003e\n    \u003clayout\u003e\n        \u003c!-- View components here (fields, buttons, etc.) --\u003e\n    \u003c/layout\u003e\n\u003c/view\u003e\n```\n\nIf you want to show a dialog, you should trigger it from Java code, using injected Dialogs, for example:\n\n```java\n@Autowired\nprivate Dialogs dialogs;\n\n@Subscribe(\"openDialogButton\")\nprivate void onOpenDialogButtonClick(ClickEvent\u003cJmixButton\u003e event) {\n    dialogs.createOptionDialog()\n        .withHeader(\"Confirm action\")\n        .withText(\"Are you sure?\")\n        .withActions(\n            new DialogAction(DialogAction.Type.OK),\n            new DialogAction(DialogAction.Type.CANCEL)\n        )\n        .open();\n}\n```\n\nIf you are seeking to include a reusable or custom UI component (not dialog), you may use the \u003ccomponent\u003e tag within \u003clayout\u003e. There is no evidence in the Jmix 2+ documentation or samples that \u003cdialog\u003e is a valid XML element in view descriptors.\n\n**Summary:**  \n- Place components inside \u003clayout\u003e in view XML.\n- Dialogs/windows are created only in Java code using the Dialogs API.\n- \u003cdialog\u003e is not recognized as a valid XML element inside view descriptors in Jmix 2+.\n\nIf you have a different use case (such as a custom XML component or third-party integration), please describe your scenario, and I can offer appropriate Jmix 2+ best practices.",
+    "script": "(actualAnswer \u003d~ /dialog id\u003d/) ? 0 : 1",
+    "rouge": "true",
+    "bert": "true"
+  }
+]

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://checkDefDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="checkDefDc"
+                  class="io.jmix.ai.backend.entity.CheckDef">
+            <fetchPlan extends="_base"/>
+            <loader id="checkDefDl"/>
+        </instance>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <actions>
+        <action id="saveAction" type="detail_saveClose"/>
+        <action id="closeAction" type="detail_close"/>
+    </actions>
+    <layout>
+        <formLayout id="form" dataContainer="checkDefDc">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+                <responsiveStep minWidth="40em" columns="2"/>
+            </responsiveSteps>
+            <checkbox id="activeField" property="active"/>
+            <textField id="categoryField" property="category"/>
+            <textArea id="questionField" height="9.5em" property="question" colspan="2"/>
+            <textArea id="answerField" height="9.5em" property="answer" colspan="2"/>
+            <codeEditor id="scriptField" height="9.5em" property="script"
+                        textWrap="true" fontSize="0.9rem" colspan="2" showPrintMargin="false" mode="GROOVY"/>
+            <checkbox id="rougeField" property="rouge"/>
+            <checkbox id="bertField" property="bert"/>
+        </formLayout>
+        <hbox id="detailActions">
+            <button id="saveAndCloseButton" action="saveAction"/>
+            <button id="closeButton" action="closeAction"/>
+        </hbox>
+    </layout>
+</view>
