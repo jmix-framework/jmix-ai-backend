@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -f https://download.pytorch.org/whl/cpu/torch_stable.html && \
+ python -c "import nltk; nltk.download('punkt')"
 
 # Copy the reranker service
 COPY answer_checks_service.py .
