@@ -15,6 +15,10 @@ Test service:
 curl -X POST -H "Content-Type: application/json" -d '{"reference": "The quick brown fox jumps over the lazy dog.", "actual": "A quick brown fox leaps over a lazy dog."}' http://localhost:8001/rouge
 ```
 
+```shell
+curl -X POST -H "Content-Type: application/json" -d '{"reference": "The quick brown fox jumps over the lazy dog.", "actual": "A quick brown fox leaps over a lazy dog."}' http://localhost:8001/bert
+```
+
 Build docker image:
 
 ```shell

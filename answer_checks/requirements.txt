@@ -1,0 +1,4 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+rouge-score==0.1.2
+bert-score==0.3.13
