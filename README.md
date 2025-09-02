@@ -48,7 +48,7 @@ The reranker source code is located in the `reranker` directory. The connection 
 Ingesters are used to import documents into the vector store. The application includes the following ingesters:
 - `DocsIngester`: loads information from the Jmix documentation. This ingester is configured by the `docs.*` application properties.
 - `UiSamplesIngester`: loads information from the Jmix UI Samples online application. This ingester is configured by the `uisamples.*` application properties.
-- `TrainingsIngester`: loads information from the Jmix training courses. This ingester is configured by the `trainings.*` application properties.
+- `TrainingsIngester`: loads information from the Jmix training courses. This ingester is configured by the `trainings.*` application properties. While the training courses content is not available to the public, you can provide your own set of AsciiDoc files.
 
 All ingesters implement the `Ingester` interface and are invoked through the `IngesterManager` Spring bean.  
 
