@@ -48,7 +48,7 @@ public class CheckRunListView extends StandardListView<CheckRun> {
     @Install(to = "checkRunsDataGrid.createAction", subject = "afterSaveHandler")
     private void checkRunsDataGridCreateActionAfterSaveHandler(final CheckRun checkRun) {
         dialogs.createBackgroundTaskDialog(
-                        new BackgroundTask<Integer, Void>(300, this) {
+                        new BackgroundTask<Integer, Void>(3600, this) {
                             @Override
                             public Void run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
                                 checkRunner.runChecks(Id.of(checkRun));
