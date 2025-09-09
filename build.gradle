@@ -21,7 +21,7 @@ repositories {
     }
 }
 
-def springAiVersion = '1.0.0'
+def springAiVersion = '1.0.1'
 
 dependencies {
     implementation "org.springframework.ai:spring-ai-starter-model-openai:$springAiVersion"
