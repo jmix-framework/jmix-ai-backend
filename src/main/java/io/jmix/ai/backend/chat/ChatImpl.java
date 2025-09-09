@@ -174,11 +174,21 @@ public class ChatImpl implements Chat {
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .apiKey(openaiApiKey)
                 .build();
-        OpenAiChatOptions openAiChatOptions = OpenAiChatOptions.builder()
-                .model(parametersReader.getString("model.name", "gpt-4.1"))
-                .temperature(parametersReader.getDouble("model.temperature", 1.0))
-//                .maxTokens(200)
+
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .model(parametersReader.getString("model.name", "gpt-5"));
+
+        Double temperature = parametersReader.getDouble("model.temperature", null);
+        if (temperature != null)
+            optionsBuilder.temperature(temperature);
+
+        String reasoningEffort = parametersReader.getString("model.reasoningEffort", null);
+        if (reasoningEffort != null)
+            optionsBuilder.reasoningEffort(reasoningEffort);
+
+        OpenAiChatOptions openAiChatOptions = optionsBuilder
                 .build();
+
         return OpenAiChatModel.builder()
                 .openAiApi(openAiApi)
                 .defaultOptions(openAiChatOptions)
