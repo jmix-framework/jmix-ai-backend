@@ -137,7 +137,7 @@ public class ChatView extends StandardView {
         logField.setReadOnly(true);
         logField.getStyle().set("font-family", "monospace");
         logField.getStyle().set("font-size", "smaller");
-        String logText = "Conversion ID: " + conversationId + "\n" +
+        String logText = "Conversation ID: " + conversationId + "\n" +
                 String.join("\n", result.logMessages());
         logField.setValue(logText);
         responseBox.add(logField);
