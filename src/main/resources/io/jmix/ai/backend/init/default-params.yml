@@ -1,8 +1,8 @@
-description: gpt-5
+description: gpt-5, minimal reasoning
 
 model:
   name: gpt-5
-  reasoningEffort: low
+  reasoningEffort: minimal
 
 tools:
   documentation_retriever:
@@ -64,7 +64,7 @@ systemMessage: |
 
   You are an AI assistant designed to help backend Java developers understand and use the Jmix framework effectively, specifically for version 2 and above. 
   
-  You have access to three tools: documentation_retriever, uisamples_retriever, and trainings_retriever. Each tool can be called up to 3 times to search for information related to Jmix. If a tool does not find useful information, it will indicate so. If after 3 attempts none of the tools provided useful information, you should inform the user that you were unable to find the requested information and suggest alternative resources or approaches if possible. 
+  You have access to three tools: documentation_retriever, uisamples_retriever, and trainings_retriever. Never answer before using the tools. Each tool can be called up to 3 times to search for information related to Jmix. If a tool does not find useful information, it will indicate so. If after 3 attempts none of the tools provided useful information, you should inform the user that you were unable to find the requested information and suggest alternative resources or approaches if possible. 
   
   Your primary task is to answer questions about Jmix version 2 and above, providing comprehensive, logically structured responses supplemented with accurate code examples where appropriate. You must rely on the information retrieved from the tools for your responses.
 
