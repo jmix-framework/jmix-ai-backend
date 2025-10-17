@@ -9,6 +9,7 @@ import io.micrometer.observation.ObservationRegistry;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -72,54 +73,55 @@ public class ChatImpl implements Chat {
                                                 @Nullable Consumer<String> externalLogger) {
         long start = System.currentTimeMillis();
         List<String> logMessages = new ArrayList<>();
+        String nonNullConversationId = conversationId != null ? conversationId : UuidProvider.createUuid().toString();
+        MDC.put("cid", nonNullConversationId);
+        try {
+            ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
 
-        ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
+            ChatModel chatModel = buildChatModel(parametersReader);
+            addLogMessage(logMessages, "Model: %s, User prompt: %s".formatted(chatModel.getDefaultOptions(), abbreviate(userPrompt, 200)));
 
-        ChatModel chatModel = buildChatModel(parametersReader);
-        addLogMessage(logMessages, "Model: %s, User prompt: %s".formatted(chatModel.getDefaultOptions(), abbreviate(userPrompt, 200)));
+            ChatClient chatClient = buildClient(chatModel);
 
-        ChatClient chatClient = buildClient(chatModel);
+            List<Document> retrievedDocuments = new ArrayList<>();
 
-        List<Document> retrievedDocuments = new ArrayList<>();
+            Consumer<String> internalLogger = message -> {
+                if (externalLogger != null)
+                    externalLogger.accept(message);
+                addLogMessage(logMessages, message);
+            };
 
-        Consumer<String> internalLogger = message -> {
-            if (externalLogger != null)
-                externalLogger.accept(message);
-            addLogMessage(logMessages, message);
-        };
+            ChatClient.ChatClientRequestSpec request;
 
-        ChatClient.ChatClientRequestSpec request;
+            PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(PostRetrievalProcessor.class, parametersReader, internalLogger);
 
-        PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(PostRetrievalProcessor.class, parametersReader, internalLogger);
+            DocsTool docsTool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
 
-        DocsTool docsTool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-        UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-        TrainingsTool trainingsTool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+            request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage")));
+            request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));
+            request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
 
-        request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage")));
-        request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId(conversationId)));
-        request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
+            ChatResponse chatResponse = request.call().chatResponse();
 
-        ChatResponse chatResponse = request.call().chatResponse();
+            List<Document> distinctDocuments = getDistinctDocuments(retrievedDocuments);
 
-        List<Document> distinctDocuments = getDistinctDocuments(retrievedDocuments);
+            if (chatResponse == null) {
+                addLogMessage(logMessages, "No response received from the chat model");
+                return new StructuredResponse("", logMessages, distinctDocuments);
+            }
+            String responseText = getContentFromChatResponse(chatResponse);
+            Integer promptTokens = chatResponse.getMetadata().getUsage().getPromptTokens();
+            Integer completionTokens = chatResponse.getMetadata().getUsage().getCompletionTokens();
 
-        if (chatResponse == null) {
-            addLogMessage(logMessages, "No response received from the chat model");
-            return new StructuredResponse("", logMessages, distinctDocuments);
+            addLogMessage(logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
+                    System.currentTimeMillis() - start, promptTokens, completionTokens, abbreviate(responseText, 100)));
+
+            return new StructuredResponse(responseText, logMessages, distinctDocuments);
+        } finally {
+            MDC.remove("cid");
         }
-        String responseText = getContentFromChatResponse(chatResponse);
-        Integer promptTokens = chatResponse.getMetadata().getUsage().getPromptTokens();
-        Integer completionTokens = chatResponse.getMetadata().getUsage().getCompletionTokens();
-
-        addLogMessage(logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
-                System.currentTimeMillis() - start, promptTokens, completionTokens, abbreviate(responseText, 100)));
-
-        return new StructuredResponse(responseText, logMessages, distinctDocuments);
-    }
-
-    private String nonNullConversationId(@Nullable String conversationId) {
-        return conversationId != null ? conversationId : UuidProvider.createUuid().toString();
     }
 
     private List<Document> getDistinctDocuments(List<Document> documents) {

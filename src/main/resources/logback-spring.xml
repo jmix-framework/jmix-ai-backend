@@ -6,15 +6,11 @@
     -->
     <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
+            <!-- The pattern includes a timestamp, thread,
+             log level, logger name, and prints only 'cid' from MDC context. -->
             <pattern>
-                %d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+                %d{HH:mm:ss.SSS} [%thread] [%X{cid}] %-5level %logger{36} - %msg%n
             </pattern>
-
-<!--     The pattern includes a timestamp, thread,
-         log level, logger name, and prints all MDC (Mapped Diagnostic Context) key/value pairs using %X. -->
-<!--            <pattern>-->
-<!--                %d{HH:mm:ss.SSS} [%thread] [%X] %-5level %logger{36} - %msg%n-->
-<!--            </pattern>-->
         </encoder>
     </appender>
 
