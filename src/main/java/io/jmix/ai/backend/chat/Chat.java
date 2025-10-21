@@ -12,11 +12,17 @@ public interface Chat {
     StructuredResponse requestStructured(String userPrompt, String parametersYaml, @Nullable String conversationId,
                                          @Nullable Consumer<String> externalLogger);
 
-    record StructuredResponse(String text, List<String> logMessages,
-                                     @Nullable List<Document> retrievedDocuments, @Nullable List<String> sourceLinks) {
+    record StructuredResponse(
+            String text,
+            List<String> logMessages,
+            @Nullable List<Document> retrievedDocuments,
+            @Nullable List<String> sourceLinks,
+            int promptTokens,
+            int completionTokens
+    ) {
 
-        public StructuredResponse(String text, List<String> logMessages, @Nullable List<Document> retrievedDocuments) {
-            this(text, logMessages, retrievedDocuments, getSourceLinks(retrievedDocuments));
+        public StructuredResponse(String text, List<String> logMessages, @Nullable List<Document> retrievedDocuments, int promptTokens, int completionTokens) {
+            this(text, logMessages, retrievedDocuments, getSourceLinks(retrievedDocuments), promptTokens, completionTokens);
         }
 
         private static List<String> getSourceLinks(@Nullable List<Document> retrievedDocuments) {

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://chatLogDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="chatLogDc"
+                  class="io.jmix.ai.backend.entity.ChatLog">
+            <fetchPlan extends="_base"/>
+            <loader id="chatLogDl" readOnly="true"/>
+        </instance>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <actions>
+        <action id="closeAction" type="detail_close" text="msg:///actions.Close"/>
+    </actions>
+    <layout>
+        <formLayout id="form" dataContainer="chatLogDc">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+                <responsiveStep minWidth="40em" columns="2"/>
+            </responsiveSteps>
+            <dateTimePicker id="createdDateField" property="createdDate" readOnly="true"/>
+            <textField id="conversationIdField" property="conversationId" readOnly="true"/>
+            <textField id="promptTokensField" property="promptTokens"/>
+            <textField id="completionTokensField" property="completionTokens"/>
+            <textArea id="contentField" height="30em" property="content" colspan="2" readOnly="true"/>
+            <textArea id="sourcesField" height="9.5em" property="sources" colspan="2" readOnly="true"/>
+        </formLayout>
+        <hbox id="detailActions">
+            <button id="closeButton" action="closeAction"/>
+        </hbox>
+    </layout>
+</view>

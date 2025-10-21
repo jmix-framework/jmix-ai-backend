@@ -15,6 +15,7 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinServletRequest;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chat.ChatImpl;
+import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
@@ -67,6 +68,8 @@ public class ChatView extends StandardView {
     private DialogWindows dialogWindows;
     @Autowired
     private UiComponents uiComponents;
+    @Autowired
+    private ChatLogManager chatLogManager;
 
     @ViewComponent
     private JmixTextArea userMessageField;
@@ -284,6 +287,7 @@ public class ChatView extends StandardView {
         @Override
         public void done(ChatImpl.StructuredResponse result) {
             chatProgressView.closeWithDefaultAction();
+            chatLogManager.saveResponse(conversationId, result);
             showResult(result);
         }
 

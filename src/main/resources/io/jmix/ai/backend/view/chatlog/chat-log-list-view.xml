@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
+      title="msg://chatLogListView.title"
+      focusComponent="chatLogsDataGrid">
+    <data>
+        <collection id="chatLogsDc"
+                    class="io.jmix.ai.backend.entity.ChatLog">
+            <fetchPlan extends="_base"/>
+            <loader id="chatLogsDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from ChatLog e order by e.createdDate desc]]>
+                </query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+    </facets>
+    <layout>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button action="chatLogsDataGrid.readAction"/>
+            <button action="chatLogsDataGrid.refreshAction"/>
+            <simplePagination id="pagination" dataLoader="chatLogsDl"/>
+        </hbox>
+        <dataGrid id="chatLogsDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="chatLogsDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="readAction" type="list_read"/>
+                <action id="refreshAction" type="list_refresh"/>
+            </actions>
+            <columns>
+                <column property="createdDate" filterable="true"/>
+                <column property="conversationId" filterable="true"/>
+                <column property="promptTokens" filterable="true"/>
+                <column property="completionTokens" filterable="true"/>
+                <column property="content" sortable="false" filterable="true"/>
+                <column property="sources" sortable="false" filterable="true"/>
+            </columns>
+        </dataGrid>
+    </layout>
+</view>
