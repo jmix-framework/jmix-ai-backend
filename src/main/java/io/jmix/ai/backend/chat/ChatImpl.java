@@ -109,16 +109,18 @@ public class ChatImpl implements Chat {
 
             if (chatResponse == null) {
                 addLogMessage(logMessages, "No response received from the chat model");
-                return new StructuredResponse("", logMessages, distinctDocuments, 0, 0);
+                return new StructuredResponse("", logMessages, distinctDocuments, 0, 0, 0);
             }
             String responseText = getContentFromChatResponse(chatResponse);
             Integer promptTokens = chatResponse.getMetadata().getUsage().getPromptTokens();
             Integer completionTokens = chatResponse.getMetadata().getUsage().getCompletionTokens();
 
+            long responseTime = System.currentTimeMillis() - start;
             addLogMessage(logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
-                    System.currentTimeMillis() - start, promptTokens, completionTokens, abbreviate(responseText, 100)));
+                    responseTime, promptTokens, completionTokens, abbreviate(responseText, 100)));
 
-            return new StructuredResponse(responseText, logMessages, distinctDocuments, promptTokens, completionTokens);
+            return new StructuredResponse(responseText, logMessages, distinctDocuments,
+                    promptTokens, completionTokens, (int) responseTime);
         } finally {
             MDC.remove("cid");
         }

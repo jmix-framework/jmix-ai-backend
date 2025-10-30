@@ -18,12 +18,21 @@
         <dataLoadCoordinator auto="true"/>
         <urlQueryParameters>
             <pagination component="pagination"/>
+            <genericFilter component="filter"/>
         </urlQueryParameters>
+        <settings auto="true"/>
     </facets>
     <layout>
+        <genericFilter id="filter" dataLoader="chatLogsDl">
+            <properties include=".*"/>
+            <configurations>
+                <configuration id="configurationByConversationId" name="By conversation id">
+                    <propertyFilter operation="EQUAL" property="conversationId"/>
+                </configuration>
+            </configurations>
+        </genericFilter>
         <hbox id="buttonsPanel" classNames="buttons-panel">
             <button action="chatLogsDataGrid.readAction"/>
-            <button action="chatLogsDataGrid.refreshAction"/>
             <simplePagination id="pagination" dataLoader="chatLogsDl"/>
         </hbox>
         <dataGrid id="chatLogsDataGrid"
@@ -34,14 +43,16 @@
             <actions>
                 <action id="readAction" type="list_read"/>
                 <action id="refreshAction" type="list_refresh"/>
+                <action id="filterByConversationAction" type="list_itemTracking" text="Filter by this conversation"/>
             </actions>
-            <columns>
-                <column property="createdDate" filterable="true"/>
-                <column property="conversationId" filterable="true"/>
-                <column property="promptTokens" filterable="true"/>
-                <column property="completionTokens" filterable="true"/>
-                <column property="content" sortable="false" filterable="true"/>
-                <column property="sources" sortable="false" filterable="true"/>
+            <columns resizable="true">
+                <column property="createdDate"/>
+                <column property="conversationId"/>
+                <column property="promptTokens"/>
+                <column property="completionTokens"/>
+                <column property="responseTime"/>
+                <column property="content" sortable="false"/>
+                <column property="sources" sortable="false"/>
             </columns>
         </dataGrid>
     </layout>

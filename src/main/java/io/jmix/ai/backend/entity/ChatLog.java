@@ -41,6 +41,17 @@ public class ChatLog {
     @Column(name = "COMPLETION_TOKENS")
     private Integer completionTokens;
 
+    @Column(name = "RESPONSE_TIME")
+    private Integer responseTime;
+
+    public Integer getResponseTime() {
+        return responseTime;
+    }
+
+    public void setResponseTime(Integer responseTime) {
+        this.responseTime = responseTime;
+    }
+
     public Integer getCompletionTokens() {
         return completionTokens;
     }

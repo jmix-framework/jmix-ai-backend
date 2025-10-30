@@ -21,6 +21,7 @@ public class ChatLogManager {
         chatLog.setSources(response.sourceLinks() != null ? String.join(",", response.sourceLinks()) : null);
         chatLog.setPromptTokens(response.promptTokens());
         chatLog.setCompletionTokens(response.completionTokens());
+        chatLog.setResponseTime(response.responseTime());
         dataManager.save(chatLog);
     }
 

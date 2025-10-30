@@ -18,11 +18,14 @@ public interface Chat {
             @Nullable List<Document> retrievedDocuments,
             @Nullable List<String> sourceLinks,
             int promptTokens,
-            int completionTokens
+            int completionTokens,
+            int responseTime
     ) {
 
-        public StructuredResponse(String text, List<String> logMessages, @Nullable List<Document> retrievedDocuments, int promptTokens, int completionTokens) {
-            this(text, logMessages, retrievedDocuments, getSourceLinks(retrievedDocuments), promptTokens, completionTokens);
+        public StructuredResponse(String text, List<String> logMessages, @Nullable List<Document> retrievedDocuments,
+                                  int promptTokens, int completionTokens, int responseTime) {
+            this(text, logMessages, retrievedDocuments, getSourceLinks(retrievedDocuments),
+                    promptTokens, completionTokens, responseTime);
         }
 
         private static List<String> getSourceLinks(@Nullable List<Document> retrievedDocuments) {

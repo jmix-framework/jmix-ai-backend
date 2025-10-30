@@ -25,6 +25,7 @@
             <textField id="conversationIdField" property="conversationId" readOnly="true"/>
             <textField id="promptTokensField" property="promptTokens"/>
             <textField id="completionTokensField" property="completionTokens"/>
+            <textField id="responseTimeField" property="responseTime"/>
             <textArea id="contentField" height="30em" property="content" colspan="2" readOnly="true"/>
             <textArea id="sourcesField" height="9.5em" property="sources" colspan="2" readOnly="true"/>
         </formLayout>
