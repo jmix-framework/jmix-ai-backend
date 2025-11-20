@@ -37,6 +37,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Consumer;
 
+import static io.jmix.ai.backend.chat.Utils.addLogMessage;
+import static io.jmix.ai.backend.chat.Utils.getDistinctDocuments;
 import static org.apache.commons.lang3.StringUtils.abbreviate;
 
 @Component
@@ -79,7 +81,7 @@ public class ChatImpl implements Chat {
             ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
 
             ChatModel chatModel = buildChatModel(parametersReader);
-            addLogMessage(logMessages, "Model: %s, User prompt: %s".formatted(chatModel.getDefaultOptions(), abbreviate(userPrompt, 200)));
+            addLogMessage(log, logMessages, "Model: %s, User prompt: %s".formatted(chatModel.getDefaultOptions(), abbreviate(userPrompt, 200)));
 
             ChatClient chatClient = buildClient(chatModel);
 
@@ -88,7 +90,7 @@ public class ChatImpl implements Chat {
             Consumer<String> internalLogger = message -> {
                 if (externalLogger != null)
                     externalLogger.accept(message);
-                addLogMessage(logMessages, message);
+                addLogMessage(log, logMessages, message);
             };
 
             ChatClient.ChatClientRequestSpec request;
@@ -108,7 +110,7 @@ public class ChatImpl implements Chat {
             List<Document> distinctDocuments = getDistinctDocuments(retrievedDocuments);
 
             if (chatResponse == null) {
-                addLogMessage(logMessages, "No response received from the chat model");
+                addLogMessage(log, logMessages, "No response received from the chat model");
                 return new StructuredResponse("", logMessages, distinctDocuments, 0, 0, 0);
             }
             String responseText = getContentFromChatResponse(chatResponse);
@@ -116,7 +118,7 @@ public class ChatImpl implements Chat {
             Integer completionTokens = chatResponse.getMetadata().getUsage().getCompletionTokens();
 
             long responseTime = System.currentTimeMillis() - start;
-            addLogMessage(logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
+            addLogMessage(log, logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
                     responseTime, promptTokens, completionTokens, abbreviate(responseText, 100)));
 
             return new StructuredResponse(responseText, logMessages, distinctDocuments,
@@ -126,34 +128,6 @@ public class ChatImpl implements Chat {
         }
     }
 
-    private List<Document> getDistinctDocuments(List<Document> documents) {
-        Set<Object> seen = new HashSet<>();
-        return documents.stream()
-                .sorted((d1, d2) -> {
-                    Double rerankScore1 = (Double) d1.getMetadata().get("rerankScore");
-                    Double rerankScore2 = (Double) d2.getMetadata().get("rerankScore");
-                    if (rerankScore1 != null && rerankScore2 != null) {
-                        return Double.compare(rerankScore2, rerankScore1);
-                    } else {
-                        return Double.compare(d2.getScore(), d1.getScore());
-                    }
-                })
-                .filter(d -> {
-                            if (seen.contains(d.getId())) {
-                                return false;
-                            }
-                            seen.add(d.getId());
-                            return true;
-                        }
-                )
-                .toList();
-    }
-
-    private void addLogMessage(List<String> logMessages, String message) {
-        String time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-        logMessages.add(time + " " + message);
-        log.debug(message);
-    }
 
     private static String getContentFromChatResponse(@Nullable ChatResponse chatResponse) {
         return Optional.ofNullable(chatResponse)

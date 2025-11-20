@@ -40,7 +40,7 @@ public class JmixAiBackendSecurityConfiguration {
     @Bean
     @Order(JmixSecurityFilterChainOrder.CUSTOM)
     SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/actuator/**", "/chat")
+        http.securityMatcher("/actuator/**", "/chat", "/api/**")
                 .authorizeHttpRequests(authorize ->
                         authorize.anyRequest().permitAll()
                 )

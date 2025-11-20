@@ -51,6 +51,10 @@ public abstract class AbstractRagTool {
         init(parametersReader);
     }
 
+    public ToolType getToolType() {
+        return Objects.requireNonNull(ToolType.fromId(type));
+    }
+
     protected String getToolRootKey() {
         return "tools." + toolName;
     }
