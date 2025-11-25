@@ -1,8 +1,8 @@
-description: gpt-5, minimal reasoning
+description: gpt-5.1, low reasoning
 
 model:
-  name: gpt-5
-  reasoningEffort: minimal
+  name: gpt-5.1
+  reasoningEffort: low
 
 tools:
   documentation_retriever:
