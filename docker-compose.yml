@@ -3,9 +3,9 @@ services:
   jmixai-postgres-vector:
     image: pgvector/pgvector:pg16-trixie
     environment:
-      POSTGRES_DB: aijmix
-      POSTGRES_USER: aijmix
-      POSTGRES_PASSWORD: aijmix
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     healthcheck:
@@ -18,4 +18,4 @@ services:
   jmixai-reranker:
     image: mcp-reranker:latest
     ports:
-      - "7999:8000"
+      - "8000:8000"
