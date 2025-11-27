@@ -24,7 +24,7 @@ import static io.jmix.ai.backend.chat.Utils.getDistinctDocuments;
 
 @Component
 public class SearchService {
-    private final Logger logger = LoggerFactory.getLogger(SearchController.class);
+    private final Logger logger = LoggerFactory.getLogger(SearchService.class);
 
     private final ApplicationContext applicationContext;
     private final VectorStore vectorStore;
