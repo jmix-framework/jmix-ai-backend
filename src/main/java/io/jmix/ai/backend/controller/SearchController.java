@@ -1,6 +1,6 @@
 package io.jmix.ai.backend.controller;
 
-import io.jmix.ai.backend.chat.JmixContentSearchService;
+import io.jmix.ai.backend.chat.SearchService;
 import jakarta.annotation.Nullable;
 import org.springframework.ai.document.Document;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,17 +13,17 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/search")
-public class JmixContentSearchController {
+public class SearchController {
 
-    private final JmixContentSearchService jmixContentSearchService;
+    private final SearchService searchService;
 
-    public JmixContentSearchController(JmixContentSearchService jmixContentSearchService) {
-        this.jmixContentSearchService = jmixContentSearchService;
+    public SearchController(SearchService searchService) {
+        this.searchService = searchService;
     }
 
     @PostMapping
     public List<SearchResultDocument> search(@RequestBody SearchRequest request) {
-        List<Document> documents = jmixContentSearchService.search(request.query(), request.type());
+        List<Document> documents = searchService.search(request.query(), request.type());
 
         return convertToSearchResults(documents);
     }

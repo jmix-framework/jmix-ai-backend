@@ -1,6 +1,6 @@
 package io.jmix.ai.backend.chat;
 
-import io.jmix.ai.backend.controller.JmixContentSearchController;
+import io.jmix.ai.backend.controller.SearchController;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -23,56 +23,54 @@ import static io.jmix.ai.backend.chat.Utils.addLogMessage;
 import static io.jmix.ai.backend.chat.Utils.getDistinctDocuments;
 
 @Component
-public class JmixContentSearchService {
-    private final Logger logger = LoggerFactory.getLogger(JmixContentSearchController.class);
+public class SearchService {
+    private final Logger logger = LoggerFactory.getLogger(SearchController.class);
 
     private final ApplicationContext applicationContext;
     private final VectorStore vectorStore;
     private final Reranker reranker;
     private final ParametersRepository parametersRepository;
-
-
     private final Messages messages;
 
-    public JmixContentSearchService(ApplicationContext applicationContext, VectorStore vectorStore, Reranker reranker, ParametersRepository parametersRepository, Messages messages) {
+    public SearchService(ApplicationContext applicationContext,
+                         VectorStore vectorStore,
+                         Reranker reranker,
+                         ParametersRepository parametersRepository,
+                         Messages messages) {
         this.applicationContext = applicationContext;
         this.vectorStore = vectorStore;
         this.reranker = reranker;
         this.parametersRepository = parametersRepository;
-
-
         this.messages = messages;
     }
 
     public List<Document> search(String query, @Nullable String type) {
+        List<Document> retrievedDocuments = new ArrayList<>();
+        final List<AbstractRagTool> ragTools = getRagTools(retrievedDocuments);
+
         if (type != null) {
-            try {
-                ToolType.valueOf(type.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                String allowedValues = Arrays.stream(ToolType.values())
-                        .map(ToolType::getId)
-                        .map(String::toLowerCase)
-                        .collect(Collectors.joining(", "));
+            var availableTypes = ragTools.stream()
+                    .map(it -> it.type)
+                    .collect(Collectors.toSet());
+            if(!availableTypes.contains(type)){
                 throw new IllegalArgumentException(
-                        messages.formatMessage(JmixContentSearchController.class,
+                        messages.formatMessage(SearchController.class,
                                 "illegalType",
                                 type,
-                                allowedValues)
+                                availableTypes)
                 );
             }
         }
 
-        List<Document> retrievedDocuments = new ArrayList<>();
-        final List<AbstractRagTool> ragTools = getRagTools(retrievedDocuments);
 
         executeTools(ragTools, query, type);
 
         return getDistinctDocuments(retrievedDocuments);
     }
 
-    private void executeTools(List<AbstractRagTool> ragTools, String query, @Nullable String type) {
+    private void executeTools(List<AbstractRagTool> ragTools, String query, @Nullable String requestedType) {
         ragTools.stream()
-                .filter(tool -> type == null || tool.getToolType().getId().equals(type))
+                .filter(tool -> requestedType == null || tool.type.equals(requestedType))
                 .forEach(tool -> tool.execute(query));
     }
 
