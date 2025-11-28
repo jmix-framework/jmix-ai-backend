@@ -50,7 +50,6 @@ public abstract class AbstractRagTool {
         this.type = type;
         init(parametersReader);
     }
-
     protected String getToolRootKey() {
         return "tools." + toolName;
     }
