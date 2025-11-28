@@ -1,4 +1,4 @@
-package io.jmix.ai.backend.chat;
+package io.jmix.ai.backend.retrieval;
 
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.apache.commons.lang3.StringUtils;
@@ -18,8 +18,8 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.jmix.ai.backend.chat.Utils.getDocSourcesAsString;
-import static io.jmix.ai.backend.chat.Utils.getRerankResultsAsString;
+import static io.jmix.ai.backend.retrieval.Utils.getDocSourcesAsString;
+import static io.jmix.ai.backend.retrieval.Utils.getRerankResultsAsString;
 
 public abstract class AbstractRagTool {
 

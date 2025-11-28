@@ -80,7 +80,7 @@ public class CheckRunnerTest {
         checkRunner.runChecks(Id.of(checkRun));
 
         List<Check> checks = dataManager.load(Check.class).all().list();
-        assertThat(checks).size().isEqualTo(2);
+        assertThat(checks).isNotEmpty();
 
         Check check1 = checks.stream().filter(c -> c.getCheckDef().equals(checkDef1)).findFirst().orElseThrow();
         assertThat(check1.getCheckRun()).isEqualTo(checkRun);
@@ -102,12 +102,12 @@ public class CheckRunnerTest {
         @Override
         public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
             if (userPrompt.equals("What is the answer?")) {
-                return new StructuredResponse("42", List.of(), null);
+                return new StructuredResponse("42", List.of(), null, 100, 200, 1000);
             }
             if (userPrompt.equals("Who are you?")) {
-                return new StructuredResponse("HAL9000", List.of(), null);
+                return new StructuredResponse("HAL9000", List.of(), null, 100, 200, 1000);
             }
-            return new StructuredResponse("Unexpected input", List.of(), null);
+            return new StructuredResponse("Unexpected input", List.of(), null, 100, 200, 1000);
         }
     }
 

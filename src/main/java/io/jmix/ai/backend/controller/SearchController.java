@@ -1,7 +1,6 @@
 package io.jmix.ai.backend.controller;
 
-import io.jmix.ai.backend.chat.SearchService;
-import jakarta.annotation.Nullable;
+import io.jmix.ai.backend.retrieval.SearchService;
 import org.springframework.ai.document.Document;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +22,7 @@ public class SearchController {
 
     @PostMapping
     public List<SearchResultDocument> search(@RequestBody SearchRequest request) {
-        List<Document> documents = searchService.search(request.query(), request.type());
+        List<Document> documents = searchService.search(request.query());
 
         return convertToSearchResults(documents);
     }
@@ -41,6 +40,6 @@ public class SearchController {
     public record SearchResultDocument(String id, String title, String content) {
     }
 
-    public record SearchRequest(String query, @Nullable String type) {
+    public record SearchRequest(String query) {
     }
 }

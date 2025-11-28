@@ -2,6 +2,8 @@ package io.jmix.ai.backend.chat;
 
 import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
+import io.jmix.ai.backend.retrieval.AbstractRagTool;
+import io.jmix.ai.backend.retrieval.ToolsManager;
 import io.jmix.core.UuidProvider;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
@@ -27,18 +29,16 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
-import static io.jmix.ai.backend.chat.Utils.addLogMessage;
-import static io.jmix.ai.backend.chat.Utils.getDistinctDocuments;
+import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
+import static io.jmix.ai.backend.retrieval.Utils.getDistinctDocuments;
 import static org.apache.commons.lang3.StringUtils.abbreviate;
 
 @Component
@@ -46,19 +46,13 @@ public class ChatImpl implements Chat {
 
     private static final Logger log = LoggerFactory.getLogger(ChatImpl.class);
 
-    private final ApplicationContext applicationContext;
-    private final VectorStore vectorStore;
-    private final Reranker reranker;
     private final ParametersRepository parametersRepository;
     private final ChatMemory chatMemory;
     private final ObservationRegistry observationRegistry;
+    private final ToolsManager toolsManager;
 
-
-    public ChatImpl(ApplicationContext applicationContext, VectorStore vectorStore, JdbcChatMemoryRepository chatMemoryRepository,
-                    Reranker reranker, ParametersRepository parametersRepository) {
-        this.applicationContext = applicationContext;
-        this.vectorStore = vectorStore;
-        this.reranker = reranker;
+    public ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
+                    ParametersRepository parametersRepository, ToolsManager toolsManager) {
         this.parametersRepository = parametersRepository;
 
         chatMemory = MessageWindowChatMemory.builder()
@@ -68,6 +62,7 @@ public class ChatImpl implements Chat {
 
         observationRegistry = ObservationRegistry.create();
         observationRegistry.observationConfig().observationHandler(getChatObservationHandler());
+        this.toolsManager = toolsManager;
     }
 
     @Override
@@ -95,15 +90,11 @@ public class ChatImpl implements Chat {
 
             ChatClient.ChatClientRequestSpec request;
 
-            PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(PostRetrievalProcessor.class, parametersReader, internalLogger);
-
-            DocsTool docsTool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-            UiSamplesTool uiSamplesTool = new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-            TrainingsTool trainingsTool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+            List<AbstractRagTool> tools = toolsManager.getTools(parametersYaml, retrievedDocuments, internalLogger);
 
             request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage")));
             request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));
-            request.toolCallbacks(docsTool.getToolCallback(), uiSamplesTool.getToolCallback(), trainingsTool.getToolCallback());
+            request.toolCallbacks(tools.stream().map(AbstractRagTool::getToolCallback).toList());
 
             ChatResponse chatResponse = request.call().chatResponse();
 
@@ -127,7 +118,6 @@ public class ChatImpl implements Chat {
             MDC.remove("cid");
         }
     }
-
 
     private static String getContentFromChatResponse(@Nullable ChatResponse chatResponse) {
         return Optional.ofNullable(chatResponse)

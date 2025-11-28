@@ -3,6 +3,7 @@ package io.jmix.ai.backend.chat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.jmix.ai.backend.parameters.ParametersReader;
+import io.jmix.ai.backend.retrieval.PostRetrievalProcessor;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;

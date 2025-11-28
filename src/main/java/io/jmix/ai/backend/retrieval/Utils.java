@@ -1,4 +1,4 @@
-package io.jmix.ai.backend.chat;
+package io.jmix.ai.backend.retrieval;
 
 import org.slf4j.Logger;
 import org.springframework.ai.document.Document;

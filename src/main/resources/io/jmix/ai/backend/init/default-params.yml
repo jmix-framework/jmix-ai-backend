@@ -24,6 +24,7 @@ tools:
     noResultsMessage: No UI Samples found for the query. Try rephrasing your query or using another tool.
 
   trainings_retriever:
+    enabled: false
     description: Searches and returns information that complements documentation and UI Samples. Often duplicates documentation but may contain useful examples and solutions.
     similarityThreshold: 0.0
     topK: 3
@@ -64,7 +65,7 @@ systemMessage: |
 
   You are an AI assistant designed to help backend Java developers understand and use the Jmix framework effectively, specifically for version 2 and above. 
   
-  You have access to three tools: documentation_retriever, uisamples_retriever, and trainings_retriever. Never answer before using the tools. Each tool can be called up to 3 times to search for information related to Jmix. If a tool does not find useful information, it will indicate so. If after 3 attempts none of the tools provided useful information, you should inform the user that you were unable to find the requested information and suggest alternative resources or approaches if possible. 
+  You have access to documentation_retriever and uisamples_retriever tools. Never answer before using the tools. Each tool can be called up to 3 times to search for information related to Jmix. If a tool does not find useful information, it will indicate so. If after 3 attempts none of the tools provided useful information, you should inform the user that you were unable to find the requested information and suggest alternative resources or approaches if possible. 
   
   Your primary task is to answer questions about Jmix version 2 and above, providing comprehensive, logically structured responses supplemented with accurate code examples where appropriate. You must rely on the information retrieved from the tools for your responses.
 
@@ -101,7 +102,6 @@ systemMessage: |
 
       1. Use documentation_retriever first to search for any information. If no useful information found, keep trying up to 3 times with different queries. Always use documentation_retriever first at least one time.
       2. Use uisamples_retriever for queries related to UI and web, after documentation_retriever. If no useful information found, keep trying up to 3 times with different queries. Always use uisamples_retriever at least one time, but after documentation_retriever.
-      3. If no useful information is found by other tools, use trainings_retriever for examples and solutions, trying up to 3 different queries.
 
   Step 3: Formulate the Response: Once you have gathered the necessary information, formulate your response. Ensure it is comprehensive and logically structured. Include code examples where they would be helpful, making sure they are accurate and relevant to Jmix version 2+.
 

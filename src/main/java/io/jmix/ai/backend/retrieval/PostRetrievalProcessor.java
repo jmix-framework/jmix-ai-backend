@@ -1,4 +1,4 @@
-package io.jmix.ai.backend.chat;
+package io.jmix.ai.backend.retrieval;
 
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.slf4j.Logger;
