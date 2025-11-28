@@ -1,0 +1,87 @@
+
+version: '3.8'
+services:
+  jmixai-postgres-main:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: jmix-ai-backend
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - jmixai-main-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jmix-ai-backend"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  jmixai-postgres-vector:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: vectorstore
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - jmixai-vector-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vectorstore"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  jmixai-reranker:
+    build:
+      context: ./reranker
+      dockerfile: Dockerfile
+    image: mcp-reranker:latest
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  # OpenTelemetry Collector as placeholder for AI Backend
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command:
+      - "--config=env:OTEL_CONFIG"
+    environment:
+      OTEL_CONFIG: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+        processors:
+          batch:
+        exporters:
+          debug:
+            verbosity: basic
+        service:
+          pipelines:
+            logs:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [debug]
+            traces:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [debug]
+            metrics:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [debug]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    restart: unless-stopped
+
+volumes:
+  jmixai-main-data:
+  jmixai-vector-data:

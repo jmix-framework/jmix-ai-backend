@@ -1,3 +1,4 @@
+
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -11,11 +12,12 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy the download script and run it to cache the model
+COPY download_model.py .
+RUN python download_model.py
+
 # Copy the reranker service
 COPY reranker_service.py .
-
-# Copy the pre-downloaded model
-COPY model_cache /app/model_cache
 
 # Set environment variable to use cached model
 ENV MODEL_CACHE_DIR=/app/model_cache

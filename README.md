@@ -100,6 +100,22 @@ The admin UI is available at `http://localhost:8081` and provides the following 
 
 ## Development
 
+### Fast setup for development
+
+If you what to quickly try out the application, you can use Docker Compose to run all the required services.
+Then run application with `dev` spring profile in your IDEA.
+
+1. Run docker-compose:
+    ```bash
+    docker-compose up
+    ```
+2. Run application with `dev` spring profile:
+    ```bash
+    ./gradlew bootRun -Pspring.profiles.active=dev
+    ```
+
+### Alternative setup with steps
+
 Running PgVector:
 ```shell
 docker run --name pgvector -p 5433:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres pgvector/pgvector:pg17
