@@ -100,25 +100,23 @@ The admin UI is available at `http://localhost:8081` and provides the following 
 
 ## Development
 
-### Fast setup for development
+### Fast setup
 
-If you what to quickly try out the application, you can use Docker Compose to run all the required services.
-Then run application with `dev` spring profile in your IDEA.
+You can run the main database, vector store and reranker using the `docker-compose.yml` file in the project root:
 
-1. Run docker-compose:
-    ```bash
-    docker-compose up
-    ```
-2. Run application with `dev` spring profile:
-    ```bash
-    ./gradlew bootRun -Pspring.profiles.active=dev
-    ```
+```bash
+docker-compose up
+```
 
-### Alternative setup with steps
+By default, the application runs with the `dev` profile and uses the services running in the containers.
+
+### Running services separately
+
+Alternatively, you can run the services separately as follows.
 
 Running PgVector:
 ```shell
-docker run --name pgvector -p 5433:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres pgvector/pgvector:pg17
+docker run --name pgvector -p 15433:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres pgvector/pgvector:pg17
 ```
 
 Running reranker:
@@ -154,7 +152,6 @@ cd reranker
 python3.10 -m venv env
 source env/bin/activate
 pip install fastapi==0.115.0 uvicorn==0.30.6 torch==2.4.1 transformers==4.44.2 pydantic==2.9.2
-python3.10 download_model.py
 docker build -t jmix-ai-reranker .
 ```
 

@@ -1,16 +1,15 @@
-
-version: '3.8'
+# Minimal development environment for Jmix AI Backend application
 services:
-  jmixai-postgres-main:
+  jmix-ai-postgres-main:
     image: postgres:16
     environment:
       POSTGRES_DB: jmix-ai-backend
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "15432:5432"
     volumes:
-      - jmixai-main-data:/var/lib/postgresql/data
+      - jmix-ai-main-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d jmix-ai-backend"]
       interval: 10s
@@ -18,16 +17,16 @@ services:
       retries: 10
     restart: unless-stopped
 
-  jmixai-postgres-vector:
+  jmix-ai-postgres-vector:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: vectorstore
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "15433:5432"
     volumes:
-      - jmixai-vector-data:/var/lib/postgresql/data
+      - jmix-ai-vector-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d vectorstore"]
       interval: 10s
@@ -35,7 +34,7 @@ services:
       retries: 10
     restart: unless-stopped
 
-  jmixai-reranker:
+  jmix-ai-reranker:
     build:
       context: ./reranker
       dockerfile: Dockerfile
@@ -44,7 +43,6 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
-  # OpenTelemetry Collector as placeholder for AI Backend
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command:
@@ -83,5 +81,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  jmixai-main-data:
-  jmixai-vector-data:
+  jmix-ai-main-data:
+  jmix-ai-vector-data:
