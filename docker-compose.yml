@@ -1,0 +1,85 @@
+# Minimal development environment for Jmix AI Backend application
+services:
+  jmix-ai-postgres-main:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: jmix-ai-backend
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "15432:5432"
+    volumes:
+      - jmix-ai-main-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jmix-ai-backend"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  jmix-ai-postgres-vector:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: vectorstore
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "15433:5432"
+    volumes:
+      - jmix-ai-vector-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vectorstore"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  jmix-ai-reranker:
+    build:
+      context: ./reranker
+      dockerfile: Dockerfile
+    image: mcp-reranker:latest
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command:
+      - "--config=env:OTEL_CONFIG"
+    environment:
+      OTEL_CONFIG: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+        processors:
+          batch:
+        exporters:
+          debug:
+            verbosity: basic
+        service:
+          pipelines:
+            logs:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [debug]
+            traces:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [debug]
+            metrics:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [debug]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    restart: unless-stopped
+
+volumes:
+  jmix-ai-main-data:
+  jmix-ai-vector-data:

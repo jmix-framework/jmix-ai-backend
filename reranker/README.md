@@ -34,7 +34,6 @@ curl -X POST http://localhost:8000/rerank \
 Build docker image:
 
 ```shell
-python3.10 download_model.py
 docker build -t jmix-ai-reranker .
 ```
 
