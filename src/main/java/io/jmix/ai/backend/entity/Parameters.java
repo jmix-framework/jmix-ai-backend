@@ -59,6 +59,17 @@ public class Parameters {
     @Lob
     private String content;
 
+    @Column(name = "TARGET_TYPE")
+    private String targetType = ParametersTargetType.CHAT.getId();
+
+    public ParametersTargetType getTargetType() {
+        return targetType == null ? null : ParametersTargetType.fromId(targetType);
+    }
+
+    public void setTargetType(ParametersTargetType targetType) {
+        this.targetType = targetType == null ? null : targetType.getId();
+    }
+
     public String getContent() {
         return content;
     }

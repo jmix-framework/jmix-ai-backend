@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.retrieval;
 
 import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +37,7 @@ public class SearchService {
             addLogMessage(logger, logMessages, message);
         };
 
-        Parameters parameters = parametersRepository.loadActive();
+        Parameters parameters = parametersRepository.loadActive(ParametersTargetType.TOOLS);
 
         List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, internalLogger);
 

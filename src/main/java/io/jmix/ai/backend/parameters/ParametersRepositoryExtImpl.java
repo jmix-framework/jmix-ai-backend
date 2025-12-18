@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.core.MetadataTools;
 import io.jmix.core.Resources;
 import io.jmix.core.UnconstrainedDataManager;
@@ -30,9 +31,10 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
     }
 
     @Override
-    public Parameters loadActive() {
+    public Parameters loadActive(ParametersTargetType type) {
         List<Parameters> list = dataManager.load(Parameters.class)
-                .query("e.active = true")
+                .query("e.active = true and e.targetType = :type")
+                .parameter("type", type.getId())
                 .maxResults(1)
                 .list();
         if (list.isEmpty()) {
@@ -70,7 +72,10 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
 
     @Override
     public void activate(Parameters parameters) {
-        List<Parameters> list = dataManager.load(Parameters.class).all().list();
+        List<Parameters> list = dataManager.load(Parameters.class)
+                .query("e.targetType = :type")
+                .parameter("type", parameters.getTargetType().getId())
+                .list();
         for (Parameters entity : list) {
             entity.setActive(entity.equals(parameters));
         }

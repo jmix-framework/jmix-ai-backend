@@ -25,6 +25,7 @@
             </startSlot>
             <endSlot>
                 <checkbox label="Active" dataContainer="parametersEntityDc" property="active" readOnly="true"/>
+                <comboBox dataContainer="parametersEntityDc" property="targetType"/>
                 <button id="saveAndCloseButton" action="saveAndCloseAction"/>
                 <button id="saveButton" action="saveAction"/>
                 <button id="closeButton" action="closeAction"/>
