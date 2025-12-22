@@ -1,0 +1,30 @@
+description: Default search parameters, topReranked=2
+
+tools:
+  documentation_retriever:
+    description: Searches and returns information from Jmix documentation. Provides code examples with explanations.
+    similarityThreshold: 0.0
+    topK: 10
+    minScore: 0.5
+    topReranked: 2
+    minRerankedScore: 0.2
+    noResultsMessage: No documentation found for the query. Try rephrasing your query or using another tool.
+
+  uisamples_retriever:
+    description: Searches and returns information about Jmix UI components like Button, ComboBox, DataGrid, etc. Contains collection of recipes for solving typical problems related to UI. Provides XML and Java code examples with explanations.
+    similarityThreshold: 0.0
+    topK: 5
+    minScore: 0.5
+    topReranked: 2
+    minRerankedScore: 0.5
+    noResultsMessage: No UI Samples found for the query. Try rephrasing your query or using another tool.
+
+  trainings_retriever:
+    enabled: false
+    description: Searches and returns information that complements documentation and UI Samples. Often duplicates documentation but may contain useful examples and solutions.
+    similarityThreshold: 0.0
+    topK: 2
+    minScore: 0.5
+    topReranked: 2
+    minRerankedScore: 0.5
+    noResultsMessage: No trainings information found for the query. Try rephrasing your query or using another tool.

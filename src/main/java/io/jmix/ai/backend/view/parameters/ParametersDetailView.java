@@ -4,6 +4,7 @@ import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.LoadContext;
 import io.jmix.core.SaveContext;
@@ -38,7 +39,10 @@ public class ParametersDetailView extends StandardDetailView<Parameters> {
     @Subscribe
     public void onInitEntity(final InitEntityEvent<Parameters> event) {
         Parameters parameters = event.getEntity();
-        parameters.setContent(repository.loadDefaultContent());
+        ParametersTargetType targetType = parameters.getTargetType() != null
+                ? parameters.getTargetType()
+                : ParametersTargetType.CHAT;
+        parameters.setContent(repository.loadDefaultContent(targetType));
     }
 
     @Install(to = "parametersEntityDl", target = Target.DATA_LOADER)

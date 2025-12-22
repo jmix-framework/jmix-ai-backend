@@ -8,7 +8,7 @@ import org.springframework.lang.Nullable;
 public enum ParametersTargetType implements EnumClass<String> {
 
     CHAT("CHAT"),
-    TOOLS("TOOLS");
+    SEARCH("SEARCH");
 
     private final String id;
 

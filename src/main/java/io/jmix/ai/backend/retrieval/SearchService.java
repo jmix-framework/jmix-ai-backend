@@ -37,7 +37,7 @@ public class SearchService {
             addLogMessage(logger, logMessages, message);
         };
 
-        Parameters parameters = parametersRepository.loadActive(ParametersTargetType.TOOLS);
+        Parameters parameters = parametersRepository.loadActive(ParametersTargetType.SEARCH);
 
         List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, internalLogger);
 

@@ -8,7 +8,7 @@ public interface ParametersRepositoryExt {
 
     Parameters copy(Parameters parameters);
 
-    String loadDefaultContent();
+    String loadDefaultContent(ParametersTargetType type);
 
     void activate(Parameters parameters);
 

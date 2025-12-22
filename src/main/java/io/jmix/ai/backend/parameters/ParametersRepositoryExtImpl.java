@@ -39,7 +39,8 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
                 .list();
         if (list.isEmpty()) {
             Parameters parameters = dataManager.create(Parameters.class);
-            parameters.setContent(loadDefaultContent());
+            parameters.setTargetType(type);
+            parameters.setContent(loadDefaultContent(type));
             return parameters;
         } else {
             return list.get(0);
@@ -65,21 +66,32 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
     }
 
     @Override
-    public String loadDefaultContent() {
-        String content = resources.getResourceAsString("io/jmix/ai/backend/init/default-params.yml");
-        return content;
+    public String loadDefaultContent(ParametersTargetType type) {
+        String fileName = switch (type) {
+            case CHAT -> "default-params-chat.yml";
+            case SEARCH -> "default-params-search.yml";
+        };
+        return resources.getResourceAsString("io/jmix/ai/backend/init/" + fileName);
     }
 
     @Override
     public void activate(Parameters parameters) {
-        List<Parameters> list = dataManager.load(Parameters.class)
-                .query("e.targetType = :type")
+        // Deactivate all parameters of this type except the one being activated
+        List<Parameters> toDeactivate = dataManager.load(Parameters.class)
+                .query("e.targetType = :type and e.active = true and e.id <> :id")
                 .parameter("type", parameters.getTargetType().getId())
+                .parameter("id", parameters.getId())
                 .list();
-        for (Parameters entity : list) {
-            entity.setActive(entity.equals(parameters));
+        for (Parameters entity : toDeactivate) {
+            entity.setActive(false);
         }
-        dataManager.saveWithoutReload(list);
+        if (!toDeactivate.isEmpty()) {
+            dataManager.saveWithoutReload(toDeactivate);
+        }
+
+        // Activate the specified parameter
+        parameters.setActive(true);
+        dataManager.save(parameters);
     }
 
     @Override
