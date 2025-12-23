@@ -91,7 +91,7 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
 
         // Activate the specified parameter
         parameters.setActive(true);
-        dataManager.save(parameters);
+        dataManager.saveWithoutReload(parameters);
     }
 
     @Override
