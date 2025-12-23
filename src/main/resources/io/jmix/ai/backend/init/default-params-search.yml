@@ -28,3 +28,30 @@ tools:
     topReranked: 2
     minRerankedScore: 0.5
     noResultsMessage: No trainings information found for the query. Try rephrasing your query or using another tool.
+
+postRetrievalProcessor:
+  rules:
+    - name: Tabbed Mode Add-on
+      script: |
+        !(
+          document.getText().startsWith('Path: Add-ons > Tabbed Application Mode') &&
+          !(userQuery =~ /(?i)tab/)
+        )
+    - name: BPM Add-on
+      script: |
+        !(
+          document.getText().startsWith('Path: Add-ons > BPM') &&
+          !(userQuery =~ /(?i)(bpm|business|process)/)
+        )
+    - name: Calendar Add-on
+      script: |
+        !(
+          document.getText().startsWith('Path: Add-ons > Calendar') &&
+          !(userQuery =~ /(?i)(calend)/)
+        )
+    - name: Auth Server Add-on
+      script: |
+        !(
+          document.getText().startsWith('Path: Add-ons > Authorization Server') &&
+          !(userQuery =~ /(?i)(auth)/)
+        )
