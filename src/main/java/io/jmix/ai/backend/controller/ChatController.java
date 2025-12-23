@@ -5,6 +5,7 @@ import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chat.ChatImpl;
 import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +50,7 @@ public class ChatController {
             chatLogManager.saveError(request.conversationId(), REQUEST_TEXT_IS_TOO_LONG);
             return ResponseEntity.badRequest().build();
         }
-        Parameters parameters = parametersRepository.loadActive();
+        Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
         ChatImpl.StructuredResponse chatResponse = chat.requestStructured(
                 request.text(), parameters.getContent(), request.conversationId(), null);
 

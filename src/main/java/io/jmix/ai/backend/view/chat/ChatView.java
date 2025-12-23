@@ -17,6 +17,7 @@ import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chat.ChatImpl;
 import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.UuidProvider;
@@ -88,7 +89,7 @@ public class ChatView extends StandardView {
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        parametersPicker.setValue(parametersRepository.loadActive());
+        parametersPicker.setValue(parametersRepository.loadActive(ParametersTargetType.CHAT));
 
         urlQueryParameters.registerBinder(new UrlBinder());
 
@@ -107,7 +108,7 @@ public class ChatView extends StandardView {
             notifications.show("Enter a question");
         } else {
             Parameters parameters = parametersRepository.findById(parametersPicker.getValue().getId())
-                    .orElse(parametersRepository.loadActive());
+                    .orElse(parametersRepository.loadActive(ParametersTargetType.CHAT));
 
             DialogWindow<ChatProgressView> chatProgressWindow = dialogWindows.view(this, ChatProgressView.class).build();
             chatProgressWindow.open();

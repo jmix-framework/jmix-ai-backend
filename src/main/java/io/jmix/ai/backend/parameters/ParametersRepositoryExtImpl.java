@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.jmix.ai.backend.entity.Parameters;
+import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.core.MetadataTools;
 import io.jmix.core.Resources;
 import io.jmix.core.UnconstrainedDataManager;
@@ -30,14 +31,16 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
     }
 
     @Override
-    public Parameters loadActive() {
+    public Parameters loadActive(ParametersTargetType type) {
         List<Parameters> list = dataManager.load(Parameters.class)
-                .query("e.active = true")
+                .query("e.active = true and e.targetType = :type")
+                .parameter("type", type.getId())
                 .maxResults(1)
                 .list();
         if (list.isEmpty()) {
             Parameters parameters = dataManager.create(Parameters.class);
-            parameters.setContent(loadDefaultContent());
+            parameters.setTargetType(type);
+            parameters.setContent(loadDefaultContent(type));
             return parameters;
         } else {
             return list.get(0);
@@ -63,18 +66,32 @@ public class ParametersRepositoryExtImpl implements ParametersRepositoryExt {
     }
 
     @Override
-    public String loadDefaultContent() {
-        String content = resources.getResourceAsString("io/jmix/ai/backend/init/default-params.yml");
-        return content;
+    public String loadDefaultContent(ParametersTargetType type) {
+        String fileName = switch (type) {
+            case CHAT -> "default-params-chat.yml";
+            case SEARCH -> "default-params-search.yml";
+        };
+        return resources.getResourceAsString("io/jmix/ai/backend/init/" + fileName);
     }
 
     @Override
     public void activate(Parameters parameters) {
-        List<Parameters> list = dataManager.load(Parameters.class).all().list();
-        for (Parameters entity : list) {
-            entity.setActive(entity.equals(parameters));
+        // Deactivate all parameters of this type except the one being activated
+        List<Parameters> toDeactivate = dataManager.load(Parameters.class)
+                .query("e.targetType = :type and e.active = true and e.id <> :id")
+                .parameter("type", parameters.getTargetType().getId())
+                .parameter("id", parameters.getId())
+                .list();
+        for (Parameters entity : toDeactivate) {
+            entity.setActive(false);
         }
-        dataManager.saveWithoutReload(list);
+        if (!toDeactivate.isEmpty()) {
+            dataManager.saveWithoutReload(toDeactivate);
+        }
+
+        // Activate the specified parameter
+        parameters.setActive(true);
+        dataManager.saveWithoutReload(parameters);
     }
 
     @Override

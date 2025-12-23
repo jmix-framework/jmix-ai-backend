@@ -48,6 +48,7 @@
             </actions>
             <columns resizable="true">
                 <column property="active"/>
+                <column property="targetType"/>
                 <column property="description"/>
                 <column property="lastModifiedDate"/>
                 <column property="lastModifiedBy"/>
