@@ -1,8 +1,7 @@
-description: gpt-5.1, low reasoning
+description: glm-4.7-flash (ollama)
 
 model:
-  name: gpt-5.1
-  reasoningEffort: low
+  name: glm-4.7-flash
 
 tools:
   documentation_retriever:

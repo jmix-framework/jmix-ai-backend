@@ -21,7 +21,7 @@ import java.util.Objects;
 public abstract class AbstractIngester implements Ingester {
 
     // 30_000 (~16 text pages) is about 6000 tokens, which is less than the OpenAI limit (8192).
-    public static final int MAX_CHUNK_SIZE = 30_000;
+    public static final int MAX_CHUNK_SIZE = 10_000;
 
     private final Logger log = LoggerFactory.getLogger(AbstractIngester.class);
     
