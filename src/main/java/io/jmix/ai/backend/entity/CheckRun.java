@@ -30,26 +30,15 @@ public class CheckRun {
     @Lob
     private String parameters;
 
-    @Column(name = "SCRIPT_SCORE")
-    private Double scriptScore;
+    @Column(name = "SCORE")
+    private Double score;
 
-    @Column(name = "SEMANTIC_SCORE")
-    private Double semanticScore;
-
-    public Double getSemanticScore() {
-        return semanticScore;
+    public Double getScore() {
+        return score;
     }
 
-    public void setSemanticScore(Double semanticScore) {
-        this.semanticScore = semanticScore;
-    }
-
-    public Double getScriptScore() {
-        return scriptScore;
-    }
-
-    public void setScriptScore(Double scriptScore) {
-        this.scriptScore = scriptScore;
+    public void setScore(Double score) {
+        this.score = score;
     }
 
     public String getParameters() {

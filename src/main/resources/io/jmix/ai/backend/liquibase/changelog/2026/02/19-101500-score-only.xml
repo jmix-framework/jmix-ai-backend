@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+    <changeSet id="1" author="jmix-ai-backend">
+        <addColumn tableName="CHECK_">
+            <column name="SCORE" type="DOUBLE"/>
+        </addColumn>
+
+        <addColumn tableName="CHECK_RUN">
+            <column name="SCORE" type="DOUBLE"/>
+        </addColumn>
+
+        <sql>UPDATE CHECK_ SET SCORE = SEMANTIC_SCORE</sql>
+        <sql>UPDATE CHECK_RUN SET SCORE = SEMANTIC_SCORE</sql>
+
+        <dropColumn tableName="CHECK_" columnName="SCRIPT_SCORE"/>
+        <dropColumn tableName="CHECK_" columnName="SEMANTIC_SCORE"/>
+        <dropColumn tableName="CHECK_RUN" columnName="SCRIPT_SCORE"/>
+        <dropColumn tableName="CHECK_RUN" columnName="SEMANTIC_SCORE"/>
+
+        <dropColumn tableName="CHECK_" columnName="SCRIPT"/>
+        <dropColumn tableName="CHECK_DEF" columnName="SCRIPT"/>
+    </changeSet>
+</databaseChangeLog>

@@ -64,10 +64,6 @@ public class CheckDef {
     @Lob
     private String answer;
 
-    @Column(name = "SCRIPT")
-    @Lob
-    private String script;
-
     public String getCategory() {
         return category;
     }
@@ -82,14 +78,6 @@ public class CheckDef {
 
     public void setActive(Boolean active) {
         this.active = active;
-    }
-
-    public String getScript() {
-        return script;
-    }
-
-    public void setScript(String script) {
-        this.script = script;
     }
 
     public String getAnswer() {

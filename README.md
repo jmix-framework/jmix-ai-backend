@@ -60,7 +60,6 @@ The `Parameters` instance includes the YAML configuration that specifies paramet
 ### Answer checks
 
 This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses two algorithms to calculate the similarity between the question and the answer:
-- Groovy scripts. 
 - LLM semantic score.
 
 The semantic score is calculated in the backend application using OpenAI and controlled by `answer-checks.model` and `answer-checks.temperature` application properties.

@@ -52,15 +52,8 @@ public class Check {
     @Lob
     private String actualAnswer;
 
-    @Column(name = "SCRIPT")
-    @Lob
-    private String script;
-
-    @Column(name = "SCRIPT_SCORE")
-    private Double scriptScore;
-
-    @Column(name = "SEMANTIC_SCORE")
-    private Double semanticScore;
+    @Column(name = "SCORE")
+    private Double score;
 
     @Column(name = "LOG")
     @Lob
@@ -82,28 +75,12 @@ public class Check {
         this.log = log;
     }
 
-    public Double getSemanticScore() {
-        return semanticScore;
+    public Double getScore() {
+        return score;
     }
 
-    public void setSemanticScore(Double semanticScore) {
-        this.semanticScore = semanticScore;
-    }
-
-    public Double getScriptScore() {
-        return scriptScore;
-    }
-
-    public void setScriptScore(Double scriptScore) {
-        this.scriptScore = scriptScore;
-    }
-
-    public String getScript() {
-        return script;
-    }
-
-    public void setScript(String script) {
-        this.script = script;
+    public void setScore(Double score) {
+        this.score = score;
     }
 
     public String getActualAnswer() {

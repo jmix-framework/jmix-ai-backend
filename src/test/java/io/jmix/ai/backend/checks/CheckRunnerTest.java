@@ -13,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scripting.ScriptEvaluator;
 import org.springframework.test.context.ActiveProfiles;
 import test_support.AuthenticatedAsAdmin;
 
@@ -32,8 +31,6 @@ public class CheckRunnerTest {
     DataManager dataManager;
     @Autowired
     DataSource dataSource;
-    @Autowired
-    ScriptEvaluator scriptEvaluator;
 
     CheckDef checkDef1;
     CheckDef checkDef2;
@@ -49,7 +46,6 @@ public class CheckRunnerTest {
         checkDef1.setCategory("basic");
         checkDef1.setQuestion("What is the answer?");
         checkDef1.setAnswer("42");
-        checkDef1.setScript("actualAnswer == referenceAnswer ? 1.0 : 0.0");
         checkDef1.setActive(true);
         dataManager.save(checkDef1);
 
@@ -57,7 +53,6 @@ public class CheckRunnerTest {
         checkDef2.setCategory("basic");
         checkDef2.setQuestion("Who are you?");
         checkDef2.setAnswer("Jmix AI");
-        checkDef2.setScript("actualAnswer == referenceAnswer ? 1.0 : 0.0");
         checkDef2.setActive(true);
         dataManager.save(checkDef2);
     }
@@ -72,7 +67,7 @@ public class CheckRunnerTest {
 
     @Test
     void test() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), scriptEvaluator, new TestExternalEvaluator());
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator());
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("some parameters");
@@ -86,18 +81,15 @@ public class CheckRunnerTest {
         Check check1 = checks.stream().filter(c -> c.getCheckDef().equals(checkDef1)).findFirst().orElseThrow();
         assertThat(check1.getCheckRun()).isEqualTo(checkRun);
         assertThat(check1.getCategory()).isEqualTo(checkDef1.getCategory());
-        assertThat(check1.getScriptScore()).isEqualTo(1.0);
-        assertThat(check1.getSemanticScore()).isEqualTo(1.0);
+        assertThat(check1.getScore()).isEqualTo(1.0);
 
         Check check2 = checks.stream().filter(c -> c.getCheckDef().equals(checkDef2)).findFirst().orElseThrow();
         assertThat(check2.getCheckRun()).isEqualTo(checkRun);
         assertThat(check2.getCategory()).isEqualTo(checkDef2.getCategory());
-        assertThat(check2.getScriptScore()).isEqualTo(0.0);
-        assertThat(check2.getSemanticScore()).isEqualTo(0.0);
+        assertThat(check2.getScore()).isEqualTo(0.0);
 
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
-        assertThat(updatedCheckRun.getScriptScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
-        assertThat(updatedCheckRun.getSemanticScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
+        assertThat(updatedCheckRun.getScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
     }
 
     private static class TestChat implements Chat {

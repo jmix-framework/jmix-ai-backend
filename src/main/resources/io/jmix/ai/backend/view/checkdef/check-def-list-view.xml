@@ -61,7 +61,6 @@
                 <column property="category"/>
                 <column property="question"/>
                 <column property="answer"/>
-                <column property="script"/>
             </columns>
         </dataGrid>
         <hbox id="lookupActions" visible="false">
