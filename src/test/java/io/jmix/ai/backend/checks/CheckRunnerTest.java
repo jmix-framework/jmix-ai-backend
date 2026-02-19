@@ -40,14 +40,17 @@ public class CheckRunnerTest {
 
     @BeforeEach
     void setUp() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("delete from CHECK_");
+        jdbc.execute("delete from CHECK_RUN");
+        jdbc.execute("delete from CHECK_DEF");
+
         checkDef1 = dataManager.create(CheckDef.class);
         checkDef1.setCategory("basic");
         checkDef1.setQuestion("What is the answer?");
         checkDef1.setAnswer("42");
         checkDef1.setScript("actualAnswer == referenceAnswer ? 1.0 : 0.0");
         checkDef1.setActive(true);
-        checkDef1.setRouge(true);
-        checkDef1.setBert(true);
         dataManager.save(checkDef1);
 
         checkDef2 = dataManager.create(CheckDef.class);
@@ -56,8 +59,6 @@ public class CheckRunnerTest {
         checkDef2.setAnswer("Jmix AI");
         checkDef2.setScript("actualAnswer == referenceAnswer ? 1.0 : 0.0");
         checkDef2.setActive(true);
-        checkDef2.setRouge(true);
-        checkDef2.setBert(true);
         dataManager.save(checkDef2);
     }
 
@@ -86,15 +87,17 @@ public class CheckRunnerTest {
         assertThat(check1.getCheckRun()).isEqualTo(checkRun);
         assertThat(check1.getCategory()).isEqualTo(checkDef1.getCategory());
         assertThat(check1.getScriptScore()).isEqualTo(1.0);
-        assertThat(check1.getRougeScore()).isEqualTo(1.0);
-        assertThat(check1.getBertScore()).isEqualTo(1.0);
+        assertThat(check1.getSemanticScore()).isEqualTo(1.0);
 
         Check check2 = checks.stream().filter(c -> c.getCheckDef().equals(checkDef2)).findFirst().orElseThrow();
         assertThat(check2.getCheckRun()).isEqualTo(checkRun);
         assertThat(check2.getCategory()).isEqualTo(checkDef2.getCategory());
         assertThat(check2.getScriptScore()).isEqualTo(0.0);
-        assertThat(check2.getRougeScore()).isEqualTo(0.0);
-        assertThat(check2.getBertScore()).isEqualTo(0.0);
+        assertThat(check2.getSemanticScore()).isEqualTo(0.0);
+
+        CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(updatedCheckRun.getScriptScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
+        assertThat(updatedCheckRun.getSemanticScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
     }
 
     private static class TestChat implements Chat {
@@ -114,7 +117,7 @@ public class CheckRunnerTest {
     private static class TestExternalEvaluator implements ExternalEvaluator {
 
         @Override
-        public double evaluate(Type type, String referenceAnswer, String actualAnswer, Consumer<String> logger) {
+        public double evaluateSemantic(String referenceAnswer, String actualAnswer, Consumer<String> logger) {
             if (referenceAnswer.equals(actualAnswer))
                 return 1.0;
             else

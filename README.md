@@ -2,7 +2,7 @@
 
 AI-powered backend service designed to answer questions about the Jmix framework using Retrieval Augmented Generation (RAG). It's built with Spring AI and Jmix itself. 
 
-The service provides a chat API and an admin UI for managing the knowledge base and LLM parameters. It integrates with OpenAI models, PgVector for vector storage, and includes custom reranking and answer validation services.
+The service provides a chat API and an admin UI for managing the knowledge base and LLM parameters. It integrates with OpenAI models, PgVector for vector storage, and includes custom reranking and answer validation logic.
 
 ![](docs/chat.png)
 
@@ -14,10 +14,9 @@ However, Jmix AI Backend provides its own UI for administrators.
 
 ![](docs/jmix-ai-backend-system.drawio.svg)
 
-The system consists of three main components:
+The system consists of two main components:
 - **Jmix AI Backend Application**: Jmix-based application with Spring AI integration
 - **Reranker Service**: Python service for improving search result relevance
-- **Answer Checks Service**: Python service for validating AI response quality
 
 ![](docs/jmix-ai-backend-containers.drawio.svg)
 
@@ -60,12 +59,11 @@ The `Parameters` instance includes the YAML configuration that specifies paramet
 
 ### Answer checks
 
-This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses three algorithms to calculate the similarity between the question and the answer:
+This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses two algorithms to calculate the similarity between the question and the answer:
 - Groovy scripts. 
-- ROUGE score.
-- BERT score.
+- LLM semantic score.
 
-The ROUGE and BERT scores are calculated using a Python service. Its source code is located in the `answer_checks` directory. The connections to the answer checks service endpoints are specified in the `answer-checks.rouge.url` and `answer-checks.bert.url` application properties.
+The semantic score is calculated in the backend application using OpenAI and controlled by `answer-checks.model` and `answer-checks.temperature` application properties.
 
 ## Chat API
 
@@ -129,16 +127,6 @@ pip install fastapi==0.115.0 uvicorn==0.30.6 torch==2.4.1 transformers==4.44.2 p
 uvicorn reranker_service:app --host 0.0.0.0 --port 8000
 ```
 
-Running answer_checks:
-```shell
-cd answer_checks
-python3.10 -m venv env
-source env/bin/activate
-pip install fastapi==0.115.0 uvicorn==0.30.6 rouge-score==0.1.2 bert-score==0.3.13
-
-uvicorn answer_checks_service:app --host 0.0.0.0 --port 8001
-```
-
 ## Building images
 
 Build app image:
@@ -153,13 +141,4 @@ python3.10 -m venv env
 source env/bin/activate
 pip install fastapi==0.115.0 uvicorn==0.30.6 torch==2.4.1 transformers==4.44.2 pydantic==2.9.2
 docker build -t jmix-ai-reranker .
-```
-
-Build answer_checks image:
-```shell
-cd answer_checks
-python3.10 -m venv env
-source env/bin/activate
-pip install fastapi==0.115.0 uvicorn==0.30.6 rouge-score==0.1.2 bert-score==0.3.13
-docker build -t jmix-ai-answer-checks .
 ```

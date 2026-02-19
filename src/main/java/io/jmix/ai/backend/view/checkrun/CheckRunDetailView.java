@@ -33,9 +33,7 @@ public class CheckRunDetailView extends StandardDetailView<CheckRun> {
     @ViewComponent
     private TypedTextField<Double> scriptScoreField;
     @ViewComponent
-    private TypedTextField<Double> rougeScoreField;
-    @ViewComponent
-    private TypedTextField<Double> bertScoreField;
+    private TypedTextField<Double> semanticScoreField;
     @ViewComponent
     private TypedTextField<OffsetDateTime> createdDateField;
     @ViewComponent
@@ -57,8 +55,7 @@ public class CheckRunDetailView extends StandardDetailView<CheckRun> {
         createdByField.setVisible(false);
         parametersField.setVisible(false);
         scriptScoreField.setVisible(false);
-        rougeScoreField.setVisible(false);
-        bertScoreField.setVisible(false);
+        semanticScoreField.setVisible(false);
 
         detailActions.setVisible(true);
     }

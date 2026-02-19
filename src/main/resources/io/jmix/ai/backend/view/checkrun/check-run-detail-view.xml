@@ -33,8 +33,7 @@
             <textField id="createdDateField" property="createdDate" readOnly="true"/>
             <textField id="createdByField" property="createdBy" readOnly="true" colspan="2"/>
             <textField id="scriptScoreField" property="scriptScore" readOnly="true"/>
-            <textField id="rougeScoreField" property="rougeScore" readOnly="true"/>
-            <textField id="bertScoreField" property="bertScore" readOnly="true"/>
+            <textField id="semanticScoreField" property="semanticScore" readOnly="true"/>
             <textArea id="parametersField" minHeight="10em" property="parameters" colspan="3" readOnly="true"/>
         </formLayout>
         <hbox id="detailActions" visible="false">

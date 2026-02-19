@@ -62,8 +62,6 @@
                 <column property="question"/>
                 <column property="answer"/>
                 <column property="script"/>
-                <column property="rouge"/>
-                <column property="bert"/>
             </columns>
         </dataGrid>
         <hbox id="lookupActions" visible="false">

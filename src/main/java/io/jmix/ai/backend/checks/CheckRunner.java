@@ -40,21 +40,25 @@ public class CheckRunner {
 
         int count = 0;
         double scriptScore = 0.0;
-        double rougeScore = 0.0;
-        double bertScore = 0.0;
+        double semanticScore = 0.0;
         for (CheckDef checkDef : checkDefs) {
             Check check = runCheck(checkDef, checkRun.getParameters());
             check.setCheckRun(checkRun);
             dataManager.save(check);
             scriptScore += check.getScriptScore();
-            rougeScore += check.getRougeScore();
-            bertScore += check.getBertScore();
+            semanticScore += check.getSemanticScore();
             count++;
         }
 
+        if (count == 0) {
+            checkRun.setScriptScore(0.0);
+            checkRun.setSemanticScore(0.0);
+            dataManager.save(checkRun);
+            return;
+        }
+
         checkRun.setScriptScore(scriptScore / count);
-        checkRun.setRougeScore(rougeScore / count);
-        checkRun.setBertScore(bertScore / count);
+        checkRun.setSemanticScore(semanticScore / count);
         dataManager.save(checkRun);
     }
 
@@ -73,14 +77,8 @@ public class CheckRunner {
         if (!logStringBuilder.isEmpty())
             logStringBuilder.append("\n\n");
 
-        double rougeScore = externalEvaluator.evaluate(
-                ExternalEvaluator.Type.ROUGE, checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
-
-        if (!logStringBuilder.isEmpty())
-            logStringBuilder.append("\n\n");
-
-        double bertScore = externalEvaluator.evaluate(
-                ExternalEvaluator.Type.BERT, checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
+        double semanticScore = externalEvaluator.evaluateSemantic(
+                checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
 
         Check check = dataManager.create(Check.class);
         check.setCheckDef(checkDef);
@@ -90,8 +88,7 @@ public class CheckRunner {
         check.setReferenceAnswer(checkDef.getAnswer());
         check.setActualAnswer(actualAnswer);
         check.setScriptScore(scriptScore);
-        check.setRougeScore(rougeScore);
-        check.setBertScore(bertScore);
+        check.setSemanticScore(semanticScore);
         check.setLog(logStringBuilder.toString());
         return check;
     }

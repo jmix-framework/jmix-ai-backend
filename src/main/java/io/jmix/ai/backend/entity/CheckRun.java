@@ -33,26 +33,15 @@ public class CheckRun {
     @Column(name = "SCRIPT_SCORE")
     private Double scriptScore;
 
-    @Column(name = "ROUGE_SCORE")
-    private Double rougeScore;
+    @Column(name = "SEMANTIC_SCORE")
+    private Double semanticScore;
 
-    @Column(name = "BERT_SCORE")
-    private Double bertScore;
-
-    public Double getBertScore() {
-        return bertScore;
+    public Double getSemanticScore() {
+        return semanticScore;
     }
 
-    public void setBertScore(Double bertScore) {
-        this.bertScore = bertScore;
-    }
-
-    public Double getRougeScore() {
-        return rougeScore;
-    }
-
-    public void setRougeScore(Double rougeScore) {
-        this.rougeScore = rougeScore;
+    public void setSemanticScore(Double semanticScore) {
+        this.semanticScore = semanticScore;
     }
 
     public Double getScriptScore() {

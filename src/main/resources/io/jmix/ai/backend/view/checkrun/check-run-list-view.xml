@@ -65,8 +65,7 @@
                     <column property="createdBy"/>
                     <column property="parameters"/>
                     <column property="scriptScore"/>
-                    <column property="rougeScore"/>
-                    <column property="bertScore"/>
+                    <column property="semanticScore"/>
                 </columns>
             </dataGrid>
             <dataGrid id="checksDataGrid" dataContainer="checksDc" minWidth="100px" width="100%" minHeight="10em">
@@ -85,8 +84,7 @@
                     <column property="actualAnswer"/>
                     <column property="script"/>
                     <column property="scriptScore"/>
-                    <column property="rougeScore"/>
-                    <column property="bertScore"/>
+                    <column property="semanticScore"/>
                 </columns>
             </dataGrid>
         </split>

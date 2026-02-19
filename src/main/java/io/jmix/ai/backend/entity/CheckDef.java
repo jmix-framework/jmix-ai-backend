@@ -68,12 +68,6 @@ public class CheckDef {
     @Lob
     private String script;
 
-    @Column(name = "ROUGE")
-    private Boolean rouge;
-
-    @Column(name = "BERT")
-    private Boolean bert;
-
     public String getCategory() {
         return category;
     }
@@ -88,22 +82,6 @@ public class CheckDef {
 
     public void setActive(Boolean active) {
         this.active = active;
-    }
-
-    public Boolean getBert() {
-        return bert;
-    }
-
-    public void setBert(Boolean bert) {
-        this.bert = bert;
-    }
-
-    public Boolean getRouge() {
-        return rouge;
-    }
-
-    public void setRouge(Boolean rouge) {
-        this.rouge = rouge;
     }
 
     public String getScript() {
