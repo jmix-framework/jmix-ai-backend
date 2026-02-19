@@ -12,13 +12,13 @@ The Jmix AI Backend system is designed to be used as a backend service for the J
 
 However, Jmix AI Backend provides its own UI for administrators. 
 
-![](docs/jmix-ai-backend-system.drawio.svg)
+![](docs/jmix-ai-backend-system.png)
 
 The system consists of two main components:
 - **Jmix AI Backend Application**: Jmix-based application with Spring AI integration
 - **Reranker Service**: Python service for improving search result relevance
 
-![](docs/jmix-ai-backend-containers.drawio.svg)
+![](docs/jmix-ai-backend-containers.png)
 
 ## Features
 
@@ -59,10 +59,7 @@ The `Parameters` instance includes the YAML configuration that specifies paramet
 
 ### Answer checks
 
-This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses two algorithms to calculate the similarity between the question and the answer:
-- LLM semantic score.
-
-The semantic score is calculated in the backend application using OpenAI and controlled by `answer-checks.model` and `answer-checks.temperature` application properties.
+This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses a separate LLM to calculate the semantic score for similarity between the question and the answer. The LLM is called through OpenAI API and configured by `answer-checks.model` and `answer-checks.temperature` application properties. It uses the same API key as the main chat LLM.
 
 ## Chat API
 
