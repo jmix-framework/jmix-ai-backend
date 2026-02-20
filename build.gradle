@@ -37,7 +37,7 @@ dependencies {
 
     implementation 'org.commonmark:commonmark:0.24.0'
     implementation 'org.jsoup:jsoup:1.17.2'
-    implementation 'org.asciidoctor:asciidoctorj:3.0.0'
+    implementation 'org.asciidoctor:asciidoctorj:3.0.1'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
 
     implementation 'io.jmix.core:jmix-core-starter'
