@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import test_support.AuthenticatedAsAdmin;
 
 import javax.sql.DataSource;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -37,10 +38,7 @@ public class CheckRunnerTest {
 
     @BeforeEach
     void setUp() {
-        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        jdbc.execute("delete from CHECK_");
-        jdbc.execute("delete from CHECK_RUN");
-        jdbc.execute("delete from CHECK_DEF");
+        clearTables();
 
         checkDef1 = dataManager.create(CheckDef.class);
         checkDef1.setCategory("basic");
@@ -59,6 +57,10 @@ public class CheckRunnerTest {
 
     @AfterEach
     void tearDown() {
+        clearTables();
+    }
+
+    private void clearTables() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("delete from CHECK_");
         jdbc.execute("delete from CHECK_RUN");
@@ -67,7 +69,7 @@ public class CheckRunnerTest {
 
     @Test
     void test() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator());
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4);
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("some parameters");
@@ -87,6 +89,73 @@ public class CheckRunnerTest {
         assertThat(check2.getCheckRun()).isEqualTo(checkRun);
         assertThat(check2.getCategory()).isEqualTo(checkDef2.getCategory());
         assertThat(check2.getScore()).isEqualTo(0.0);
+
+        CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(updatedCheckRun.getScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
+    }
+
+    @Test
+    void runChecks_parallelExecutionWith20Defs() {
+        clearTables();
+        List<CheckDef> defs = new ArrayList<>();
+        for (int i = 1; i <= 20; i++) {
+            CheckDef checkDef = dataManager.create(CheckDef.class);
+            checkDef.setCategory("batch");
+            checkDef.setQuestion("Question " + i);
+            checkDef.setAnswer("Answer " + i);
+            checkDef.setActive(true);
+            defs.add(checkDef);
+        }
+        dataManager.save(defs.toArray());
+
+        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4);
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        dataManager.save(checkRun);
+
+        checkRunner.runChecks(Id.of(checkRun));
+
+        List<Check> checks = dataManager.load(Check.class).all().list();
+        assertThat(checks).hasSize(20);
+
+        CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(updatedCheckRun.getScore()).isCloseTo(1.0, org.assertj.core.data.Offset.offset(0.0001));
+    }
+
+    @Test
+    void runChecks_whenOneCheckFails_otherChecksStillSaved() {
+        clearTables();
+
+        CheckDef successDef = dataManager.create(CheckDef.class);
+        successDef.setCategory("basic");
+        successDef.setQuestion("ok");
+        successDef.setAnswer("ok");
+        successDef.setActive(true);
+
+        CheckDef failingDef = dataManager.create(CheckDef.class);
+        failingDef.setCategory("basic");
+        failingDef.setQuestion("fail");
+        failingDef.setAnswer("ignored");
+        failingDef.setActive(true);
+
+        dataManager.save(successDef, failingDef);
+
+        CheckRunner checkRunner = new CheckRunner(dataManager, new FailingChat(), new TestExternalEvaluator(), 4);
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        dataManager.save(checkRun);
+
+        checkRunner.runChecks(Id.of(checkRun));
+
+        List<Check> checks = dataManager.load(Check.class).all().list();
+        assertThat(checks).hasSize(2);
+
+        Check failedCheck = checks.stream()
+                .filter(c -> c.getQuestion().equals("fail"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(failedCheck.getScore()).isEqualTo(0.0);
+        assertThat(failedCheck.getLog()).contains("Check failed");
 
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
         assertThat(updatedCheckRun.getScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
@@ -114,6 +183,26 @@ public class CheckRunnerTest {
                 return 1.0;
             else
                 return 0.0;
+        }
+    }
+
+    private static class EchoChat implements Chat {
+
+        @Override
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+            String answer = userPrompt.replace("Question ", "Answer ");
+            return new StructuredResponse(answer, List.of(), null, 10, 10, 10);
+        }
+    }
+
+    private static class FailingChat implements Chat {
+
+        @Override
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+            if ("fail".equals(userPrompt)) {
+                throw new RuntimeException("simulated failure");
+            }
+            return new StructuredResponse("ok", List.of(), null, 10, 10, 10);
         }
     }
 }
