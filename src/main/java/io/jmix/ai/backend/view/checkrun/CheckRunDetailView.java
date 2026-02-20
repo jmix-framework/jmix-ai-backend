@@ -31,11 +31,7 @@ public class CheckRunDetailView extends StandardDetailView<CheckRun> {
     @ViewComponent
     private JmixTextArea parametersField;
     @ViewComponent
-    private TypedTextField<Double> scriptScoreField;
-    @ViewComponent
-    private TypedTextField<Double> rougeScoreField;
-    @ViewComponent
-    private TypedTextField<Double> bertScoreField;
+    private TypedTextField<Double> scoreField;
     @ViewComponent
     private TypedTextField<OffsetDateTime> createdDateField;
     @ViewComponent
@@ -56,9 +52,7 @@ public class CheckRunDetailView extends StandardDetailView<CheckRun> {
         createdDateField.setVisible(false);
         createdByField.setVisible(false);
         parametersField.setVisible(false);
-        scriptScoreField.setVisible(false);
-        rougeScoreField.setVisible(false);
-        bertScoreField.setVisible(false);
+        scoreField.setVisible(false);
 
         detailActions.setVisible(true);
     }

@@ -22,10 +22,7 @@
             <textArea id="questionField" minHeight="4em" property="question" colspan="3"/>
             <textArea id="referenceAnswerField" minHeight="9.5em" property="referenceAnswer" colspan="3"/>
             <textArea id="actualAnswerField" minHeight="9.5em" property="actualAnswer" colspan="3"/>
-            <textArea id="scriptField" minHeight="4em" property="script" colspan="3"/>
-            <textField id="scriptScoreField" property="scriptScore"/>
-            <textField id="rougeScoreField" property="rougeScore"/>
-            <textField id="bertScoreField" property="bertScore"/>
+            <textField id="scoreField" property="score"/>
             <textArea id="logField" minHeight="9.5em" property="log" colspan="3"/>
         </formLayout>
     </layout>

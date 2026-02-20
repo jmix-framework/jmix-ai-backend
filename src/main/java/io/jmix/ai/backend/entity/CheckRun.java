@@ -30,37 +30,15 @@ public class CheckRun {
     @Lob
     private String parameters;
 
-    @Column(name = "SCRIPT_SCORE")
-    private Double scriptScore;
+    @Column(name = "SCORE")
+    private Double score;
 
-    @Column(name = "ROUGE_SCORE")
-    private Double rougeScore;
-
-    @Column(name = "BERT_SCORE")
-    private Double bertScore;
-
-    public Double getBertScore() {
-        return bertScore;
+    public Double getScore() {
+        return score;
     }
 
-    public void setBertScore(Double bertScore) {
-        this.bertScore = bertScore;
-    }
-
-    public Double getRougeScore() {
-        return rougeScore;
-    }
-
-    public void setRougeScore(Double rougeScore) {
-        this.rougeScore = rougeScore;
-    }
-
-    public Double getScriptScore() {
-        return scriptScore;
-    }
-
-    public void setScriptScore(Double scriptScore) {
-        this.scriptScore = scriptScore;
+    public void setScore(Double score) {
+        this.score = score;
     }
 
     public String getParameters() {

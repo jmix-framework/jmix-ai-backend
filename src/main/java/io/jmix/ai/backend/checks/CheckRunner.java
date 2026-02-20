@@ -6,30 +6,21 @@ import io.jmix.ai.backend.entity.CheckDef;
 import io.jmix.ai.backend.entity.CheckRun;
 import io.jmix.core.DataManager;
 import io.jmix.core.Id;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.scripting.ScriptEvaluator;
-import org.springframework.scripting.support.StaticScriptSource;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 @Component
 public class CheckRunner {
 
-    private static final Logger log = LoggerFactory.getLogger(CheckRunner.class);
     private final DataManager dataManager;
     private final Chat chat;
-    private final ScriptEvaluator scriptEvaluator;
     private final ExternalEvaluator externalEvaluator;
 
-    public CheckRunner(DataManager dataManager, Chat chat, ScriptEvaluator scriptEvaluator, ExternalEvaluator externalEvaluator) {
+    public CheckRunner(DataManager dataManager, Chat chat, ExternalEvaluator externalEvaluator) {
         this.dataManager = dataManager;
         this.chat = chat;
-        this.scriptEvaluator = scriptEvaluator;
         this.externalEvaluator = externalEvaluator;
     }
 
@@ -39,22 +30,22 @@ public class CheckRunner {
         List<CheckDef> checkDefs = dataManager.load(CheckDef.class).query("e.active = true").list();
 
         int count = 0;
-        double scriptScore = 0.0;
-        double rougeScore = 0.0;
-        double bertScore = 0.0;
+        double score = 0.0;
         for (CheckDef checkDef : checkDefs) {
             Check check = runCheck(checkDef, checkRun.getParameters());
             check.setCheckRun(checkRun);
             dataManager.save(check);
-            scriptScore += check.getScriptScore();
-            rougeScore += check.getRougeScore();
-            bertScore += check.getBertScore();
+            score += check.getScore();
             count++;
         }
 
-        checkRun.setScriptScore(scriptScore / count);
-        checkRun.setRougeScore(rougeScore / count);
-        checkRun.setBertScore(bertScore / count);
+        if (count == 0) {
+            checkRun.setScore(0.0);
+            dataManager.save(checkRun);
+            return;
+        }
+
+        checkRun.setScore(score / count);
         dataManager.save(checkRun);
     }
 
@@ -68,30 +59,16 @@ public class CheckRunner {
         if (!logStringBuilder.isEmpty())
             logStringBuilder.append("\n\n");
 
-        double scriptScore = runScript(checkDef.getAnswer(), actualAnswer, checkDef.getScript(), logStringBuilder::append);
-
-        if (!logStringBuilder.isEmpty())
-            logStringBuilder.append("\n\n");
-
-        double rougeScore = externalEvaluator.evaluate(
-                ExternalEvaluator.Type.ROUGE, checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
-
-        if (!logStringBuilder.isEmpty())
-            logStringBuilder.append("\n\n");
-
-        double bertScore = externalEvaluator.evaluate(
-                ExternalEvaluator.Type.BERT, checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
+        double score = externalEvaluator.evaluateSemantic(
+                checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
 
         Check check = dataManager.create(Check.class);
         check.setCheckDef(checkDef);
         check.setCategory(checkDef.getCategory());
-        check.setScript(checkDef.getScript());
         check.setQuestion(checkDef.getQuestion());
         check.setReferenceAnswer(checkDef.getAnswer());
         check.setActualAnswer(actualAnswer);
-        check.setScriptScore(scriptScore);
-        check.setRougeScore(rougeScore);
-        check.setBertScore(bertScore);
+        check.setScore(score);
         check.setLog(logStringBuilder.toString());
         return check;
     }
@@ -99,23 +76,5 @@ public class CheckRunner {
     private String getAnswer(String question, String parameters, Consumer<String> logger) {
         Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, logger);
         return response.text();
-    }
-
-    private double runScript(String referenceAnswer, String actualAnswer, String script, Consumer<String> logger) {
-        if (StringUtils.isBlank(script)) {
-            return 0.0;
-        }
-        Number result;
-        try {
-            result = (Number) scriptEvaluator.evaluate(
-                    new StaticScriptSource(script),
-                    Map.of("referenceAnswer", referenceAnswer, "actualAnswer", actualAnswer)
-            );
-        } catch (Exception e) {
-            log.error("Failed to evaluate script: {}", script, e);
-            logger.accept("Failed to evaluate script: " + e.getMessage());
-            return 0.0;
-        }
-        return result != null ? result.doubleValue() : 0.0;
     }
 }

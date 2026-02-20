@@ -26,10 +26,6 @@
             <textField id="categoryField" property="category"/>
             <textArea id="questionField" height="9.5em" property="question" colspan="2"/>
             <textArea id="answerField" height="9.5em" property="answer" colspan="2"/>
-            <codeEditor id="scriptField" height="9.5em" property="script"
-                        textWrap="true" fontSize="0.9rem" colspan="2" showPrintMargin="false" mode="GROOVY"/>
-            <checkbox id="rougeField" property="rouge"/>
-            <checkbox id="bertField" property="bert"/>
         </formLayout>
         <hbox id="detailActions">
             <button id="saveAndCloseButton" action="saveAction"/>

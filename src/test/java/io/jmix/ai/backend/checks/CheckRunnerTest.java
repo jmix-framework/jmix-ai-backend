@@ -13,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scripting.ScriptEvaluator;
 import org.springframework.test.context.ActiveProfiles;
 import test_support.AuthenticatedAsAdmin;
 
@@ -32,32 +31,29 @@ public class CheckRunnerTest {
     DataManager dataManager;
     @Autowired
     DataSource dataSource;
-    @Autowired
-    ScriptEvaluator scriptEvaluator;
 
     CheckDef checkDef1;
     CheckDef checkDef2;
 
     @BeforeEach
     void setUp() {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("delete from CHECK_");
+        jdbc.execute("delete from CHECK_RUN");
+        jdbc.execute("delete from CHECK_DEF");
+
         checkDef1 = dataManager.create(CheckDef.class);
         checkDef1.setCategory("basic");
         checkDef1.setQuestion("What is the answer?");
         checkDef1.setAnswer("42");
-        checkDef1.setScript("actualAnswer == referenceAnswer ? 1.0 : 0.0");
         checkDef1.setActive(true);
-        checkDef1.setRouge(true);
-        checkDef1.setBert(true);
         dataManager.save(checkDef1);
 
         checkDef2 = dataManager.create(CheckDef.class);
         checkDef2.setCategory("basic");
         checkDef2.setQuestion("Who are you?");
         checkDef2.setAnswer("Jmix AI");
-        checkDef2.setScript("actualAnswer == referenceAnswer ? 1.0 : 0.0");
         checkDef2.setActive(true);
-        checkDef2.setRouge(true);
-        checkDef2.setBert(true);
         dataManager.save(checkDef2);
     }
 
@@ -71,7 +67,7 @@ public class CheckRunnerTest {
 
     @Test
     void test() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), scriptEvaluator, new TestExternalEvaluator());
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator());
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("some parameters");
@@ -85,16 +81,15 @@ public class CheckRunnerTest {
         Check check1 = checks.stream().filter(c -> c.getCheckDef().equals(checkDef1)).findFirst().orElseThrow();
         assertThat(check1.getCheckRun()).isEqualTo(checkRun);
         assertThat(check1.getCategory()).isEqualTo(checkDef1.getCategory());
-        assertThat(check1.getScriptScore()).isEqualTo(1.0);
-        assertThat(check1.getRougeScore()).isEqualTo(1.0);
-        assertThat(check1.getBertScore()).isEqualTo(1.0);
+        assertThat(check1.getScore()).isEqualTo(1.0);
 
         Check check2 = checks.stream().filter(c -> c.getCheckDef().equals(checkDef2)).findFirst().orElseThrow();
         assertThat(check2.getCheckRun()).isEqualTo(checkRun);
         assertThat(check2.getCategory()).isEqualTo(checkDef2.getCategory());
-        assertThat(check2.getScriptScore()).isEqualTo(0.0);
-        assertThat(check2.getRougeScore()).isEqualTo(0.0);
-        assertThat(check2.getBertScore()).isEqualTo(0.0);
+        assertThat(check2.getScore()).isEqualTo(0.0);
+
+        CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(updatedCheckRun.getScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
     }
 
     private static class TestChat implements Chat {
@@ -114,7 +109,7 @@ public class CheckRunnerTest {
     private static class TestExternalEvaluator implements ExternalEvaluator {
 
         @Override
-        public double evaluate(Type type, String referenceAnswer, String actualAnswer, Consumer<String> logger) {
+        public double evaluateSemantic(String referenceAnswer, String actualAnswer, Consumer<String> logger) {
             if (referenceAnswer.equals(actualAnswer))
                 return 1.0;
             else
