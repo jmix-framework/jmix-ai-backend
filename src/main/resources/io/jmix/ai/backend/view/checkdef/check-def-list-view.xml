@@ -42,6 +42,10 @@
                     <actionItem id="jsonExportActionItem" ref="checkDefsDataGrid.jsonExportAction"/>
                 </items>
             </dropdownButton>
+            <fileUploadField id="jsonImportUploadField"
+                             acceptedFileTypes=".json"
+                             uploadIcon="vaadin:upload"
+                             uploadText="msg://jsonImportUploadField.text"/>
             <simplePagination id="pagination" dataLoader="checkDefsDl"/>
         </hbox>
         <dataGrid id="checkDefsDataGrid"
