@@ -29,6 +29,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.core.env.Environment;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -50,9 +51,11 @@ public class ChatImpl implements Chat {
     private final ChatMemory chatMemory;
     private final ObservationRegistry observationRegistry;
     private final ToolsManager toolsManager;
+    private final String openAiBaseUrl;
+    private final String openAiApiKeyProperty;
 
     public ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
-                    ParametersRepository parametersRepository, ToolsManager toolsManager) {
+                    ParametersRepository parametersRepository, ToolsManager toolsManager, Environment environment) {
         this.parametersRepository = parametersRepository;
 
         chatMemory = MessageWindowChatMemory.builder()
@@ -63,6 +66,8 @@ public class ChatImpl implements Chat {
         observationRegistry = ObservationRegistry.create();
         observationRegistry.observationConfig().observationHandler(getChatObservationHandler());
         this.toolsManager = toolsManager;
+        this.openAiBaseUrl = environment.getProperty("spring.ai.openai.base-url");
+        this.openAiApiKeyProperty = environment.getProperty("spring.ai.openai.api-key");
     }
 
     @Override
@@ -137,11 +142,20 @@ public class ChatImpl implements Chat {
     private ChatModel buildChatModel(ParametersReader parametersReader) {
         String openaiApiKey = System.getenv("OPENAI_API_KEY");
         if (StringUtils.isBlank(openaiApiKey)) {
-            throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
+            openaiApiKey = openAiApiKeyProperty;
         }
-        OpenAiApi openAiApi = OpenAiApi.builder()
-                .apiKey(openaiApiKey)
-                .build();
+        if (StringUtils.isBlank(openaiApiKey)) {
+            if (StringUtils.isBlank(openAiBaseUrl)) {
+                throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
+            }
+            openaiApiKey = "dummy";
+        }
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .apiKey(openaiApiKey);
+        if (StringUtils.isNotBlank(openAiBaseUrl)) {
+            apiBuilder.baseUrl(openAiBaseUrl);
+        }
+        OpenAiApi openAiApi = apiBuilder.build();
 
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .model(parametersReader.getString("model.name", "gpt-5"));
