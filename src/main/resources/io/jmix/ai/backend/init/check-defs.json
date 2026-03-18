@@ -1,122 +1,260 @@
 [
   {
     "_entityName": "CheckDef",
-    "id": "018c1f8e-3b7a-7f9a-8c2d-4e5a6b7c8d9e",
-    "active": "true",
-    "category": "basic",
-    "question": "Who are you?",
-    "answer": "I am an AI assistant designed to help backend Java developers understand and use the Jmix framework, specifically versions 2 and above. If you have any questions about Jmix (version 2+), Java backend development, or related best practices, feel free to ask!"
-  },
-  {
-    "_entityName": "CheckDef",
-    "id": "018c1b7e-3f8a-7e4a-8c2f-9b7d6e4a2c1f",
-    "active": "true",
-    "category": "basic",
-    "question": "What's new in the latest Jmix version?",
-    "answer": "The latest stable Jmix version in the docs is **Jmix 2.7**. Key changes:\n\n## Platform & Dependencies\n\n- **Vaadin updated to 24.9** (for Flow UI).\n- Minimal **IntelliJ IDEA** for Studio is now **2025.1**.\n- Standard upgrade path via Studio → *Jmix Tool Window → Settings → Project Properties → Change platform version*.\n\n---\n\n## Studio / Developer Experience\n\n- **Role Designer**\n  - Visualizes **role inheritance hierarchy**.\n  - Shows permissions inherited from base roles as **read‑only**.\n  - Entity permissions tab uses **color highlighting** for enabled/disabled elements.\n\n- **Entity Designer**\n  - New action **“Add attribute from DB”** → supports **database‑first** approach:\n    - Add column in DB → import as JPA attribute.\n  - New JPA Entity dialog: **“Create Data Repository”** checkbox:\n    - Automatically creates a Spring Data `JmixDataRepository` for the entity.\n    - Studio remembers the checkbox state.\n\n- **View Creation Wizard**\n  - If a repository exists for an entity, **“Use Data Repositories”** is pre‑selected and view will use repository delegates by default.\n\n---\n\n## New / Improved UI Components\n\nAll in Flow UI (Vaadin):\n\n- **`groupDataGrid`**\n  - Data grid with **grouping** by one or more columns.\n  - Provided by **Grouping Data Grid** add‑on.\n  \n- **`card`**\n  - Container for presenting content as a **card**.\n  - Good for structuring related content and actions.\n\n- **`gridLayout`**\n  - Layout based on **CSS Grid**.\n  - Two‑dimensional, responsive layout.\n  - Can host individual components, cards, or fragments.\n  - Alternative to data grids when you want free layout but grid‑like structure.\n\n- **`userMenu`**\n  - Displays current **logged‑in user** and related actions such as:\n    - **Substitute user**\n    - **Log out**\n  - Supports nested menu items and arbitrary UI components inside.\n  - Included by default in the **new project template** main view.\n\n---\n\n## Filtering & Data\n\n- **Date filtering**\n  - `genericFilter` and `propertyFilter`:\n    - New operation **“date equals”** ignoring time part of `datetime`.\n  - **Date Interval dialog**:\n    - Now supports **arbitrary start and end date**.\n    - Can replace manual `>=` / `<` conditions for “between” checks.\n\n---\n\n## Data Repositories\n\nChanges in `JmixDataRepository`:\n\n- Now extends **`org.springframework.data.repository.ListCrudRepository`**:\n  - All `findAll()` methods that returned `Iterable` now return `List`.\n- Supports queries returning **scalar values and aggregates** using `@Query`.\n- Methods returning `Page` now **always do a count query** for total items/pages.\n  - If you don’t need totals, use new **`findAllSlice()`** methods returning `Slice` to avoid the extra count query.\n- New delegate handlers for views:\n  - **`loadFromRepositoryDelegate`**\n  - **`totalCountByRepositoryDelegate`**\n  - Allow calling repositories directly in views without converting `LoadContext` params.\n  - Studio will wire these automatically if you choose **“Use Data Repositories”** in the wizard.\n\n---\n\n## Reports Add‑on\n\n- **Design‑time reports**:\n  - Define report structure in **annotated Java classes** instead of pure runtime configuration.\n  - Benefits:\n    - Stored in **version control** (Git).\n    - Shipping report changes with app releases.\n    - Can use **debugger / IDE tools** on report logic.\n  - Trade‑off: runtime users **cannot modify** design‑time reports in the UI.\n- Report entity:\n  - **Report code is now mandatory** and must be unique among **all runtime and design‑time** reports.\n\n---\n\n## REST DataStore Add‑on\n\n- New option to **share entities and service interfaces** between applications using REST DataStore.\n  - Tighter coupling, but **less code duplication** and simpler integration.\n  - See docs section “REST DataStore: Sharing Code Between Applications”.\n\n---\n\n## Entity Log\n\n- Now can **track changes in many‑to‑many attributes** (on the owning side).\n\n---\n\n## Breaking Changes to Watch\n\n1. **`JmixDataRepository` method overrides**\n   - If you have custom `findAll` overrides, you must change the return type to `List`:\n   ```java\n   public interface OrderRepository extends JmixDataRepository<Order, UUID> {\n\n       // before\n       // @Override\n       // Iterable<Order> findAll(Sort sort, @Nullable FetchPlan fetchPlan);\n\n       // after\n       @Override\n       List<Order> findAll(Sort sort, @Nullable FetchPlan fetchPlan);\n   }\n   ```\n\n2. **Report code required**\n   - Any report without code must be assigned a **unique code** when edited.\n\n3. **Class move**\n   - `io.jmix.flowui.model.impl.EntityValuesComparator` moved to `io.jmix.core.comparator`.\n   - Update imports if you use it.\n\n4. **Regressions in 2.7.0**\n   - Known issues **#4850** and **#4852** affect **frontend‑only** projects; 2.7.1 has fixes.\n   - Check the issue comments if you’re on 2.7.0."
-  },
-  {
-    "_entityName": "CheckDef",
-    "id": "018c1b7e-3f8b-7b3e-9a4c-7d6e2f1b8a3e",
-    "active": "true",
-    "category": "forbidden topic",
-    "question": "How to make fried eggs?",
-    "answer": "I'm here to help with questions related to Jmix version 2+ and Java development. If you have a question about Jmix or Java, please let me know! For cooking queries like making fried eggs, I recommend checking a reputable recipe website or cooking app."
-  },
-  {
-    "_entityName": "CheckDef",
-    "id": "018c1f8e-3b7e-7f9e-c061-8f9a0b1c2d3e",
-    "active": "true",
-    "category": "Jmix 1.x",
-    "question": "What is vaadin 8 add-ons repository URL, for Jmix 1.x ?",
-    "answer": "I’m sorry, but I can only provide assistance with Jmix version 2 and above. If you have any questions related to Jmix 2+ or Java development, feel free to ask!"
-  },
-  {
-    "_entityName": "CheckDef",
-    "id": "018c1f8e-3b7f-7f9f-d172-9f0a1b2c3d4e",
-    "active": "true",
-    "category": "language",
-    "question": "¿Como mostrar u ocultar condicionalmente un dataGrid?",
-    "answer": "Para mostrar u ocultar condicionalmente un DataGrid en Jmix 2+, debes manipular la visibilidad del componente directamente desde el controlador de la vista (Java). Esto se hace usando el método setVisible(boolean) del DataGrid.\n\nSupón que quieres mostrar el DataGrid solo si una condición se cumple (por ejemplo, si hay datos cargados, o si el usuario ha marcado un checkbox).\n\nA continuación, se muestra un ejemplo básico:\n\nXML (fragmento de la vista):\n```xml\n<dataGrid id=\"customersDataGrid\"\n          dataContainer=\"customersDc\"\n          width=\"100%\">\n    <columns>\n        <column property=\"firstName\"/>\n        <column property=\"lastName\"/>\n        <column property=\"age\"/>\n    </columns>\n</dataGrid>\n```\n\nJava (controlador de la vista):\n```java\n@ViewComponent\nprivate DataGrid<Customer> customersDataGrid;\n\n@Autowired\nprivate CollectionContainer<Customer> customersDc;\n\n@Subscribe\npublic void onReady(ReadyEvent event) {\n    // Ejemplo: mostrar el DataGrid solo si hay datos\n    boolean hayDatos = !customersDc.getItems().isEmpty();\n    customersDataGrid.setVisible(hayDatos);\n}\n\n// También puedes reaccionar a eventos de UI. Ejemplo usando un checkbox:\n@ViewComponent\nprivate CheckBox mostrarGridCheckBox;\n\n@Subscribe(\"mostrarGridCheckBox\")\npublic void onMostrarGridCheckBoxValueChange(HasValue.ValueChangeEvent<Boolean> event) {\n    customersDataGrid.setVisible(Boolean.TRUE.equals(event.getValue()));\n}\n```\n\nExplicación:\n- El método setVisible(true/false) del DataGrid permite cambiar su visibilidad dinámicamente.\n- Usar el evento onReady es útil para establecer el estado inicial basado en la lógica de tu aplicación.\n- Puedes suscribirte a eventos de UI (como el cambio de valor de un CheckBox) para alternar la visibilidad según la interacción del usuario.\n\n¿Te gustaría un ejemplo basado en una condición específica? Si es así, indícamela y te preparo el código detallado."
-  },
-  {
-    "_entityName": "CheckDef",
-    "id": "018c1f8e-3b80-7fa0-e283-af1a2b3c4d5e",
-    "active": "true",
-    "category": "Jmix 1.x",
-    "question": "And where in the descriptor should <dialog ...> be located ?",
-    "answer": "The <dialog> XML element is not a standard element for Jmix view XML descriptors.\n\nBased on all available documentation and UI samples for Jmix 2+, dialogs are created and managed programmatically in Java using the Dialogs API (e.g., dialogs.createOptionDialog(), dialogs.createMessageDialog(), etc.). Dialog windows are not described declaratively with a <dialog> element in the XML descriptors of views. Instead, the XML file (e.g., my-view.xml) contains components inside a <layout> element, like so:\n\n```xml\n<view xmlns=\"http://jmix.io/schema/flowui/view\">\n    <layout>\n        <!-- View components here (fields, buttons, etc.) -->\n    </layout>\n</view>\n```\n\nIf you want to show a dialog, you should trigger it from Java code, using injected Dialogs, for example:\n\n```java\n@Autowired\nprivate Dialogs dialogs;\n\n@Subscribe(\"openDialogButton\")\nprivate void onOpenDialogButtonClick(ClickEvent<JmixButton> event) {\n    dialogs.createOptionDialog()\n        .withHeader(\"Confirm action\")\n        .withText(\"Are you sure?\")\n        .withActions(\n            new DialogAction(DialogAction.Type.OK),\n            new DialogAction(DialogAction.Type.CANCEL)\n        )\n        .open();\n}\n```\n\nIf you are seeking to include a reusable or custom UI component (not dialog), you may use the <component> tag within <layout>. There is no evidence in the Jmix 2+ documentation or samples that <dialog> is a valid XML element in view descriptors.\n\n**Summary:**  \n- Place components inside <layout> in view XML.\n- Dialogs/windows are created only in Java code using the Dialogs API.\n- <dialog> is not recognized as a valid XML element inside view descriptors in Jmix 2+.\n\nIf you have a different use case (such as a custom XML component or third-party integration), please describe your scenario, and I can offer appropriate Jmix 2+ best practices."
-  },
-  {
-    "_entityName": "CheckDef",
-    "id": "019ae485-f351-7642-98b1-44b3340e6000",
-    "question": "How to save custom text value in current view URL?",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000001",
     "active": true,
-    "createdDate": "2025-12-03T18:04:09.926+04:00",
-    "answer": "Use the `urlQueryParameters` facet – it’s exactly for binding view state to the current URL (including custom values).\n\nBelow is a minimal example for **saving a text field value in the URL** and restoring it when you refresh or navigate back.\n\n### 1. View XML\n\n```xml\n<view xmlns=\"http://jmix.io/schema/flowui/view\">\n    <facets>\n        <urlQueryParameters id=\"urlQueryParameters\"/>\n    </facets>\n\n    <layout>\n        <textField id=\"sampleTextField\" datatype=\"string\"/>\n    </layout>\n</view>\n```\n\n### 2. View Controller\n\n```java\n@ViewController(\"sample-view\")\n@ViewDescriptor(\"sample-view.xml\")\npublic class SampleView extends StandardView {\n\n    private static final String TEXT_URL_PARAM = \"text\";\n\n    @ViewComponent\n    private UrlQueryParametersFacet urlQueryParameters;\n\n    @ViewComponent\n    private TypedTextField<String> sampleTextField;\n\n    private class SampleUrlQueryParametersBinder extends AbstractUrlQueryParametersBinder {\n\n        public SampleUrlQueryParametersBinder() {\n            // When text changes – update URL\n            sampleTextField.addValueChangeListener(event -> {\n                String text = event.getValue();\n\n                QueryParameters qp = new QueryParameters(\n                        Map.of(\n                                TEXT_URL_PARAM,\n                                text != null && !text.isEmpty()\n                                        ? Collections.singletonList(text)\n                                        : Collections.emptyList()\n                        )\n                );\n\n                fireQueryParametersChanged(\n                        new UrlQueryParametersFacet.UrlQueryParametersChangeEvent(this, qp)\n                );\n            });\n        }\n\n        @Override\n        public void updateState(QueryParameters queryParameters) {\n            // Apply URL value to the field when the view is (re)opened\n            List<String> textStrings = queryParameters.getParameters().get(TEXT_URL_PARAM);\n            if (textStrings != null && !textStrings.isEmpty()) {\n                sampleTextField.setValue(textStrings.get(0));\n            }\n        }\n\n        @Override\n        public Component getComponent() {\n            return null; // we don’t bind to a specific visual component\n        }\n    }\n\n    @Subscribe\n    public void onInit(InitEvent event) {\n        urlQueryParameters.registerBinder(new SampleUrlQueryParametersBinder());\n    }\n}\n```",
-    "category": "ui"
+    "category": "fact",
+    "question": "Что такое сущность (entity) в Jmix и какие требования к ней предъявляются?",
+    "answer": "Сущность в Jmix 1.7 — это Java-класс предметной области, включённый в метамодель платформы. Для интеграции с Jmix класс помечают `@JmixEntity`, а для персистентной сущности обычно также используют JPA-аннотации `@Entity`, `@Table`, `@Id`, `@Column` и другие.\\n\\nДля обычной JPA-сущности в Jmix типичный минимум такой: первичный ключ, чаще всего UUID с `@JmixGeneratedValue`, поле версии `@Version` для optimistic locking, конструктор без аргументов, корректно описанные связи. Часто также добавляют `@InstanceName`, чтобы платформа могла удобно отображать экземпляры сущности в UI.\\n\\nВажная Jmix-специфика в том, что такие классы входят в метамодель и проходят enhancement на этапе сборки. Поэтому к ним применяются не только обычные требования JPA, но и инфраструктура Jmix: работа с metadata, fetch plan, data components и стандартными экранами."
   },
   {
     "_entityName": "CheckDef",
-    "id": "019c8569-0e46-751d-97f0-51cf198b0541",
-    "createdDate": "2026-02-22T16:53:19.617+04:00",
-    "question": "I need to count records in some table. How to do it?",
-    "answer": "In Jmix 2+ the usual way to count rows is to execute an aggregate JPQL query via `DataManager.loadValue()`.\n\n## Count all rows of an entity\n```java\nimport io.jmix.core.DataManager;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class UserStatService {\n\n    @Autowired\n    private DataManager dataManager;\n\n    public long countUsers() {\n        return dataManager.loadValue(\"select count(e) from User e\", Long.class)\n                .one();\n    }\n}\n```\n\nNotes:\n- Use the **entity name** in JPQL (`User`), not the DB table name.\n- Prefer `Long.class` for `count(...)` results.\n\n## Count with conditions\n```java\nimport io.jmix.core.DataManager;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class UserStatService {\n\n    @Autowired\n    private DataManager dataManager;\n\n    public long countActiveUsers() {\n        return dataManager.loadValue(\n                        \"select count(e) from User e where e.active \u003d true\",\n                        Long.class)\n                .one();\n    }\n}\n```\n\n## If you use Spring Data repositories\nIf you have a repository for the entity, you can also use its `count()` methods (or, in UI pagination scenarios, `count(context)` as shown in the docs).\n\n---\n\nIf you meant **count rows in a physical table that is not mapped to a JPA entity**, tell me what it is (JPA entity vs plain SQL table/view), and I’ll suggest the appropriate approach.",
-    "createdBy": "admin",
-    "lastModifiedDate": "2026-02-22T16:53:19.617+04:00",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000002",
     "active": true,
-    "category": "data access",
-    "version": 1
+    "golden": true,
+    "category": "fact",
+    "question": "Объясни разницу между EntityManager и DataManager в Jmix. В каких случаях что рекомендуется использовать?",
+    "answer": "`DataManager` — это основной высокоуровневый API Jmix для загрузки и сохранения данных. Его рекомендуется использовать в большинстве случаев, особенно в UI и сервисах бизнес-логики. Он даёт fluent API, работает с fetch plan, корректно интегрирован с безопасностью Jmix и покрывает типовые CRUD-сценарии.\\n\\n`EntityManager` — это более низкоуровневый JPA-инструмент, который используют внутри транзакции, обычно в сервисах среднего слоя. Он нужен, когда требуется поведение именно JPA: `flush()`, `refresh()`, `lock()`, native SQL, тонкое управление persistence context.\\n\\nПрактическое правило такое: если задачу можно решить через `DataManager`, лучше использовать его. `EntityManager` берут осознанно для специальных случаев, где нужен прямой JPA-контроль."
   },
   {
     "_entityName": "CheckDef",
-    "id": "019c856f-5d79-78c5-a1d4-78b0585c44e0",
-    "createdDate": "2026-02-22T17:00:57.032+04:00",
-    "question": "How create a SimplePagination descendant and register it?",
-    "answer": "To create a `SimplePagination` descendant and make it usable in a view XML descriptor in Jmix 2+ (FlowUI), you do the same as for any custom UI component:\n\n1) create a Java subclass of `SimplePagination`\n2) create an XML loader for it (extends `AbstractComponentLoader`)\n3) register the component + loader via `ComponentRegistrationBuilder`\n4) (optional) add XSD + Studio metadata so it appears nicely in Studio designer\n\nBelow is a working “skeleton” based on the official “Integrating into Jmix UI” approach (component XSD + loader + `ComponentRegistration`).  \n\n## 1) Create a descendant of `SimplePagination`\n\n```java\npackage com.company.app.component;\n\nimport io.jmix.flowui.component.pagination.SimplePagination;\n\npublic class MySimplePagination extends SimplePagination {\n\n    public MySimplePagination() {\n        super();\n        // your customization here (styling, default flags, extra logic, etc.)\n        setItemsPerPageVisible(true);\n    }\n}\n```\n\nIf you only want to use it from Java (not from XML), you can just instantiate it and add to a layout — **no registration is required**. Registration is needed to support an XML element.\n\n## 2) Create a component loader\n\nCreate a loader that will instantiate your component when Jmix parses the view XML.\n\n```java\npackage com.company.app.component.loader;\n\nimport com.company.app.component.MySimplePagination;\nimport io.jmix.flowui.xml.layout.loader.AbstractComponentLoader;\n\npublic class MySimplePaginationLoader extends AbstractComponentLoader\u003cMySimplePagination\u003e {\n\n    @Override\n    protected MySimplePagination createComponent() {\n        return factory.create(MySimplePagination.class);\n    }\n\n    @Override\n    public void loadComponent() {\n        // Load common attributes (id, visible, classNames, size, etc.) as needed.\n        // Example: size attributes\n        componentLoader().loadSizeAttributes(resultComponent, element);\n\n        // If you need specific attributes, use helper methods from the base class, e.g.:\n        // loadBoolean(element, \"itemsPerPageVisible\", resultComponent::setItemsPerPageVisible);\n\n        // For SimplePagination-specific wiring like dataLoader\u003d\"...\" you must implement\n        // the corresponding attribute handling here (resolve the referenced DataLoader and set it).\n        //\n        // (Exact attribute-to-API mapping depends on what you want to support in XML.)\n    }\n}\n```\n\nImportant: the official docs show how to build loaders and register them, but they don’t provide a ready-made “inherit all `simplePagination` XML attributes automatically”. So in your loader you explicitly implement the attributes you want to support (including `dataLoader` if you need the same binding as standard `\u003csimplePagination dataLoader\u003d\"...\"/\u003e`).\n\n## 3) Register the component and its loader in Spring\n\n```java\npackage com.company.app.config;\n\nimport com.company.app.component.MySimplePagination;\nimport com.company.app.component.loader.MySimplePaginationLoader;\nimport io.jmix.flowui.kit.component.ComponentRegistration;\nimport io.jmix.flowui.kit.component.ComponentRegistrationBuilder;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\npublic class ComponentRegistrationConfiguration {\n\n    @Bean\n    public ComponentRegistration mySimplePagination() {\n        return ComponentRegistrationBuilder.create(MySimplePagination.class)\n                .withComponentLoader(\"mySimplePagination\", MySimplePaginationLoader.class)\n                .build();\n    }\n}\n```\n\nAfter that, Jmix knows that an XML element named `mySimplePagination` should be created using your loader.\n\n## 4) Add XML namespace (XSD) to use it in view descriptors\n\nPer the docs, you define your own namespace and XSD (example shown for a custom `slider` component). Conceptually it will look like:\n\n```xml\n\u003cxs:schema xmlns\u003d\"http://company.com/schema/app-ui-components\"\n           elementFormDefault\u003d\"qualified\"\n           targetNamespace\u003d\"http://company.com/schema/app-ui-components\"\n           xmlns:xs\u003d\"http://www.w3.org/2001/XMLSchema\"\n           xmlns:layout\u003d\"http://jmix.io/schema/flowui/layout\"\u003e\n\n    \u003cxs:element name\u003d\"mySimplePagination\"\u003e\n        \u003cxs:complexType\u003e\n            \u003cxs:complexContent\u003e\n                \u003cxs:extension base\u003d\"layout:baseComponent\"\u003e\n                    \u003c!-- declare the XML attributes you want to support --\u003e\n                    \u003cxs:attribute name\u003d\"itemsPerPageVisible\" type\u003d\"xs:boolean\"/\u003e\n                    \u003cxs:attribute name\u003d\"dataLoader\" type\u003d\"xs:string\"/\u003e\n                    \u003cxs:attributeGroup ref\u003d\"layout:hasSize\"/\u003e\n                \u003c/xs:extension\u003e\n            \u003c/xs:complexContent\u003e\n        \u003c/xs:complexType\u003e\n    \u003c/xs:element\u003e\n\n\u003c/xs:schema\u003e\n```\n\nThen use it in the view XML:\n\n```xml\n\u003cview xmlns\u003d\"http://jmix.io/schema/flowui/view\"\n      xmlns:app\u003d\"http://company.com/schema/app-ui-components\"\u003e\n    \u003clayout\u003e\n        \u003capp:mySimplePagination id\u003d\"pagination\"\n                                itemsPerPageVisible\u003d\"true\"\n                                dataLoader\u003d\"usersDl\"/\u003e\n    \u003c/layout\u003e\n\u003c/view\u003e\n```\n\n## 5) (Optional) Make it appear in Jmix Studio palette\n\nThe docs describe adding `@StudioUiKit` + `@StudioComponent` metadata for Studio support. This is optional for runtime.\n\n---\n\n### One clarification (so I don’t guess the wrong level of detail)\nDo you need your descendant to be used **as a new XML element** (like `\u003capp:mySimplePagination/\u003e`), or is it enough to use it **only from Java code** inside a view controller?",
-    "createdBy": "admin",
-    "lastModifiedDate": "2026-02-22T17:01:28.038+04:00",
-    "lastModifiedBy": "admin",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000003",
+    "active": true,
+    "category": "fact",
+    "question": "Какие основные виды экранов (screens) существуют в Jmix? Кратко опишите их назначение.",
+    "answer": "В классическом UI Jmix 1.7 основные типы экранов и контроллеров такие:\\n\\n- `Screen` — базовый экран общего назначения.\\n- `StandardLookup` — стандартный экран списка и выбора сущностей.\\n- `StandardEditor` — стандартный экран создания и редактирования одной сущности.\\n- `MasterDetailScreen` — комбинированный экран, где рядом показываются список и форма редактирования.\\n\\nОтдельно есть `ScreenFragment` — это не самостоятельный экран, а переиспользуемый фрагмент UI, который встраивается в экран или другой фрагмент. Эти классы относятся к classic UI Jmix 1.7 и находятся в пакете `io.jmix.ui.screen`."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000004",
+    "active": true,
+    "category": "fact",
+    "question": "Что такое конфигурация безопасности в Jmix и из каких компонентов она состоит?",
+    "answer": "Безопасность в Jmix 1.7 состоит из двух основных уровней. Первый — ресурсные роли (`@ResourceRole`), которые определяют доступ к сущностям, атрибутам, экранам, меню и specific permissions. Второй — роли уровня строк (`@RowLevelRole`), которые ограничивают доступ к конкретным экземплярам сущностей.\\n\\nДля row-level security используются два основных механизма: `@JpqlRowLevelPolicy` для фильтрации на уровне запроса и `@PredicateRowLevelPolicy` для проверок в памяти, в том числе для загруженных графов объектов и операций изменения. Пользователю назначают комбинацию ресурсных ролей и ролей уровня строк.\\n\\nРоли можно определять в коде аннотированными интерфейсами или создавать и редактировать через административный UI."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000005",
+    "active": true,
+    "golden": true,
+    "category": "fact",
+    "question": "Для чего используется аннотация @Install в Jmix?",
+    "answer": "`@Install` в Jmix 1.7 используют в контроллерах экранов для установки делегатов и обработчиков в заранее предусмотренные точки расширения компонентов и data-компонентов. Через неё обычно подключают `validator`, `formatter`, `optionCaptionProvider`, `loadDelegate`, `valueProvider` и другие delegate-like обработчики.\\n\\nТипичный синтаксис такой: `@Install(to = \\\"componentId\\\", subject = \\\"subjectName\\\")`. Здесь `to` — id компонента или loader, а `subject` — имя расширяемого слота.\\n\\nГлавное отличие от `@Subscribe`: `@Subscribe` подписывает на событие, а `@Install` подставляет вашу реализацию в delegate API компонента."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000006",
+    "active": true,
+    "category": "fact",
+    "question": "Какие типы хранилищ данных (data stores) поддерживаются в Jmix?",
+    "answer": "В Jmix 1.7 основной встроенный тип `DataStore` — это JPA data store для работы с реляционными базами данных. У приложения есть основной store, и при необходимости можно настроить дополнительные stores и привязать сущности к ним через `@Store`.\\n\\nЕсли нужна интеграция с нестандартным источником данных, Jmix позволяет реализовать собственный `DataStore`. Это используют для внешних систем, REST API, legacy-источников или NoSQL, но это уже кастомное расширение платформы.\\n\\nОтдельно есть `FileStorage` для хранения файлов по `FileRef`, но это не `DataStore` для JPA-сущностей. Поэтому корректное различие такое: JPA store и custom stores — это про сущности, а `FileStorage` — про содержимое файлов."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000007",
+    "active": true,
+    "golden": true,
+    "category": "instruction",
+    "question": "Как создать новую сущность (entity) в проекте Jmix 1.7 через Studio? Опиши шаги.",
+    "answer": "В Jmix Studio сущность обычно создают так: открыть `Jmix Tool Window`, нажать `New`, выбрать `JPA Entity`, задать имя класса, пакет, тип id и способ генерации идентификатора. Для UUID обычно выбирают генерацию от Jmix, чтобы получить `@JmixGeneratedValue`.\\n\\nПосле этого Studio открывает Entity Designer, где можно добавить атрибуты, задать обязательность, длину строк и связи. Для персистентной сущности обычно также включают `Versioned`, чтобы добавить поле `@Version`.\\n\\nДальше можно сразу сгенерировать стандартные browse/edit screens и при запуске приложения подтвердить создание Liquibase changelog, чтобы новая таблица или изменения схемы были применены к базе данных."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000008",
+    "active": true,
+    "category": "instruction",
+    "question": "Как добавить новый атрибут в существующую сущность и обновить базу данных?",
+    "answer": "Обычный путь такой: открыть сущность в Entity Designer, добавить новый атрибут, сохранить изменения и затем запустить приложение. Studio сравнит модель данных со схемой БД и предложит создать Liquibase changelog. После подтверждения changelog будет сгенерирован и применён.\\n\\nЕсли экран уже существует, новый атрибут можно отдельно добавить в browse/editor screen через Studio или руками в XML и fetch plan.\\n\\nЕсли автоматическая генерация отключена, тогда поле добавляют в Java-класс, а Liquibase changeSet для новой колонки создают вручную."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000009",
+    "active": true,
+    "category": "instruction",
+    "question": "Как создать простой экран просмотра и редактирования (browse & edit) для сущности \"Клиент\"?",
+    "answer": "Для сущности `Customer` в Studio обычно открывают Entity Designer и запускают мастер `Create screen`. В мастере выбирают шаблон `Entity browser and editor screen`, проверяют имя сущности, пакеты, названия экранов и fetch plan, после чего нажимают `Create`.\\n\\nВ результате Studio генерирует пару экранов: список (`browse`) и редактор (`edit`), а также добавляет пункт меню. После запуска приложения и применения Liquibase-изменений можно сразу пользоваться CRUD-экраном.\\n\\nЕсли делать вручную, то для списка обычно создают `StandardLookup<Customer>`, для редактора — `StandardEditor<Customer>`, плюс XML-дескрипторы и запись в `menu.xml`."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000010",
+    "active": true,
+    "category": "instruction",
+    "question": "Как настроить валидацию на уровне сущности, чтобы поле email было обязательным и имело формат email?",
+    "answer": "Для строкового поля email обычно используют Bean Validation-аннотации `@NotBlank` и `@Email`, а в mapping добавляют `@Column(nullable = false)`. Тогда поле нельзя оставить пустым, и проверка будет работать и в UI, и при сохранении через `DataManager`.\\n\\nПример:\\n```java\\n@JmixEntity\\n@Table(name = \\\"CUSTOMER\\\")\\n@Entity(name = \\\"Customer\\\")\\npublic class Customer {\\n\\n    @JmixGeneratedValue\\n    @Id\\n    @Column(name = \\\"ID\\\", nullable = false)\\n    private UUID id;\\n\\n    @NotBlank\\n    @Email\\n    @Column(name = \\\"EMAIL\\\", nullable = false)\\n    private String email;\\n}\\n```\\n\\n`@NotNull` для такой задачи слабее, потому что запрещает только `null`, но не пустую строку. Если поле может быть пустым, но при наличии должно соответствовать email-формату, тогда оставляют только `@Email` без `@NotBlank`."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000011",
+    "active": true,
+    "category": "instruction",
+    "question": "Как определить пользовательский сервис (Spring bean) и внедрить его в экран?",
+    "answer": "Сервис создают как обычный Spring bean, например с `@Service` или `@Component`. Внутри него можно использовать `DataManager`, другие сервисы и `@Transactional` при необходимости. Для сервисов лучше использовать constructor injection, а в экранах Jmix 1.7 обычно применяют `@Autowired`.\\n\\nПример сервиса:\\n```java\\n@Service\\npublic class CustomerService {\\n\\n    private final DataManager dataManager;\\n\\n    public CustomerService(DataManager dataManager) {\\n        this.dataManager = dataManager;\\n    }\\n\\n    public long countCustomers() {\\n        return dataManager.loadValue(\\\"select count(c) from Customer c\\\", Long.class).one();\\n    }\\n}\\n```\\n\\nВ контроллер экрана его обычно внедряют через `@Autowired`:\\n```java\\n@UiController(\\\"sample_Customer.browse\\\")\\n@UiDescriptor(\\\"customer-browse.xml\\\")\\npublic class CustomerBrowse extends StandardLookup<Customer> {\\n\\n    @Autowired\\n    private CustomerService customerService;\\n}\\n```"
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000012",
+    "active": true,
+    "category": "instruction",
+    "question": "Как изменить заголовок главного окна приложения?",
+    "answer": "В Jmix 1.7 это обычно делают через branding и сообщения приложения. Если нужен текст в главном окне приложения, его настраивают в файлах сообщений темы и главного экрана. Если нужен заголовок вкладки браузера, его тоже задают через branding/theme resources.\\n\\nНа практике типичный путь такой:\\n- создать или отредактировать branding для проекта;\\n- задать нужные сообщения, например `application.caption`, а при необходимости `application.logoLabel` и `welcomeLabel`;\\n- если меняется caption конкретного главного экрана, вынести его в `messages.properties` и использовать `msg://...` в XML.\\n\\nЕсли заголовок должен меняться динамически, это можно сделать программно в контроллере главного экрана, но базовая настройка обычно делается через branding и message pack."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000013",
+    "active": true,
+    "category": "instruction",
+    "question": "Как добавить новую роль и назначить её пользователю в коде или административный интерфейс?",
+    "answer": "Есть два обычных пути. Первый и основной для running system — через административный интерфейс: создать `Resource role` или `Row-level role`, затем открыть пользователя и назначить ему эту роль. Это стандартный и самый простой способ.\\n\\nВторой путь — определить роль в коде через аннотированный интерфейс, например `@ResourceRole`. Если назначение нужно делать программно, создают `RoleAssignmentEntity`, заполняют как минимум `username`, `roleCode` и `roleType`, после чего сохраняют через `DataManager`. Для ресурсной роли тип назначения — `RoleAssignmentRoleType.RESOURCE`.\\n\\nЕсли роль должна поставляться вместе с приложением, её лучше объявить в коде. Если нужна оперативная настройка пользователей и назначений, удобнее использовать административный UI."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000014",
+    "active": true,
+    "golden": true,
+    "category": "instruction",
+    "question": "Как вручную создать и применить миграцию базы данных для добавления нового столбца в существующую таблицу с использованием Liquibase в Jmix? Автоматические средства генерации отключены.",
+    "answer": "Нужно вручную создать новый Liquibase XML-файл с `changeSet`, подключить его в корневой `changelog.xml` и затем применить миграцию при запуске приложения или через Liquibase/Gradle-задачу, если она настроена в проекте.\\n\\nТипичный порядок такой:\\n1. Найти основной Liquibase changelog проекта.\\n2. Создать новый файл, например `2026-03-12-add-email-column.xml`.\\n3. Добавить changeSet с `<addColumn tableName=\\\"CUSTOMER\\\">`.\\n4. Подключить файл через `<include file=\\\"...\\\"/>` в основном changelog.\\n5. Запустить приложение или выполнить настроенную в проекте задачу обновления схемы.\\n\\nЕсли столбец должен быть `NOT NULL`, а в таблице уже есть данные, обычно сначала добавляют колонку без ограничения, затем заполняют значения и только после этого накладывают `NOT NULL`."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000015",
+    "active": true,
+    "category": "scenario",
+    "question": "У меня есть сущности Заказ (Order) и Товар (Product). Заказ может содержать несколько товаров (связь OneToMany). Мне нужно в таблице заказов отобразить колонку с общей суммой заказа. Как это лучше реализовать?",
+    "answer": "Если сумма нужна только для отображения в browse screen, не стоит считать её отдельным запросом на каждую строку: это приведёт к N+1. Практичный вариант для Jmix 1.7 — добавить в `Order` транзиентное поле, например `totalAmount`, пометить его `@JmixProperty`, а после загрузки списка одним агрегирующим запросом посчитать суммы сразу для набора заказов на текущей странице.\\n\\nОбычно это делают в сервисе или в контроллере browse screen после загрузки контейнера: получают список ID заказов, выполняют один запрос `group by order`, затем заполняют `totalAmount` у уже загруженных сущностей. Такой подход даёт два запроса: один на список заказов и один на агрегаты.\\n\\nЕсли сумма нужна не только для показа, но и для фильтрации, сортировки, отчётов или частого повторного использования, тогда лучше хранить её в отдельном persisted поле и обновлять при изменении состава заказа."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000016",
+    "active": true,
+    "category": "scenario",
+    "question": "Нужно ограничить доступ к экрану \"Отчёты\" так, чтобы его видели только пользователи с ролью \"ROLE_REPORT_VIEW\". Как это настроить в Jmix?",
+    "answer": "В Jmix 1.7 это делают через ресурсную роль. Нужно создать роль с разрешением на нужный экран и пункт меню, а затем назначить её пользователям.\\n\\nЕсли роль объявляется в коде, то обычно это `@ResourceRole`, внутри которой используют `@ScreenPolicy(screenIds = \\\"...\\\")` и `@MenuPolicy(menuIds = \\\"...\\\")`. После этого роль можно назначить пользователю через UI или программно.\\n\\nВажно использовать реальные screen id и menu id из проекта. Пользователь без такой роли не увидит пункт меню и не сможет открыть экран штатным способом."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000017",
+    "active": true,
+    "golden": true,
+    "category": "scenario",
+    "question": "Приложение работает медленно при загрузке списка заказов. Какие шаги предпринять для оптимизации производительности экрана?",
+    "answer": "В Jmix 1.7 сначала нужно понять, где узкое место: SQL, fetch plan, `CollectionLoader`, generated columns, ленивые связи или тяжёлые вычисления в контроллере. Обычно начинают с SQL-логирования и проверки, нет ли N+1 запросов.\\n\\nДальше проверяют `fetchPlan`: на экран должны загружаться только реально нужные атрибуты и связи. Для browse screen важны пагинация, разумный `maxResults` и отсутствие лишних обращений к lazy relations из `columnGenerator` или formatters. Если на экране есть вычисляемые поля, их лучше считать одним агрегирующим запросом после загрузки списка, а не по строке.\\n\\nТакже стоит проверить индексы на полях фильтрации и сортировки, не перегружен ли `CollectionLoader` лишними join, и не выполняется ли тяжёлая бизнес-логика прямо в контроллере экрана. Всё, что можно, лучше выносить в сервис и делать пакетно."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000018",
+    "active": true,
+    "category": "scenario",
+    "question": "Я хочу добавить кастомную кнопку на экран редактирования заказа, которая будет выполнять бизнес-логику (например, подтверждать заказ) и затем обновлять состояние экрана. Как это сделать?",
+    "answer": "На editor screen добавляют кнопку в XML, затем в контроллере подписываются на её нажатие через `@Subscribe`. В обработчике обычно получают текущую сущность через `getEditedEntity()`, вызывают Spring-сервис с бизнес-логикой и после успешного выполнения показывают уведомление и обновляют данные экрана.\\n\\nТипичный вариант — вынести подтверждение заказа в `OrderService`, внутри сервиса сделать изменение статуса и `dataManager.save(order)`, а в экране после этого вызвать `getScreenData().loadAll()` или перезагрузить конкретный контейнер.\\n\\nТакой подход разделяет UI и бизнес-логику: экран только инициирует действие и показывает результат, а сама операция живёт в сервисе."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000019",
+    "active": true,
+    "category": "scenario",
+    "question": "Необходимо реализовать механизм аудита изменений всех сущностей (кто, когда, что изменил). Есть ли в Jmix встроенные средства для этого, или нужно писать своё?",
+    "answer": "В Jmix 1.7 для этого есть встроенный add-on `Audit`, в частности механизм `Entity Log`. Он позволяет хранить историю изменений и использовать готовые административные экраны для просмотра аудита.\\n\\nБазовый механизм писать с нуля обычно не нужно, но важно понимать, что он не начинает автоматически аудитировать вообще все сущности без настройки. Обычно подключают add-on и затем явно включают логирование для нужных сущностей и атрибутов через UI или код.\\n\\nЕсли нужно отслеживать не только основную сущность, но и дочерние сущности, их тоже обычно включают в audit configuration отдельно. Поэтому правильная формулировка такая: встроенные средства есть, но их нужно настроить под конкретный набор сущностей."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000020",
+    "active": true,
+    "golden": true,
+    "category": "scenario",
+    "question": "Какой подход выбрать, если нужно ограничить редактирование заказов только их создателю, но при этом менеджер должен видеть все заказы?",
+    "answer": "Здесь обычно комбинируют ресурсные роли и row-level security. Менеджеру дают ресурсную роль на чтение всех заказов, а для обычного пользователя вводят row-level policy, которая разрешает чтение или изменение только своих заказов, например по `createdBy = :current_user_username`.\\n\\nЕсли нужно, чтобы пользователь видел только свои заказы и редактировал только свои, а менеджер видел все, делают две разные роли или две разные комбинации политик. Для загрузки списков удобно использовать `@JpqlRowLevelPolicy`, а для защиты операций изменения — дополнительно `@PredicateRowLevelPolicy`, если сущности могут попадать в граф загруженных объектов.\\n\\nТакой подход лучше, чем ручные проверки в каждом экране, потому что правило применяется централизованно."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000021",
+    "active": true,
+    "category": "code",
+    "question": "Напиши код Spring bean (сервиса), который при создании нового пользователя отправляет ему приветственное письмо. Используй встроенный функционал Jmix для отправки email.",
+    "answer": "Обычно это делают через слушатель `EntityChangedEvent<User>` и `Emailer`. После создания пользователя слушатель загружает сущность и ставит письмо в очередь через `sendEmailAsync()`.\\n\\n```java\\n@Component\\npublic class UserCreatedListener {\\n\\n    @Autowired\\n    private DataManager dataManager;\\n\\n    @Autowired\\n    private Emailer emailer;\\n\\n    @EventListener\\n    public void onUserChanged(EntityChangedEvent<User> event) {\\n        if (event.getType() != EntityChangedEvent.Type.CREATED) {\\n            return;\\n        }\\n\\n        User user = dataManager.load(event.getEntityId()).one();\\n        if (user.getEmail() == null || user.getEmail().isBlank()) {\\n            return;\\n        }\\n\\n        EmailInfo emailInfo = EmailInfoBuilder.create()\\n                .setAddresses(user.getEmail())\\n                .setSubject(\\\"Добро пожаловать\\\")\\n                .setBody(\\\"Здравствуйте, ваш пользователь создан.\\\")\\n                .build();\\n\\n        emailer.sendEmailAsync(emailInfo);\\n    }\\n}\\n```\\n\\nВажно: `sendEmailAsync()` только помещает письмо в очередь. Чтобы письмо реально отправилось, в приложении должен быть подключён email add-on, настроен SMTP и настроен scheduler, который периодически вызывает `Emailer.processQueuedEmails()`."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000022",
+    "active": true,
+    "golden": true,
+    "category": "code",
+    "question": "Покажи пример JPQL-запроса в Jmix для получения списка заказов со статусом \"NEW\", отсортированных по дате создания, с использованием DataManager.",
+    "answer": "Пример через `DataManager` выглядит так:\\n\\n```java\\n@Autowired\\nprivate DataManager dataManager;\\n\\npublic List<Order> loadNewOrders() {\\n    return dataManager.load(Order.class)\\n            .query(\\\"select o from Order o where o.status = :status order by o.createdDate\\\")\\n            .parameter(\\\"status\\\", OrderStatus.NEW)\\n            .list();\\n}\\n```\\n\\nЕсли статус хранится строкой, вместо `OrderStatus.NEW` передают строковое значение. При необходимости можно добавить fetch plan."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000023",
+    "active": true,
+    "category": "code",
+    "question": "Дополни следующий код экрана, чтобы при нажатии на кнопку \"Очистить\" очищались все поля ввода формы:\\n\\n@Autowired\\nprivate Form form;\\n\\n@Subscribe(\\\"clearBtn\\\")\\npublic void onClearBtnClick(Button.ClickEvent event) {\\n// код\\n}",
+    "answer": "Можно пройти по компонентам формы и очистить поля, реализующие интерфейс `Field`:\\n\\n```java\\n@Subscribe(\\\"clearBtn\\\")\\npublic void onClearBtnClick(Button.ClickEvent event) {\\n    clearFields(form);\\n}\\n\\nprivate void clearFields(ComponentContainer container) {\\n    for (Component component : container.getComponents()) {\\n        if (component instanceof Field) {\\n            ((Field<?>) component).clear();\\n        } else if (component instanceof ComponentContainer) {\\n            clearFields((ComponentContainer) component);\\n        }\\n    }\\n}\\n```\\n\\nРекурсивный вариант безопаснее, чем плоский обход, потому что поля часто лежат внутри вложенных контейнеров."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000024",
+    "active": true,
+    "golden": true,
+    "category": "code",
+    "question": "Напиши код для программного открытия экрана редактирования заказа с передачей идентификатора заказа.",
+    "answer": "Обычно сущность сначала загружают через `DataManager`, а затем открывают editor через `ScreenBuilders`. Это стандартный путь, если нужно открыть экран редактирования уже существующего заказа.\\n\\n```java\\n@UiController(\\\"sample_SomeScreen\\\")\\n@UiDescriptor(\\\"some-screen.xml\\\")\\npublic class SomeScreen extends Screen {\\n\\n    @Autowired\\n    private DataManager dataManager;\\n\\n    @Autowired\\n    private ScreenBuilders screenBuilders;\\n\\n    public void openOrderEditor(UUID orderId) {\\n        Order order = dataManager.load(Order.class).id(orderId).one();\\n\\n        screenBuilders.editor(Order.class, this)\\n                .editEntity(order)\\n                .withOpenMode(OpenMode.DIALOG)\\n                .build()\\n                .show();\\n    }\\n}\\n```\\n\\nЕсли нужно обработать отсутствие сущности, вместо `.one()` лучше использовать `.optional()`. Если в проекте для `Order` используется нестандартный editor screen, его можно явно указать через `withScreenId(...)`."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000025",
+    "active": true,
+    "category": "code",
+    "question": "Как объявить и использовать в экране коллекцию данных (DataContainer) для сущности \"Товар\", загружая данные через DataManager?",
+    "answer": "В Jmix 1.7 обычно объявляют `CollectionContainer` и `CollectionLoader` в XML. Loader использует `DataManager`, поэтому это стандартный декларативный способ загрузки через `DataManager`. Например:\\n\\n```xml\\n<data>\\n    <collection id=\\\"productsDc\\\" class=\\\"com.company.app.entity.Product\\\">\\n        <fetchPlan extends=\\\"_base\\\"/>\\n        <loader id=\\\"productsDl\\\">\\n            <query><![CDATA[select p from Product p]]></query>\\n        </loader>\\n    </collection>\\n</data>\\n<facets>\\n    <dataLoadCoordinator auto=\\\"true\\\"/>\\n</facets>\\n```\\n\\nВ контроллере можно внедрить контейнер и loader:\\n```java\\n@Autowired\\nprivate CollectionContainer<Product> productsDc;\\n\\n@Autowired\\nprivate CollectionLoader<Product> productsDl;\\n```\\n\\nЕсли нужна именно явная программная загрузка через `DataManager`, можно сделать так:\\n```java\\n@Autowired\\nprivate DataManager dataManager;\\n@Autowired\\nprivate CollectionContainer<Product> productsDc;\\n\\n@Subscribe\\npublic void onBeforeShow(BeforeShowEvent event) {\\n    productsDc.setItems(dataManager.load(Product.class).all().list());\\n}\\n```"
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000026",
     "active": true,
     "category": "ui",
-    "version": 2
+    "question": "Как изменить стиль конкретной кнопки на экране, используя CSS? Приведи пример.",
+    "answer": "В Jmix 1.7 это обычно делают через пользовательскую тему и `stylename` у компонента. Кнопке задают style name в XML, а затем описывают CSS/SCSS-правило в теме.\\n\\nПример XML:\\n```xml\\n<button id=\\\"approveBtn\\\" caption=\\\"Approve\\\" stylename=\\\"approve-btn\\\"/>\\n```\\n\\nПример для темы:\\n```scss\\n.v-button-approve-btn {\\n  background: #2f7d32;\\n  color: white;\\n  border-radius: 4px;\\n}\\n```\\n\\nПосле компиляции темы стиль применится только к этой кнопке. Если нужно использовать встроенный набор стилей, можно также применять стандартные style names вроде `primary`, `friendly`, `danger`."
   },
   {
     "_entityName": "CheckDef",
-    "id": "019c8563-8d87-7dbc-8071-db5c18b4383d",
-    "createdDate": "2026-02-22T16:47:21.678+04:00",
-    "question": "How to save a value of a TextField for the current user?",
-    "answer": "There are two common ways in Jmix 2+ to “save a `TextField` value for the current user”, depending on whether it’s **UI preference** (per view) or **business data** (part of the user profile).\n\n## 1) Save as a per-user UI setting (recommended for UI preferences)\nUse the `settings` facet and store your `TextField` value into user settings. These settings are stored per user in the `FLOWUI_USER_SETTINGS` table.\n\n### View XML\n```xml\n\u003cview xmlns\u003d\"http://jmix.io/schema/flowui/view\"\u003e\n    \u003cfacets\u003e\n        \u003csettings id\u003d\"settings\"/\u003e\n    \u003c/facets\u003e\n\n    \u003clayout\u003e\n        \u003ctextField id\u003d\"noteField\" label\u003d\"My note\"/\u003e\n    \u003c/layout\u003e\n\u003c/view\u003e\n```\n\n### View controller\n```java\npackage com.company.app.view;\n\nimport io.jmix.flowui.component.textfield.TypedTextField;\nimport io.jmix.flowui.facet.SettingsFacet;\nimport io.jmix.flowui.view.Install;\nimport io.jmix.flowui.view.StandardView;\nimport io.jmix.flowui.view.ViewComponent;\nimport io.jmix.flowui.view.ViewController;\nimport io.jmix.flowui.view.ViewDescriptor;\n\nimport java.util.Optional;\n\n@ViewController(\"my-view\")\n@ViewDescriptor(\"my-view.xml\")\npublic class MyView extends StandardView {\n\n    @ViewComponent\n    private TypedTextField\u003cString\u003e noteField;\n\n    @ViewComponent\n    private SettingsFacet settings;\n\n    @Install(to \u003d \"settings\", subject \u003d \"applySettingsDelegate\")\n    private void applySettings(SettingsFacet.SettingsContext ctx) {\n        settings.applySettings();\n\n        Optional\u003cString\u003e value \u003d ctx.getViewSettings().getString(\"noteField\", \"value\");\n        noteField.setValue(value.orElse(\"\"));\n    }\n\n    @Install(to \u003d \"settings\", subject \u003d \"saveSettingsDelegate\")\n    private void saveSettings(SettingsFacet.SettingsContext ctx) {\n        ctx.getViewSettings().put(\"noteField\", \"value\", noteField.getValue());\n        settings.saveSettings();\n    }\n}\n```\n\nThis makes the value “stick” for the current logged-in user and restores it when they reopen the view.\n\n## 2) Save into the current user entity (recommended for profile data)\nIf the value is part of the user profile (e.g., “signature”, “default department”), add an attribute to your `User` entity and save it with `DataManager` for the currently authenticated user.\n\nTo show the correct code for this option, I need one detail: **do you want the value to be stored as a UI preference (per view) or as a field in the `User` entity (profile/business data)?**",
-    "createdBy": "admin",
-    "lastModifiedDate": "2026-02-22T17:01:55.031+04:00",
-    "lastModifiedBy": "admin",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000027",
     "active": true,
     "category": "ui",
-    "version": 4
+    "question": "Как добавить контекстное меню (context menu) к таблице (Table) в Jmix?",
+    "answer": "Для `Table` в Jmix 1.7 контекстное меню обычно строится на действиях (`actions`) таблицы. Если у таблицы есть действия, пользователь может открыть контекстное меню по правому клику. При необходимости можно дополнительно проверить, что у таблицы включён `contextMenuEnabled`.\\n\\nСтандартный путь — объявить `actions` у таблицы в XML или добавить их программно. Например:\\n```xml\\n<table id=\\\"ordersTable\\\" dataContainer=\\\"ordersDc\\\">\\n    <actions>\\n        <action id=\\\"create\\\" type=\\\"create\\\"/>\\n        <action id=\\\"edit\\\" type=\\\"edit\\\"/>\\n        <action id=\\\"remove\\\" type=\\\"remove\\\"/>\\n    </actions>\\n</table>\\n```\\n\\nДля кастомного пункта создают своё действие и добавляют его таблице. Тогда оно будет доступно как обычное действие таблицы и появится в контекстном меню."
   },
   {
     "_entityName": "CheckDef",
-    "id": "019c8566-ebd8-79b9-9f76-a1c64baacd25",
-    "createdDate": "2026-02-22T16:50:58.534+04:00",
-    "question": "How to load TreeDataGrid children when opening parent nodes?",
-    "answer": "To load children **only when a parent row is expanded** in Jmix Flow UI `TreeDataGrid`, use a **lazy hierarchical data provider** (Vaadin `HierarchicalDataProvider`). Then the grid will call your provider’s `fetchChildren()` / `getChildCount()` only for expanded nodes.\n\n### 1) XML: declare `treeDataGrid` with `hierarchyProperty`\n```xml\n\u003cview xmlns\u003d\"http://jmix.io/schema/flowui/view\"\u003e\n    \u003clayout\u003e\n        \u003ctreeDataGrid id\u003d\"taskDataGrid\"\n                      metaClass\u003d\"Task\"\n                      hierarchyProperty\u003d\"parentTask\"\n                      width\u003d\"100%\"\n                      minHeight\u003d\"20em\"\u003e\n            \u003ccolumns\u003e\n                \u003ccolumn property\u003d\"name\"/\u003e\n                \u003ccolumn property\u003d\"dueDate\"/\u003e\n                \u003ccolumn property\u003d\"assignee\"/\u003e\n            \u003c/columns\u003e\n        \u003c/treeDataGrid\u003e\n    \u003c/layout\u003e\n\u003c/view\u003e\n```\n\n### 2) Controller: set a lazy `HierarchicalDataProvider`\nThis is based on the Jmix UI sample “TreeDataGrid with lazy nodes”.\n\n```java\npackage com.company.app.view;\n\nimport com.vaadin.flow.data.provider.AbstractDataProvider;\nimport com.vaadin.flow.data.provider.hierarchy.HierarchicalDataProvider;\nimport com.vaadin.flow.data.provider.hierarchy.HierarchicalQuery;\nimport io.jmix.core.DataManager;\nimport io.jmix.core.LoadContext;\nimport io.jmix.core.Metadata;\nimport io.jmix.core.Sort;\nimport io.jmix.core.metamodel.model.MetaClass;\nimport io.jmix.flowui.component.grid.TreeDataGrid;\nimport io.jmix.flowui.view.InitEvent;\nimport io.jmix.flowui.view.StandardView;\nimport io.jmix.flowui.view.Subscribe;\nimport io.jmix.flowui.view.ViewComponent;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.lang.Nullable;\n\nimport java.util.Collection;\nimport java.util.stream.Stream;\n\npublic class TasksTreeView extends StandardView {\n\n    @ViewComponent\n    private TreeDataGrid\u003cTask\u003e taskDataGrid;\n\n    @Autowired\n    private DataManager dataManager;\n    @Autowired\n    private Metadata metadata;\n\n    @Subscribe\n    public void onInit(InitEvent event) {\n        taskDataGrid.setDataProvider(new TaskLazyTreeDataGridItems());\n    }\n\n    public class TaskLazyTreeDataGridItems extends AbstractDataProvider\u003cTask, Void\u003e\n            implements HierarchicalDataProvider\u003cTask, Void\u003e {\n\n        private Sort sort \u003d Sort.UNSORTED;\n\n        @Override\n        public int getChildCount(HierarchicalQuery\u003cTask, Void\u003e query) {\n            return Math.toIntExact(loadChildren(query).size());\n        }\n\n        @Override\n        public Stream\u003cTask\u003e fetchChildren(HierarchicalQuery\u003cTask, Void\u003e query) {\n            return loadChildren(query).stream();\n        }\n\n        private Collection\u003cTask\u003e loadChildren(HierarchicalQuery\u003cTask, Void\u003e query) {\n            return dataManager.load(Task.class)\n                    .query(\"select e from Task e where e.parentTask \u003d :parent\")\n                    .parameter(\"parent\", query.getParent())\n                    .sort(sort)\n                    .firstResult(query.getOffset())\n                    .maxResults(query.getLimit())\n                    .list();\n        }\n\n        @Override\n        public boolean hasChildren(Task item) {\n            LoadContext\u003cObject\u003e loadContext \u003d new LoadContext\u003c\u003e(getEntityMetaClass())\n                    .setQuery(new LoadContext.Query(\n                            \"select e from Task e where e.parentTask \u003d :parent\")\n                            .setParameter(\"parent\", item));\n\n            return dataManager.getCount(loadContext) \u003e 0;\n        }\n\n        private MetaClass getEntityMetaClass() {\n            return metadata.getClass(Task.class);\n        }\n    }\n}\n```\n\n### Notes\n- With this approach, children are fetched **on expand**, not upfront.\n- You don’t need to manually handle expand events for loading. The grid triggers provider calls automatically.\n- If you *do* want side-effects (logging, notifications), you can additionally subscribe to `ExpandEvent` on the `treeDataGrid`, but loading should stay in the provider.\n\nIf you share your entity structure (the “parent” reference field name and how you want roots filtered), I can adapt the queries for “load roots only” + “load children on expand”.",
-    "createdBy": "admin",
-    "lastModifiedDate": "2026-02-22T17:02:01.857+04:00",
-    "lastModifiedBy": "admin",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000028",
+    "active": true,
+    "golden": true,
+    "category": "ui",
+    "question": "Как отобразить всплывающее уведомление (notification) с подтверждением успешного сохранения данных?",
+    "answer": "В Jmix 1.7 для этого обычно используют бин `Notifications`. Такое уведомление показывают после успешного сохранения: например, после `DataManager.save(...)`, после успешного `commitChanges()`/`closeWithCommit()` в editor screen или после завершения бизнес-операции.\\n\\nПример:\\n```java\\n@Autowired\\nprivate Notifications notifications;\\n\\nprivate void showSavedNotification() {\\n    notifications.create()\\n            .withCaption(\\\"Данные успешно сохранены\\\")\\n            .withType(Notifications.NotificationType.HUMANIZED)\\n            .show();\\n}\\n```\\n\\nДля подтверждения успешного сохранения обычно достаточно `HUMANIZED` notification с коротким caption."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000029",
     "active": true,
     "category": "ui",
-    "version": 2
+    "question": "Как создать кастомный компонент, например, поле для ввода телефона с маской, и встроить его в экран Jmix?",
+    "answer": "Для телефона с маской в Jmix 1.7 сначала стоит проверить встроенные компоненты classic UI. В частности, для такой задачи часто подходит `MaskedField`, и это предпочтительнее, чем писать кастомный компонент с нуля.\\n\\nПример:\\n```xml\\n<maskedField id=\\\"phoneField\\\"\\n             mask=\\\"+7 (###) ###-##-##\\\"\\n             valueMode=\\\"masked\\\"/>\\n```\\n\\nЕсли встроенного `MaskedField` недостаточно, тогда уже используют Vaadin add-on или собственный компонент и интегрируют его в экран. То есть основной путь для Jmix 1.7 здесь: сначала штатный `MaskedField`, и только потом кастомный Vaadin-компонент."
   },
   {
     "_entityName": "CheckDef",
-    "id": "019c857a-53c2-790a-9ce5-65ad5e63b80d",
-    "createdDate": "2026-02-22T17:12:23.693+04:00",
-    "question": "After the new entities have been added to the CollectionContainer using DataManager.save(entity), I need to update the DataGrid table, how do I do this correctly?",
-    "answer": "If your `DataGrid` is bound to a `CollectionContainer`, you normally **don’t refresh the `DataGrid` directly**. You update the **container**, and the `DataGrid` redraws automatically because it listens to `CollectionContainer.CollectionChangeEvent`.\n\n## 1) Add the saved instance to the container (recommended)\nAfter `DataManager.save(entity)` use the *returned* instance and add/replace it in the container’s mutable items.\n\n```java\n@Autowired\nprivate DataManager dataManager;\n\n@ViewComponent\nprivate CollectionContainer\u003cCustomer\u003e customersDc;\n\nprivate void createCustomer(Customer customer) {\n    Customer saved \u003d dataManager.save(customer);\n\n    // triggers CollectionChangeEvent -\u003e DataGrid updates automatically\n    customersDc.getMutableItems().add(saved);\n}\n```\n\nIf you might be saving an existing item (or you just want “add or update” behavior), use `replaceItem()`:\n\n```java\nprivate void saveCustomer(Customer customer) {\n    Customer saved \u003d dataManager.save(customer);\n\n    // replaces if exists by id, otherwise adds; also triggers DataGrid update\n    customersDc.replaceItem(saved);\n}\n```\n\nThis pattern is also shown in the Flow UI inline editing example: after saving, the container is updated with `usersDc.replaceItem(savedUser)`.\n\n## 2) If the grid is populated by a loader, reload it\nIf your list is loaded via a `CollectionLoader` (`...Dl`) and you want to re-query the DB (e.g., server-side sorting/filtering, calculated attributes, etc.), call:\n\n```java\n@ViewComponent\nprivate CollectionLoader\u003cCustomer\u003e customersDl;\n\nprivate void reload() {\n    customersDl.load();\n}\n```\n\n## 3) If you use `DataContext`, merge the returned instance\nWhen a view uses `DataContext` and you want the UI to continue working with the updated state returned from persistence, merge it into the `DataContext` (and add to the container if needed):\n\n```java\n@ViewComponent\nprivate DataContext dataContext;\n\nprivate void saveAndAttach(Customer customer) {\n    Customer saved \u003d dataManager.save(customer);\n    Customer tracked \u003d dataContext.merge(saved);\n\n    customersDc.replaceItem(tracked);\n}\n```\n\n### Which option should you use?\n- **Just created/saved something and want it to appear immediately**: `customersDc.getMutableItems().add(saved)` or `customersDc.replaceItem(saved)`.\n- **Need a full refresh from DB**: `customersDl.load()`.\n- **View tracks changes with `DataContext`**: `dataContext.merge(saved)` + update container.\n\nIf you share how your view is set up (is the loader `readOnly\u003d\"true\"`? do you have `\u003cdata\u003e` / `DataContext`?), I can suggest the exact best variant.",
-    "createdBy": "admin",
-    "lastModifiedDate": "2026-02-22T17:12:23.693+04:00",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000030",
     "active": true,
-    "category": "ui data",
-    "version": 1
+    "golden": true,
+    "category": "ui",
+    "question": "Как реализовать диалог подтверждения перед удалением записи из таблицы?",
+    "answer": "Для стандартного удаления в Jmix 1.7 часто достаточно стандартного `remove` action, потому что он уже умеет показывать подтверждение. Если нужна своя формулировка или дополнительная логика, используют `Dialogs`.\\n\\nПример:\\n```java\\n@Autowired\\nprivate Dialogs dialogs;\\n\\n@Subscribe(\\\"deleteBtn\\\")\\npublic void onDeleteBtnClick(Button.ClickEvent event) {\\n    dialogs.createOptionDialog()\\n            .withCaption(\\\"Подтверждение\\\")\\n            .withMessage(\\\"Удалить выбранную запись?\\\")\\n            .withActions(\\n                    new DialogAction(DialogAction.Type.YES).withHandler(e -> removeSelected()),\\n                    new DialogAction(DialogAction.Type.NO)\\n            )\\n            .show();\\n}\\n```\\n\\nТакой подход подходит, если перед удалением нужно выполнить дополнительные проверки или кастомное удаление."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "9f92f4c8-4f85-4f74-90d4-000000000031",
+    "active": true,
+    "category": "ui",
+    "question": "Как изменить внешний вид всей темы приложения, например, установить другой основной цвет?",
+    "answer": "В Jmix 1.7 внешний вид приложения меняют через пользовательскую SCSS-тему, обычно наследуемую от стандартной темы classic UI. В теме переопределяют переменные и стили, затем компилируют тему и подключают её в приложении.\\n\\nТипичный путь такой:\\n1. Создать или отредактировать тему проекта.\\n2. Переопределить нужные SCSS-переменные, например основной цвет.\\n3. Выполнить сборку темы (`compileThemes` или сборку проекта через Studio/Gradle).\\n4. Убедиться, что приложение использует эту тему через настройки вроде `jmix.ui.theme.name` и `jmix.ui.theme-config`.\\n\\nЕсли нужно поменять только цветовую палитру, обычно достаточно переопределить theme variables без переписывания всех стилей."
   }
 ]

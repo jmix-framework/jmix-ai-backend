@@ -4,6 +4,7 @@ import com.vaadin.flow.component.AbstractField;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.entity.CheckRun;
+import io.jmix.ai.backend.entity.CheckRunStatus;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -43,6 +44,8 @@ public class CheckRunDetailView extends StandardDetailView<CheckRun> {
     public void onInitEntity(final InitEntityEvent<CheckRun> event) {
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
         event.getEntity().setParameters(parameters.getContent());
+        event.getEntity().setStatus(CheckRunStatus.NEW);
+        event.getEntity().setGoldenOnly(Boolean.FALSE);
 
         parametersPicker.setValue(parameters);
         parametersPicker.setVisible(true);

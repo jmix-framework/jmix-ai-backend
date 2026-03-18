@@ -51,27 +51,41 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
             }
             """;
 
-    private final ChatModel chatModel;
+    private final @Nullable ChatModel chatModel;
+    private final String modelName;
+    private final @Nullable String endpoint;
 
     @Autowired
     public ExternalEvaluatorImpl(
-            @Value("${answer-checks.model:gpt-5-mini}") String model,
-            @Value("${answer-checks.temperature:0}") double temperature,
-            @Value("${spring.ai.openai.api-key:}") String configuredApiKey
+            @Value("${answer-checks.evaluator.model:gpt-5-mini}") String model,
+            @Value("${answer-checks.evaluator.temperature:}") String configuredTemperature,
+            @Value("${answer-checks.evaluator.api-key:}") String configuredApiKey,
+            @Value("${answer-checks.evaluator.base-url:}") String configuredBaseUrl
     ) {
-        String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
+        this.modelName = model;
+        this.endpoint = StringUtils.trimToNull(configuredBaseUrl);
+        String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("ANSWER_CHECKS_EVALUATOR_API_KEY"));
+        if (StringUtils.isBlank(apiKey) && StringUtils.isBlank(configuredBaseUrl)) {
+            log.warn("External evaluator is disabled: neither answer-checks.evaluator.api-key/ANSWER_CHECKS_EVALUATOR_API_KEY nor answer-checks.evaluator.base-url/ANSWER_CHECKS_EVALUATOR_BASE_URL is configured");
+            this.chatModel = null;
+            return;
+        }
         if (StringUtils.isBlank(apiKey)) {
-            throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
+            apiKey = "dummy";
         }
 
-        OpenAiApi openAiApi = OpenAiApi.builder()
-                .apiKey(apiKey)
-                .build();
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder().apiKey(apiKey);
+        if (StringUtils.isNotBlank(configuredBaseUrl)) {
+            apiBuilder.baseUrl(configuredBaseUrl);
+        }
+        OpenAiApi openAiApi = apiBuilder.build();
 
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .model(model)
-                .temperature(temperature)
-                .build();
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .model(model);
+        if (StringUtils.isNotBlank(configuredTemperature)) {
+            optionsBuilder.temperature(Double.parseDouble(configuredTemperature));
+        }
+        OpenAiChatOptions options = optionsBuilder.build();
 
         this.chatModel = OpenAiChatModel.builder()
                 .openAiApi(openAiApi)
@@ -81,10 +95,18 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
     ExternalEvaluatorImpl(ChatModel chatModel) {
         this.chatModel = chatModel;
+        this.modelName = "test";
+        this.endpoint = null;
     }
 
     @Override
     public double evaluateSemantic(String referenceAnswer, String actualAnswer, @Nullable Consumer<String> logger) {
+        if (chatModel == null) {
+            if (logger != null) {
+                logger.accept("Semantic evaluator is disabled: no dedicated evaluator API key/base URL configured");
+            }
+            throw new ExternalEvaluatorException("Semantic evaluator is not configured");
+        }
         try {
             Prompt prompt = new Prompt(List.of(
                     new SystemMessage(SYSTEM_PROMPT),
@@ -109,8 +131,23 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
             if (logger != null) {
                 logger.accept("Semantic evaluator failed: " + e.getMessage());
             }
-            return 0.0;
+            throw new ExternalEvaluatorException("Semantic evaluator failed: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public boolean isAvailable() {
+        return chatModel != null;
+    }
+
+    @Override
+    public String getModelName() {
+        return modelName;
+    }
+
+    @Override
+    public @Nullable String getEndpoint() {
+        return endpoint;
     }
 
     static EvaluationResult parseEvaluationResponse(String text) throws Exception {

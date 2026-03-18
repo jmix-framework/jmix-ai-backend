@@ -3,25 +3,26 @@ package io.jmix.ai.backend.view.chat;
 
 import com.google.common.base.Strings;
 import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinServletRequest;
 import io.jmix.ai.backend.chat.Chat;
-import io.jmix.ai.backend.chat.ChatImpl;
 import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.UuidProvider;
-import io.jmix.flowui.DialogWindows;
 import io.jmix.flowui.Notifications;
 import io.jmix.flowui.UiComponents;
 import io.jmix.flowui.backgroundtask.BackgroundTask;
@@ -66,8 +67,6 @@ public class ChatView extends StandardView {
     @Autowired
     private BackgroundWorker backgroundWorker;
     @Autowired
-    private DialogWindows dialogWindows;
-    @Autowired
     private UiComponents uiComponents;
     @Autowired
     private ChatLogManager chatLogManager;
@@ -82,6 +81,8 @@ public class ChatView extends StandardView {
     private JmixScroller scroller;
     @ViewComponent
     private VerticalLayout responseBox;
+    @ViewComponent
+    private MessageBundle messageBundle;
 
     private String contextPath;
 
@@ -105,17 +106,21 @@ public class ChatView extends StandardView {
     @Subscribe(id = "sendButton", subject = "clickListener")
     public void onSendButtonClick(final ClickEvent<JmixButton> event) {
         if (StringUtils.isBlank(userMessageField.getValue())) {
-            notifications.show("Enter a question");
+            notifications.show(messageBundle.getMessage("chatView.enterQuestion"));
         } else {
+            String requestText = userMessageField.getValue();
+            String requestPreview = StringUtils.abbreviate(requestText, 100);
+            String requestConversationId = conversationId;
             Parameters parameters = parametersRepository.findById(parametersPicker.getValue().getId())
                     .orElse(parametersRepository.loadActive(ParametersTargetType.CHAT));
-
-            DialogWindow<ChatProgressView> chatProgressWindow = dialogWindows.view(this, ChatProgressView.class).build();
-            chatProgressWindow.open();
-
-            final BackgroundTaskHandler<ChatImpl.StructuredResponse> taskHandler = backgroundWorker.handle(
-                    new ChatBackgroundTask(chatProgressWindow.getView(), parameters)
-            );
+            StreamingResponseUi streamingResponseUi = createStreamingResponseUi(requestPreview);
+            ChatBackgroundTask task = new ChatBackgroundTask(parameters, streamingResponseUi, requestText, requestConversationId);
+            final BackgroundTaskHandler<Chat.StructuredResponse> taskHandler = backgroundWorker.handle(task);
+            streamingResponseUi.setStopAction(() -> {
+                if (taskHandler.cancel()) {
+                    streamingResponseUi.markStopping();
+                }
+            });
             taskHandler.execute();
         }
     }
@@ -126,48 +131,58 @@ public class ChatView extends StandardView {
         updateConversationId();
     }
 
-    private void showResult(ChatImpl.StructuredResponse result) {
+    private void showResult(StreamingResponseUi streamingResponseUi, String requestConversationId, Chat.StructuredResponse result) {
+        streamingResponseUi.setLogText("Conversation ID: " + requestConversationId + "\n" + String.join("\n", result.logMessages()));
+        streamingResponseUi.finish(result.text(),
+                addSourceLinks(result.sourceLinks()) + addRetrievedDocs(result.retrievedDocuments()));
+    }
+
+    private StreamingResponseUi createStreamingResponseUi(String requestText) {
         if (responseBox.getChildren().findAny().isPresent()) {
             responseBox.add(uiComponents.create(Hr.class));
         }
 
         Div requestDiv = uiComponents.create(Div.class);
-        requestDiv.setText(StringUtils.abbreviate(userMessageField.getValue(), 100));
+        requestDiv.setText(requestText);
         requestDiv.getStyle().set("font-weight", "bold");
         responseBox.add(requestDiv);
 
         JmixTextArea logField = uiComponents.create(JmixTextArea.class);
         logField.setWidthFull();
+        logField.setHeight("16em");
         logField.setReadOnly(true);
         logField.getStyle().set("font-family", "monospace");
         logField.getStyle().set("font-size", "smaller");
-        String logText = "Conversation ID: " + conversationId + "\n" +
-                String.join("\n", result.logMessages());
-        logField.setValue(logText);
-        responseBox.add(logField);
+        logField.setVisible(false);
 
-        String mdText = result.text();
-
-        Parser parser = Parser.builder().build();
-        Node document = parser.parse(mdText);
-        HtmlRenderer renderer = HtmlRenderer.builder().escapeHtml(true).build();
-        String html = renderer.render(document) + addSourceLinks(result.sourceLinks()) + addRetrievedDocs(result.retrievedDocuments());
+        Details progressDetails = new Details("Progress / logs", logField);
+        progressDetails.setSummaryText(messageBundle.getMessage("chatView.progressLogs"));
+        progressDetails.setWidthFull();
+        progressDetails.setOpened(false);
+        responseBox.add(progressDetails);
 
         Div responseDiv = uiComponents.create(Div.class);
-        responseDiv.getElement().setProperty("innerHTML", html);
-
+        responseDiv.setText("");
         responseBox.add(responseDiv);
 
         Button copyButton = uiComponents.create(Button.class);
-        copyButton.setText("Copy");
+        copyButton.setText(messageBundle.getMessage("chatView.copy"));
         copyButton.setIcon(new Icon(VaadinIcon.CLIPBOARD));
-        copyButton.addClickListener(clickEvent -> {
-            UiComponentUtils.copyToClipboard(mdText)
-                    .then(jsonValue -> notifications.show("Copied!"));
-        });
-        responseBox.add(copyButton);
+        copyButton.setEnabled(false);
+
+        Button stopButton = uiComponents.create(Button.class);
+        stopButton.setText(messageBundle.getMessage("chatView.stop"));
+        stopButton.setIcon(new Icon(VaadinIcon.STOP));
+        stopButton.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_TERTIARY);
+
+        HorizontalLayout actionsLayout = uiComponents.create(HorizontalLayout.class);
+        actionsLayout.setPadding(false);
+        actionsLayout.setSpacing(true);
+        actionsLayout.add(copyButton, stopButton);
+        responseBox.add(actionsLayout);
 
         scroller.scrollToBottom();
+        return new StreamingResponseUi(logField, progressDetails, responseDiv, copyButton, stopButton);
     }
 
     private String addSourceLinks(@Nullable List<String> strings) {
@@ -255,46 +270,196 @@ public class ChatView extends StandardView {
         }
     }
 
-    private class ChatBackgroundTask extends BackgroundTask<String, ChatImpl.StructuredResponse> {
+    private class ChatBackgroundTask extends BackgroundTask<ChatUpdate, Chat.StructuredResponse> {
 
-        private final ChatProgressView chatProgressView;
         private final Parameters parameters;
+        private final StreamingResponseUi streamingResponseUi;
+        private final String requestText;
+        private final String requestConversationId;
 
-        public ChatBackgroundTask(ChatProgressView chatProgressView, Parameters parameters) {
+        public ChatBackgroundTask(Parameters parameters, StreamingResponseUi streamingResponseUi,
+                                  String requestText, String requestConversationId) {
             super(600, ChatView.this);
-            this.chatProgressView = chatProgressView;
             this.parameters = parameters;
+            this.streamingResponseUi = streamingResponseUi;
+            this.requestText = requestText;
+            this.requestConversationId = requestConversationId;
         }
 
         @Override
-        public ChatImpl.StructuredResponse run(TaskLifeCycle<String> taskLifeCycle) throws Exception {
+        public Chat.StructuredResponse run(TaskLifeCycle<ChatUpdate> taskLifeCycle) throws Exception {
             Consumer<String> logger = s -> {
                 try {
-                    taskLifeCycle.publish(s);
+                    taskLifeCycle.publish(ChatUpdate.log(s));
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
             };
-            ChatImpl.StructuredResponse response = chat.requestStructured(
-                    userMessageField.getValue(), parameters.getContent(), conversationId, logger);
+            Consumer<String> chunkConsumer = chunk -> {
+                try {
+                    taskLifeCycle.publish(ChatUpdate.chunk(chunk));
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            };
+            Chat.StructuredResponse response = chat.requestStructuredStreaming(
+                    requestText, parameters.getContent(), requestConversationId,
+                    () -> taskLifeCycle.isCancelled() || taskLifeCycle.isInterrupted(),
+                    chunkConsumer, logger);
             return response;
         }
 
         @Override
-        public void progress(List<String> changes) {
-            chatProgressView.addLogMessages(changes);
+        public void progress(List<ChatUpdate> changes) {
+            for (ChatUpdate change : changes) {
+                if (change.type() == ChatUpdateType.LOG) {
+                    streamingResponseUi.appendLog(change.value());
+                } else if (change.type() == ChatUpdateType.CHUNK) {
+                    streamingResponseUi.appendChunk(change.value());
+                }
+            }
         }
 
         @Override
-        public void done(ChatImpl.StructuredResponse result) {
-            chatProgressView.closeWithDefaultAction();
-            chatLogManager.saveResponse(conversationId, result);
-            showResult(result);
+        public void done(Chat.StructuredResponse result) {
+            chatLogManager.saveResponse(requestConversationId, result);
+            showResult(streamingResponseUi, requestConversationId, result);
+        }
+
+        @Override
+        public void canceled() {
+            streamingResponseUi.finishCancelled();
         }
 
         @Override
         public boolean handleException(Exception ex) {
             return defaultUiExceptionHandler.handle(ex);
+        }
+    }
+
+    private record ChatUpdate(ChatUpdateType type, String value) {
+        static ChatUpdate log(String value) {
+            return new ChatUpdate(ChatUpdateType.LOG, value);
+        }
+
+        static ChatUpdate chunk(String value) {
+            return new ChatUpdate(ChatUpdateType.CHUNK, value);
+        }
+    }
+
+    private enum ChatUpdateType {
+        LOG,
+        CHUNK
+    }
+
+    private class StreamingResponseUi {
+
+        private final JmixTextArea logField;
+        private final Details progressDetails;
+        private final Div responseDiv;
+        private final Button copyButton;
+        private final Button stopButton;
+        private final StringBuilder logBuilder = new StringBuilder();
+        private final StringBuilder markdownBuilder = new StringBuilder();
+        private Runnable stopAction;
+
+        private StreamingResponseUi(JmixTextArea logField, Details progressDetails, Div responseDiv, Button copyButton,
+                                    Button stopButton) {
+            this.logField = logField;
+            this.progressDetails = progressDetails;
+            this.responseDiv = responseDiv;
+            this.copyButton = copyButton;
+            this.stopButton = stopButton;
+            if (this.copyButton != null) {
+                this.copyButton.addClickListener(clickEvent -> UiComponentUtils.copyToClipboard(markdownBuilder.toString())
+                        .then(jsonValue -> notifications.show(messageBundle.getMessage("chatView.copied"))));
+            }
+            if (this.stopButton != null) {
+                this.stopButton.addClickListener(clickEvent -> {
+                    if (stopAction != null) {
+                        stopAction.run();
+                    }
+                });
+            }
+        }
+
+        private void setStopAction(Runnable stopAction) {
+            this.stopAction = stopAction;
+        }
+
+        private void appendLog(String logMessage) {
+            if (logBuilder.length() > 0) {
+                logBuilder.append("\n");
+            }
+            logBuilder.append(logMessage);
+            if (logField != null && progressDetails != null) {
+                logField.setVisible(true);
+                logField.setValue(logBuilder.toString());
+                progressDetails.setSummaryText(messageBundle.getMessage("chatView.progressLogs"));
+            }
+        }
+
+        private void setLogText(String logText) {
+            logBuilder.setLength(0);
+            logBuilder.append(logText);
+            if (logField != null && progressDetails != null) {
+                logField.setVisible(true);
+                logField.setValue(logText);
+                progressDetails.setSummaryText(messageBundle.getMessage("chatView.progressLogs"));
+            }
+        }
+
+        private void appendChunk(String chunk) {
+            markdownBuilder.append(chunk);
+            renderMarkdown(markdownBuilder.toString(), "");
+        }
+
+        private void finish(String markdown, String extraHtml) {
+            markdownBuilder.setLength(0);
+            markdownBuilder.append(markdown);
+            renderMarkdown(markdown, extraHtml);
+            if (copyButton != null) {
+                copyButton.setEnabled(true);
+            }
+            if (stopButton != null) {
+                stopButton.setEnabled(false);
+            }
+            if (progressDetails != null) {
+                progressDetails.setOpened(false);
+            }
+        }
+
+        private void markStopping() {
+            if (stopButton != null) {
+                stopButton.setEnabled(false);
+                stopButton.setText(messageBundle.getMessage("chatView.stopping"));
+            }
+        }
+
+        private void finishCancelled() {
+            appendLog(messageBundle.getMessage("chatView.cancelledLog"));
+            renderMarkdown(markdownBuilder.toString(), "<p><em>" + messageBundle.getMessage("chatView.cancelled") + "</em></p>");
+            if (copyButton != null) {
+                copyButton.setEnabled(markdownBuilder.length() > 0);
+            }
+            if (stopButton != null) {
+                stopButton.setEnabled(false);
+                stopButton.setText(messageBundle.getMessage("chatView.stopped"));
+            }
+            if (progressDetails != null) {
+                progressDetails.setOpened(false);
+            }
+        }
+
+        private void renderMarkdown(String markdown, String extraHtml) {
+            if (responseDiv == null) {
+                return;
+            }
+            Parser parser = Parser.builder().build();
+            Node document = parser.parse(markdown);
+            HtmlRenderer renderer = HtmlRenderer.builder().escapeHtml(true).build();
+            responseDiv.getElement().setProperty("innerHTML", renderer.render(document) + extraHtml);
+            scroller.scrollToBottom();
         }
     }
 }

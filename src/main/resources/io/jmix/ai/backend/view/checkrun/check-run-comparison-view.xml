@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.title">
+    <data>
+        <collection id="successfulRunsDc" class="io.jmix.ai.backend.entity.CheckRun">
+            <fetchPlan extends="_base"/>
+            <loader id="successfulRunsDl" readOnly="true">
+                <query><![CDATA[
+                    select e from CheckRun e
+                    where e.status = io.jmix.ai.backend.entity.CheckRunStatus.SUCCESS
+                    order by e.createdDate desc, e.id asc
+                ]]></query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <layout classNames="check-run-comparison-view">
+        <vbox id="controlsBox" width="100%" spacing="true" classNames="comparison-controls">
+            <hbox id="selectorsBox" width="100%" spacing="true" classNames="comparison-selectors">
+                <entityComboBox id="baselineRunField"
+                                label="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.baselineRun"
+                                itemsContainer="successfulRunsDc"
+                                metaClass="CheckRun"
+                                width="22em"/>
+                <entityComboBox id="candidateRunField"
+                                label="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.candidateRun"
+                                itemsContainer="successfulRunsDc"
+                                metaClass="CheckRun"
+                                width="22em"/>
+                <checkbox id="regressionsOnlyField"
+                          label="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.regressionsOnly"/>
+                <comboBox id="categoryFilterField"
+                          label="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.categoryFilter"
+                          width="16em"/>
+                <button id="compareButton"
+                        themeNames="primary"
+                        text="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.compare"/>
+            </hbox>
+            <vbox id="metaBox" width="100%" spacing="true" classNames="comparison-meta"/>
+            <hbox id="summaryCards" width="100%" spacing="true" classNames="comparison-summary-cards"/>
+            <hbox id="chartsBox" width="100%" spacing="true" classNames="comparison-charts"/>
+            <vbox id="resultsBox" width="100%" spacing="false" classNames="comparison-results"/>
+        </vbox>
+    </layout>
+</view>

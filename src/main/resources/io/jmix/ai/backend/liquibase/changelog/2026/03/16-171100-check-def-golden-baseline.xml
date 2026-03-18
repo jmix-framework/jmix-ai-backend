@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1" author="codex">
+        <update tableName="CHECK_DEF">
+            <column name="GOLDEN" valueBoolean="false"/>
+        </update>
+
+        <update tableName="CHECK_DEF">
+            <column name="GOLDEN" valueBoolean="true"/>
+            <where>ID in (
+                '9f92f4c8-4f85-4f74-90d4-000000000002',
+                '9f92f4c8-4f85-4f74-90d4-000000000005',
+                '9f92f4c8-4f85-4f74-90d4-000000000007',
+                '9f92f4c8-4f85-4f74-90d4-000000000014',
+                '9f92f4c8-4f85-4f74-90d4-000000000017',
+                '9f92f4c8-4f85-4f74-90d4-000000000020',
+                '9f92f4c8-4f85-4f74-90d4-000000000022',
+                '9f92f4c8-4f85-4f74-90d4-000000000024',
+                '9f92f4c8-4f85-4f74-90d4-000000000028',
+                '9f92f4c8-4f85-4f74-90d4-000000000030'
+            )</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

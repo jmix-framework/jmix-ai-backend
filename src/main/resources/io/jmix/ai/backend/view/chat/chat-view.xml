@@ -7,14 +7,14 @@
     <layout>
         <textArea id="userMessageField" height="10em" width="100%">
             <suffix>
-                <button id="copyToClipboardButton" icon="CLIPBOARD" title="Copy to clipboard"
+                <button id="copyToClipboardButton" icon="CLIPBOARD" title="msg://chatView.copyToClipboard"
                         themeNames="tertiary-inline" tabIndex="-1"/>
             </suffix>
         </textArea>
         <hbox width="100%" alignItems="CENTER">
-            <button id="sendButton" text="Send" themeNames="primary"/>
-            <button id="newChatButton" text="New chat"/>
-            <span text="Parameters"/>
+            <button id="sendButton" text="msg://chatView.send" themeNames="primary"/>
+            <button id="newChatButton" text="msg://chatView.newChat"/>
+            <span text="msg://chatView.parameters"/>
             <entityPicker id="parametersPicker" metaClass="Parameters" required="true" width="100%">
                 <actions>
                     <action id="lookupAction" type="entity_lookup">

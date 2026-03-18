@@ -13,6 +13,7 @@ import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.util.ReflectionUtils;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -52,6 +53,10 @@ public abstract class AbstractRagTool {
     }
     protected String getToolRootKey() {
         return "tools." + toolName;
+    }
+
+    public String getToolName() {
+        return toolName;
     }
 
     protected void init(ParametersReader parametersReader) {
@@ -120,9 +125,12 @@ public abstract class AbstractRagTool {
             logger.accept("Filtered documents (%d): %s".formatted(filteredDocuments.size(), getDocSourcesAsString(filteredDocuments)));
 
         } else {
-            List<Reranker.Result> filteredRerankResults = rerankResults.stream()
-                    .filter(rr -> rr.score() >= minRerankedScore)
-                    .toList();
+            List<Reranker.Result> filteredRerankResults = applyRerankThreshold(
+                    rerankResults,
+                    minRerankedScore,
+                    shouldFallbackToTopReranked(),
+                    getRerankFallbackLimit()
+            );
             logger.accept("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
 
             for (Reranker.Result result : filteredRerankResults) {
@@ -149,5 +157,31 @@ public abstract class AbstractRagTool {
         return noResultsMessage;
     };
 
+    protected boolean shouldFallbackToTopReranked() {
+        return false;
+    }
+
+    protected int getRerankFallbackLimit() {
+        return 0;
+    }
+
+    static List<Reranker.Result> applyRerankThreshold(List<Reranker.Result> rerankResults, double minRerankedScore,
+                                                      boolean fallbackToTopReranked, int fallbackLimit) {
+        List<Reranker.Result> filtered = rerankResults.stream()
+                .filter(rr -> rr.score() >= minRerankedScore)
+                .toList();
+        if (!filtered.isEmpty() || !fallbackToTopReranked || fallbackLimit <= 0) {
+            return filtered;
+        }
+
+        List<Reranker.Result> fallback = new ArrayList<>();
+        for (Reranker.Result result : rerankResults) {
+            fallback.add(result);
+            if (fallback.size() >= fallbackLimit) {
+                break;
+            }
+        }
+        return fallback;
+    }
 
 }

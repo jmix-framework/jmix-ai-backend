@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://knowledgeSourceListView.title"
+      focusComponent="knowledgeSourcesDataGrid">
+    <data>
+        <collection id="knowledgeSourcesDc" class="io.jmix.ai.backend.entity.KnowledgeSource">
+            <fetchPlan extends="_base">
+                <property name="knowledgeBase" fetchPlan="_base"/>
+            </fetchPlan>
+            <loader id="knowledgeSourcesDl" readOnly="true">
+                <query><![CDATA[select e from KnowledgeSource e order by e.knowledgeBase.name, e.name]]></query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+        <settings auto="true"/>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <genericFilter id="genericFilter" dataLoader="knowledgeSourcesDl">
+            <properties include=".*"/>
+        </genericFilter>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="knowledgeSourcesDataGrid.createAction"/>
+            <button id="editButton" action="knowledgeSourcesDataGrid.editAction"/>
+            <button id="removeButton" action="knowledgeSourcesDataGrid.removeAction"/>
+            <button id="runIngestionButton" text="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceListView.runIngestion"/>
+            <simplePagination id="pagination" dataLoader="knowledgeSourcesDl"/>
+        </hbox>
+        <dataGrid id="knowledgeSourcesDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="knowledgeSourcesDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="createAction" type="list_create"/>
+                <action id="editAction" type="list_edit"/>
+                <action id="removeAction" type="list_remove"/>
+            </actions>
+            <columns resizable="true">
+                <column property="knowledgeBase"/>
+                <column property="name"/>
+                <column property="code"/>
+                <column property="sourceType"/>
+                <column property="updateMode"/>
+                <column property="language"/>
+                <column property="enabled"/>
+                <column property="location"/>
+                <column property="lastSuccessfulIngestionAt"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>

@@ -37,6 +37,10 @@ public class ToolsManager {
             DocsTool tool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
             tools.add(tool);
         }
+        if (parametersReader.getBoolean("tools.framework_retriever.enabled", true)) {
+            FrameworkTool tool = new FrameworkTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+            tools.add(tool);
+        }
         if (parametersReader.getBoolean("tools.uisamples_retriever.enabled", true)) {
             UiSamplesTool tool = new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
             tools.add(tool);

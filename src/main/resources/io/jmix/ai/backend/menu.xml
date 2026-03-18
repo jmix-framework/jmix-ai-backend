@@ -6,6 +6,11 @@
     <menu opened="true" id="config" title="msg://io.jmix.ai.backend/menu.config.title">
         <item view="Parameters.list" title="msg://io.jmix.ai.backend.view.parameters/parametersListView.title"/>
         <item view="VectorStoreView" title="msg://io.jmix.ai.backend.view.vectorstore/vectorStoreView.title"/>
+        <menu id="knowledge" title="msg://menu.knowledge.title">
+            <item view="KnowledgeBase.list" title="msg://knowledgeBaseListView.title"/>
+            <item view="KnowledgeSource.list" title="msg://knowledgeSourceListView.title"/>
+            <item view="IngestionJob.list" title="msg://ingestionJobListView.title"/>
+        </menu>
         <item view="datatl_entityInspectorListView"
               title="msg://io.jmix.datatoolsflowui.view.entityinspector/listTitle"/>
     </menu>
@@ -13,6 +18,7 @@
           title="msg://io.jmix.ai.backend/menu_config.answerChecks.title">
         <item view="CheckDef.list" title="msg://io.jmix.ai.backend.view.checkdef/checkDefListView.title"/>
         <item view="CheckRun.list" title="msg://io.jmix.ai.backend.view.checkrun/checkRunListView.title"/>
+        <item view="CheckRun.compare" title="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.title"/>
     </menu>
     <menu id="security" title="msg://io.jmix.ai.backend/menu.security.title">
         <item view="User.list" title="msg://io.jmix.ai.backend.view.user/UserListView.title"/>

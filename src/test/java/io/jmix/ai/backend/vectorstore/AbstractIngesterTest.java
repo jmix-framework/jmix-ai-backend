@@ -1,6 +1,11 @@
 package io.jmix.ai.backend.vectorstore;
 
 import com.google.common.hash.Hashing;
+import io.jmix.ai.backend.entity.IngestionJob;
+import io.jmix.ai.backend.entity.KnowledgeBase;
+import io.jmix.ai.backend.entity.KnowledgeSource;
+import io.jmix.ai.backend.entity.KnowledgeSourceType;
+import io.jmix.ai.backend.entity.KnowledgeSourceUpdateMode;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.core.TimeSource;
 import io.jmix.core.UuidProvider;
@@ -38,6 +43,9 @@ class AbstractIngesterTest {
     
     @Mock
     private VectorStoreRepository vectorStoreRepository;
+
+    @Mock
+    private KnowledgeSourceManager knowledgeSourceManager;
     
     private TestIngester ingester;
     
@@ -46,9 +54,11 @@ class AbstractIngesterTest {
 
     @BeforeEach
     void setUp() {
-        ingester = new TestIngester(vectorStore, timeSource, vectorStoreRepository);
+        ingester = new TestIngester(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager);
         ingester = spy(ingester);
         lenient().when(timeSource.now()).thenReturn(now.atZone(ZoneId.systemDefault()));
+        lenient().when(knowledgeSourceManager.resolve("test")).thenReturn(testContext());
+        lenient().when(knowledgeSourceManager.startJob(any())).thenReturn(new IngestionJob());
     }
 
     @Test
@@ -75,6 +85,14 @@ class AbstractIngesterTest {
             .containsEntry("sourceHash", hash)
             .containsEntry("size", content.length())
             .containsEntry("updated", now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+
+    @Test
+    void shouldExposeKnowledgeSourceValuesFromContext() {
+        ingester.prepareUpdate();
+
+        assertThat(ingester.getKnowledgeSourceLocation()).isEqualTo("/tmp/test-source");
+        assertThat(ingester.getKnowledgeSourceLanguage()).isEqualTo("ru");
     }
 
     @Test
@@ -149,6 +167,22 @@ class AbstractIngesterTest {
     }
 
     @Test
+    void shouldAddVectorStoreDocumentsInBatchesWithoutSplittingSourceGroups() {
+        TestIngester batchingIngester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager, 2));
+
+        List<Document> chunks = List.of(
+                new Document("1", "chunk1", Map.of("source", "source1")),
+                new Document("2", "chunk2", Map.of("source", "source1")),
+                new Document("3", "chunk3", Map.of("source", "source2"))
+        );
+
+        batchingIngester.addToVectorStoreInBatches(chunks);
+
+        verify(vectorStore).add(chunks.subList(0, 2));
+        verify(vectorStore).add(chunks.subList(2, 3));
+    }
+
+    @Test
     void shouldUpdateSingleEntity() {
         VectorStoreEntity entity = new VectorStoreEntity();
         entity.setId(UUID.randomUUID());
@@ -204,8 +238,14 @@ class AbstractIngesterTest {
     // Test implementation of AbstractIngester
     private static class TestIngester extends AbstractIngester {
         
-        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
-            super(vectorStore, timeSource, vectorStoreRepository);
+        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository,
+                            KnowledgeSourceManager knowledgeSourceManager) {
+            this(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager, 128);
+        }
+
+        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository,
+                            KnowledgeSourceManager knowledgeSourceManager, int vectorStoreAddBatchSize) {
+            super(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager, vectorStoreAddBatchSize);
         }
 
         @Override
@@ -232,5 +272,21 @@ class AbstractIngesterTest {
         protected List<Document> splitToChunks(List<Document> documents) {
             return List.of();
         }
+    }
+
+    private KnowledgeSourceContext testContext() {
+        KnowledgeBase knowledgeBase = new KnowledgeBase();
+        knowledgeBase.setCode("kb-test");
+
+        KnowledgeSource knowledgeSource = new KnowledgeSource();
+        knowledgeSource.setId(UUID.randomUUID());
+        knowledgeSource.setCode("source-test");
+        knowledgeSource.setKnowledgeBase(knowledgeBase);
+        knowledgeSource.setLanguage("ru");
+        knowledgeSource.setLocation("/tmp/test-source");
+        knowledgeSource.setSourceType(KnowledgeSourceType.LOCAL_REPOSITORY);
+        knowledgeSource.setUpdateMode(KnowledgeSourceUpdateMode.MANUAL);
+
+        return new KnowledgeSourceContext(knowledgeBase, knowledgeSource);
     }
 }

@@ -63,6 +63,15 @@
                 <columns resizable="true">
                     <column property="createdDate"/>
                     <column property="createdBy"/>
+                    <column property="status"/>
+                    <column property="goldenOnly"/>
+                    <column property="datasetVersion"/>
+                    <column property="answerModel"/>
+                    <column property="evaluatorModel"/>
+                    <column property="experimentKey"/>
+                    <column property="retrievalProfile"/>
+                    <column property="promptRevision"/>
+                    <column property="knowledgeSnapshot"/>
                     <column property="parameters"/>
                     <column property="score"/>
                 </columns>

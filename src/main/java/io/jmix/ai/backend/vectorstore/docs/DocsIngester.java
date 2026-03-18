@@ -3,6 +3,8 @@ package io.jmix.ai.backend.vectorstore.docs;
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.vectorstore.Chunker;
+import io.jmix.ai.backend.vectorstore.ChunkTextSplitter;
+import io.jmix.ai.backend.vectorstore.KnowledgeSourceManager;
 import io.jmix.core.TimeSource;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
@@ -29,19 +31,23 @@ public class DocsIngester extends AbstractIngester {
     private final String initialPage;
     private final int limit;
     private final Chunker chunker;
+    private final ChunkTextSplitter chunkTextSplitter;
 
     public DocsIngester(
             @Value("${docs.base-url}") String baseUrl,
             @Value("${docs.initial-page}") String initialPage,
             @Value("${docs.limit}") int limit,
+            @Value("${vectorstore.add-batch-size:128}") int vectorStoreAddBatchSize,
             VectorStore vectorStore,
             TimeSource timeSource,
-            VectorStoreRepository vectorStoreRepository) {
-        super(vectorStore, timeSource, vectorStoreRepository);
+            VectorStoreRepository vectorStoreRepository,
+            KnowledgeSourceManager knowledgeSourceManager) {
+        super(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager, vectorStoreAddBatchSize);
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
         this.initialPage = initialPage;
         this.limit = limit;
         this.chunker = new DocsChunker(MAX_CHUNK_SIZE, 400, 300);
+        this.chunkTextSplitter = new ChunkTextSplitter(MAX_CHUNK_SIZE, CHUNK_OVERLAP);
     }
 
     @Override
@@ -51,7 +57,7 @@ public class DocsIngester extends AbstractIngester {
 
     @Override
     protected List<String> loadSources() {
-        String url = baseUrl + initialPage;
+        String url = effectiveBaseUrl() + initialPage;
         org.jsoup.nodes.Document doc;
         try {
             doc = Jsoup.connect(url).get();
@@ -71,7 +77,7 @@ public class DocsIngester extends AbstractIngester {
 
     @Override
     protected Document loadDocument(String source) {
-        String url = baseUrl + source;
+        String url = effectiveBaseUrl() + source;
         log.debug("Loading doc page: {}", url);
 
         org.jsoup.nodes.Document doc;
@@ -113,13 +119,16 @@ public class DocsIngester extends AbstractIngester {
             List<Chunker.Chunk> chunks = chunker.extract(document.getText(), docPath);
 
             for (Chunker.Chunk chunk : chunks) {
-                Map<String, Object> metadataCopy = copyMetadata(metadata);
-                metadataCopy.put("size", chunk.text().length());
-                if (chunk.anchor() != null) {
-                    metadataCopy.put("url", url + chunk.anchor());
+                List<Chunker.Chunk> safeChunks = chunkTextSplitter.split(chunk);
+                for (Chunker.Chunk safeChunk : safeChunks) {
+                    Map<String, Object> metadataCopy = copyMetadata(metadata);
+                    metadataCopy.put("size", safeChunk.text().length());
+                    if (safeChunk.anchor() != null) {
+                        metadataCopy.put("url", url + safeChunk.anchor());
+                    }
+                    Document chunkDoc = createDocument(safeChunk.text(), metadataCopy);
+                    chunkDocs.add(chunkDoc);
                 }
-                Document chunkDoc = createDocument(chunk.text(), metadataCopy);
-                chunkDocs.add(chunkDoc);
             }
         }
         return chunkDocs;
@@ -130,5 +139,11 @@ public class DocsIngester extends AbstractIngester {
                 .stream()
                 .filter(e -> e.getKey() != null && e.getValue() != null)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private String effectiveBaseUrl() {
+        String location = getKnowledgeSourceLocation();
+        String effective = location != null ? location : baseUrl;
+        return effective.endsWith("/") ? effective : effective + "/";
     }
 }

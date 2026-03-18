@@ -43,13 +43,13 @@ public class DocsChunker implements Chunker {
             if (!sect1Elements.isEmpty()) {
                 Elements preambleElements = articleEl.select("div#preamble");
                 String preambleText = preambleElements.text();
+                String docPreambleCarry = preambleText.length() >= minDocPreambleSize ? null : preambleText;
                 if (preambleText.length() >= minDocPreambleSize) {
                     String chunkTitle = createChunkTitle(docPath);
                     chunks.add(new Chunk(getTextWithHeader(preambleText, chunkTitle), null));
-                } else {
-                    log.debug("Skipping doc '{}' preamble because it is too short", docPath);
                 }
 
+                boolean docPreambleAttached = false;
                 for (Element s1El : sect1Elements) {
                     Element s1TitleEl = s1El.select("h2").first();
                     if (s1TitleEl == null) {
@@ -62,7 +62,8 @@ public class DocsChunker implements Chunker {
                     String s1Text = s1El.text();
                     if (s1Text.length() <= maxChunkSize) {
                         String chunkTitle = createChunkTitle(docPath, s1Title);
-                        chunks.add(new Chunk(getTextWithHeader(s1Text, chunkTitle), s1Anchor));
+                        chunks.add(new Chunk(getTextWithHeader(mergeText(docPreambleCarry, s1Text, !docPreambleAttached), chunkTitle), s1Anchor));
+                        docPreambleAttached = docPreambleAttached || !preambleText.isBlank();
                     } else {
                         Element s1ContentEl = s1El.select("div.sectionbody").first();
                         if (s1ContentEl == null) {
@@ -70,12 +71,15 @@ public class DocsChunker implements Chunker {
                         }
                         Elements s1PreambleElements = s1ContentEl.children().not("div.sect2");
                         String s1PreambleText = s1PreambleElements.text();
+                        String sectionPreambleCarry = s1PreambleText.length() >= minSect1PreambleSize ? null : s1PreambleText;
                         if (s1PreambleText.length() >= minSect1PreambleSize) {
                             String chunkTitle = createChunkTitle(docPath, s1Title);
-                            chunks.add(new Chunk(getTextWithHeader(s1PreambleText, chunkTitle), s1Anchor));
+                            chunks.add(new Chunk(getTextWithHeader(mergeText(docPreambleCarry, s1PreambleText, !docPreambleAttached), chunkTitle), s1Anchor));
+                            docPreambleAttached = docPreambleAttached || !preambleText.isBlank();
                         }
 
                         Elements s2Elements = s1ContentEl.select("div.sect2");
+                        boolean sectionPreambleAttached = false;
                         for (Element s2El : s2Elements) {
                             Element s2TitleEl = s2El.select("h3").first();
                             if (s2TitleEl == null) {
@@ -86,16 +90,31 @@ public class DocsChunker implements Chunker {
                             s2TitleEl.remove();
                             String s2Text = s2El.text();
                             String chunkTitle = createChunkTitle(docPath, s1Title, s2TitleEl.text());
-                            if (s2Text.length() < maxChunkSize) {
-                                chunks.add(new Chunk(getTextWithHeader(s2Text, chunkTitle), s2Anchor));
-                            } else {
-                                log.warn("Skipping chunk with title '{}' because it is too long", chunkTitle);
-                            }
+                            String mergedText = mergeText(
+                                    mergeText(docPreambleCarry, sectionPreambleCarry, !docPreambleAttached && !sectionPreambleAttached),
+                                    s2Text,
+                                    true
+                            );
+                            chunks.add(new Chunk(getTextWithHeader(mergedText, chunkTitle), s2Anchor));
+                            docPreambleAttached = docPreambleAttached || !preambleText.isBlank();
+                            sectionPreambleAttached = sectionPreambleAttached || !s1PreambleText.isBlank();
+                        }
+
+                        if (s2Elements.isEmpty()) {
+                            String chunkTitle = createChunkTitle(docPath, s1Title);
+                            chunks.add(new Chunk(getTextWithHeader(mergeText(docPreambleCarry, s1Text, !docPreambleAttached), chunkTitle), s1Anchor));
+                            docPreambleAttached = docPreambleAttached || !preambleText.isBlank();
                         }
                     }
                 }
+
+                if (!docPreambleAttached && !preambleText.isBlank()) {
+                    String chunkTitle = createChunkTitle(docPath);
+                    chunks.add(new Chunk(getTextWithHeader(preambleText, chunkTitle), null));
+                }
             } else {
                 log.warn("Document is large and no sections found");
+                chunks.add(new Chunk(getTextWithHeader(articleText, createChunkTitle(docPath)), null));
             }
         } else {
             // Adding the whole document
@@ -103,10 +122,22 @@ public class DocsChunker implements Chunker {
                 if (docTitleEl != null)
                     docTitleEl.remove();
                 chunks.add(new Chunk(getTextWithHeader(articleEl.text(), createChunkTitle(docPath)), null));
+            } else if (!articleText.isBlank()) {
+                chunks.add(new Chunk(getTextWithHeader(articleEl.text(), createChunkTitle(docPath)), null));
             }
         }
 
         return chunks;
+    }
+
+    private String mergeText(String prefix, String text, boolean includePrefix) {
+        if (!includePrefix || prefix == null || prefix.isBlank()) {
+            return text;
+        }
+        if (text == null || text.isBlank()) {
+            return prefix;
+        }
+        return prefix + "\n\n" + text;
     }
 
     private String getAnchor(Element el) {

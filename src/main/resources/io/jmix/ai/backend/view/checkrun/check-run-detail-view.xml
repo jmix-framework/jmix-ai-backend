@@ -32,7 +32,19 @@
             </entityPicker>
             <textField id="createdDateField" property="createdDate" readOnly="true"/>
             <textField id="createdByField" property="createdBy" readOnly="true" colspan="2"/>
+            <comboBox id="statusField" property="status" readOnly="true"/>
+            <checkbox id="goldenOnlyField" property="goldenOnly"/>
             <textField id="scoreField" property="score" readOnly="true"/>
+            <textField id="experimentKeyField" property="experimentKey" colspan="2"/>
+            <textField id="retrievalProfileField" property="retrievalProfile" readOnly="true"/>
+            <textField id="promptRevisionField" property="promptRevision" readOnly="true"/>
+            <textField id="knowledgeSnapshotField" property="knowledgeSnapshot" colspan="2" readOnly="true"/>
+            <textField id="datasetVersionField" property="datasetVersion" readOnly="true" colspan="2"/>
+            <textField id="answerModelField" property="answerModel" readOnly="true"/>
+            <textField id="evaluatorModelField" property="evaluatorModel" readOnly="true"/>
+            <textField id="evaluatorEndpointField" property="evaluatorEndpoint" readOnly="true" colspan="2"/>
+            <textArea id="notesField" minHeight="6em" property="notes" colspan="3"/>
+            <textArea id="failureReasonField" minHeight="6em" property="failureReason" colspan="3" readOnly="true"/>
             <textArea id="parametersField" minHeight="10em" property="parameters" colspan="3" readOnly="true"/>
         </formLayout>
         <hbox id="detailActions" visible="false">

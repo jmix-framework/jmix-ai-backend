@@ -51,24 +51,24 @@ public class DocsChunkerTest {
     }
 
     @Test
-    void testSkipTooShortDocPreamble() throws Exception {
+    void testAttachTooShortDocPreambleToFirstSection() throws Exception {
         DocsChunker extractor = new DocsChunker(1000, 500, 10);
         List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"), DOC_PATH);
 
         assertThat(chunks).size().isEqualTo(5);
 
-        assertThat(chunks.get(0).text()).startsWith(START + " > Frontend Development\n\nFrontend development focuses").endsWith("more intuitive and powerful.");
+        assertThat(chunks.get(0).text()).startsWith(START + " > Frontend Development\n\nWeb development encompasses").contains("Frontend development focuses").endsWith("more intuitive and powerful.");
         assertThat(chunks.get(0).anchor()).isEqualTo("#frontend");
     }
 
     @Test
-    void testSkipTooShortSect1Preamble() throws Exception {
+    void testAttachTooShortSect1PreambleToFirstSubsection() throws Exception {
         DocsChunker extractor = new DocsChunker(1000, 10, 500);
         List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-1.html"), DOC_PATH);
 
         assertThat(chunks).size().isEqualTo(5);
 
-        assertThat(chunks.get(2).text()).startsWith(START + " > Backend Development > Server Technologies\n\nServer technologies include").endsWith("and updates are essential.");
+        assertThat(chunks.get(2).text()).startsWith(START + " > Backend Development > Server Technologies\n\nBackend development involves").contains("Server technologies include").endsWith("and updates are essential.");
         assertThat(chunks.get(2).anchor()).isEqualTo("#server-tech");
     }
 
@@ -84,11 +84,12 @@ public class DocsChunkerTest {
     }
 
     @Test
-    void testSkipTooShortDocWithoutSections() throws Exception {
+    void testKeepTooShortDocWithoutSections() throws Exception {
         DocsChunker extractor = new DocsChunker(1000, 500, 10);
         List<Chunker.Chunk> chunks = extractor.extract(loadResourceAsString("/test_support/sources/doc-2.html"), DOC_PATH);
 
-        assertThat(chunks).isEmpty();
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.get(0).text()).startsWith(START + "\n\nWeb Development Fundamentals Frontend development focuses").endsWith("more manageable.");
     }
 
     private String loadResourceAsString(String path) throws IOException {

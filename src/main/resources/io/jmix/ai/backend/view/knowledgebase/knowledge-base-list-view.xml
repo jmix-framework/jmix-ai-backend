@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://knowledgeBaseListView.title"
+      focusComponent="knowledgeBasesDataGrid">
+    <data>
+        <collection id="knowledgeBasesDc" class="io.jmix.ai.backend.entity.KnowledgeBase">
+            <fetchPlan extends="_base"/>
+            <loader id="knowledgeBasesDl" readOnly="true">
+                <query><![CDATA[select e from KnowledgeBase e order by e.name]]></query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+        <settings auto="true"/>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <genericFilter id="genericFilter" dataLoader="knowledgeBasesDl">
+            <properties include=".*"/>
+        </genericFilter>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="knowledgeBasesDataGrid.createAction"/>
+            <button id="editButton" action="knowledgeBasesDataGrid.editAction"/>
+            <button id="removeButton" action="knowledgeBasesDataGrid.removeAction"/>
+            <simplePagination id="pagination" dataLoader="knowledgeBasesDl"/>
+        </hbox>
+        <dataGrid id="knowledgeBasesDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="knowledgeBasesDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="createAction" type="list_create"/>
+                <action id="editAction" type="list_edit"/>
+                <action id="removeAction" type="list_remove"/>
+            </actions>
+            <columns resizable="true">
+                <column property="name"/>
+                <column property="code"/>
+                <column property="defaultLanguage"/>
+                <column property="active"/>
+                <column property="lastModifiedDate"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>

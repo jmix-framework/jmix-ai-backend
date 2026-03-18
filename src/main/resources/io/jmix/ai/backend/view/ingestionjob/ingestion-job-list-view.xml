@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://ingestionJobListView.title"
+      focusComponent="ingestionJobsDataGrid">
+    <data>
+        <collection id="ingestionJobsDc" class="io.jmix.ai.backend.entity.IngestionJob">
+            <fetchPlan extends="_base">
+                <property name="knowledgeBase" fetchPlan="_base"/>
+                <property name="knowledgeSource" fetchPlan="_base">
+                    <property name="knowledgeBase" fetchPlan="_base"/>
+                </property>
+            </fetchPlan>
+            <loader id="ingestionJobsDl" readOnly="true">
+                <query><![CDATA[select e from IngestionJob e order by e.startedAt desc]]></query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+        <settings auto="true"/>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <genericFilter id="genericFilter" dataLoader="ingestionJobsDl">
+            <properties include=".*"/>
+        </genericFilter>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="removeButton" action="ingestionJobsDataGrid.removeAction"/>
+            <simplePagination id="pagination" dataLoader="ingestionJobsDl"/>
+        </hbox>
+        <dataGrid id="ingestionJobsDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="ingestionJobsDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="removeAction" type="list_remove"/>
+            </actions>
+            <columns resizable="true">
+                <column property="startedAt"/>
+                <column property="finishedAt"/>
+                <column property="status"/>
+                <column property="knowledgeBase"/>
+                <column property="knowledgeSource"/>
+                <column property="loadedSources"/>
+                <column property="addedDocuments"/>
+                <column property="addedChunks"/>
+                <column property="message"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>

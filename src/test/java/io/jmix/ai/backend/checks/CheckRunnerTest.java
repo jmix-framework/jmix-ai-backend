@@ -69,10 +69,16 @@ public class CheckRunnerTest {
 
     @Test
     void test() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4);
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4, "dataset-v1");
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
-        checkRun.setParameters("some parameters");
+        checkRun.setParameters("""
+                model:
+                  name: test-answer-model
+                retrievalProfile: docs+ui
+                promptRevision: prompt-v3
+                knowledgeSnapshot: kb-2026-03-16
+                """);
         dataManager.save(checkRun);
 
         checkRunner.runChecks(Id.of(checkRun));
@@ -92,6 +98,41 @@ public class CheckRunnerTest {
 
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
         assertThat(updatedCheckRun.getScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
+        assertThat(updatedCheckRun.getDatasetVersion()).isEqualTo("dataset-v1");
+        assertThat(updatedCheckRun.getAnswerModel()).isEqualTo("test-answer-model");
+        assertThat(updatedCheckRun.getRetrievalProfile()).isEqualTo("docs+ui");
+        assertThat(updatedCheckRun.getPromptRevision()).isEqualTo("prompt-v3");
+        assertThat(updatedCheckRun.getKnowledgeSnapshot()).isEqualTo("kb-2026-03-16");
+        assertThat(updatedCheckRun.getEvaluatorModel()).isEqualTo("test-evaluator");
+        assertThat(updatedCheckRun.getStatus()).isEqualTo(io.jmix.ai.backend.entity.CheckRunStatus.SUCCESS);
+    }
+
+    @Test
+    void runChecks_whenMetadataNotSpecified_derivesPromptAndRetrievalContext() {
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("""
+                model:
+                  name: derived-model
+                tools:
+                  documentation_retriever:
+                    topK: 3
+                  uisamples_retriever:
+                    topK: 2
+                  trainings_retriever:
+                    enabled: false
+                systemMessage: test system message
+                """);
+        dataManager.save(checkRun);
+
+        checkRunner.runChecks(Id.of(checkRun));
+
+        CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(updatedCheckRun.getAnswerModel()).isEqualTo("derived-model");
+        assertThat(updatedCheckRun.getRetrievalProfile()).isEqualTo("documentation_retriever, uisamples_retriever");
+        assertThat(updatedCheckRun.getPromptRevision()).startsWith("sha256:");
+        assertThat(updatedCheckRun.getKnowledgeSnapshot()).isNull();
     }
 
     @Test
@@ -108,7 +149,7 @@ public class CheckRunnerTest {
         }
         dataManager.save(defs.toArray());
 
-        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4);
+        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4, "dataset-v1");
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
         dataManager.save(checkRun);
@@ -120,10 +161,44 @@ public class CheckRunnerTest {
 
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
         assertThat(updatedCheckRun.getScore()).isCloseTo(1.0, org.assertj.core.data.Offset.offset(0.0001));
+        assertThat(updatedCheckRun.getStatus()).isEqualTo(io.jmix.ai.backend.entity.CheckRunStatus.SUCCESS);
     }
 
     @Test
-    void runChecks_whenOneCheckFails_otherChecksStillSaved() {
+    void runChecks_whenGoldenOnly_runsOnlyGoldenSubset() {
+        clearTables();
+
+        CheckDef goldenDef = dataManager.create(CheckDef.class);
+        goldenDef.setCategory("basic");
+        goldenDef.setQuestion("golden");
+        goldenDef.setAnswer("golden");
+        goldenDef.setActive(true);
+        goldenDef.setGolden(true);
+
+        CheckDef nonGoldenDef = dataManager.create(CheckDef.class);
+        nonGoldenDef.setCategory("basic");
+        nonGoldenDef.setQuestion("non-golden");
+        nonGoldenDef.setAnswer("non-golden");
+        nonGoldenDef.setActive(true);
+        nonGoldenDef.setGolden(false);
+
+        dataManager.save(goldenDef, nonGoldenDef);
+
+        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        checkRun.setGoldenOnly(true);
+        dataManager.save(checkRun);
+
+        checkRunner.runChecks(Id.of(checkRun));
+
+        List<Check> checks = dataManager.load(Check.class).all().list();
+        assertThat(checks).hasSize(1);
+        assertThat(checks.getFirst().getQuestion()).isEqualTo("golden");
+    }
+
+    @Test
+    void runChecks_whenChatRequestFails_marksRunFailed() {
         clearTables();
 
         CheckDef successDef = dataManager.create(CheckDef.class);
@@ -140,7 +215,7 @@ public class CheckRunnerTest {
 
         dataManager.save(successDef, failingDef);
 
-        CheckRunner checkRunner = new CheckRunner(dataManager, new FailingChat(), new TestExternalEvaluator(), 4);
+        CheckRunner checkRunner = new CheckRunner(dataManager, new FailingChat(), new TestExternalEvaluator(), 4, "dataset-v1");
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
         dataManager.save(checkRun);
@@ -155,10 +230,28 @@ public class CheckRunnerTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(failedCheck.getScore()).isEqualTo(0.0);
-        assertThat(failedCheck.getLog()).contains("Check failed");
+        assertThat(failedCheck.getLog()).contains("Chat request failed");
 
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
-        assertThat(updatedCheckRun.getScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
+        assertThat(updatedCheckRun.getScore()).isNull();
+        assertThat(updatedCheckRun.getStatus()).isEqualTo(io.jmix.ai.backend.entity.CheckRunStatus.FAILED);
+        assertThat(updatedCheckRun.getFailureReason()).contains("Chat request failed");
+    }
+
+    @Test
+    void runChecks_whenEvaluatorUnavailable_marksRunFailed() {
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new UnavailableExternalEvaluator(), 4, "dataset-v1");
+
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        dataManager.save(checkRun);
+
+        checkRunner.runChecks(Id.of(checkRun));
+
+        CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(updatedCheckRun.getStatus()).isEqualTo(io.jmix.ai.backend.entity.CheckRunStatus.FAILED);
+        assertThat(updatedCheckRun.getFailureReason()).contains("not configured");
+        assertThat(updatedCheckRun.getScore()).isNull();
     }
 
     private static class TestChat implements Chat {
@@ -183,6 +276,44 @@ public class CheckRunnerTest {
                 return 1.0;
             else
                 return 0.0;
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return true;
+        }
+
+        @Override
+        public String getModelName() {
+            return "test-evaluator";
+        }
+
+        @Override
+        public String getEndpoint() {
+            return "http://test-evaluator";
+        }
+    }
+
+    private static class UnavailableExternalEvaluator implements ExternalEvaluator {
+
+        @Override
+        public double evaluateSemantic(String referenceAnswer, String actualAnswer, Consumer<String> logger) {
+            throw new ExternalEvaluatorException("Semantic evaluator is not configured");
+        }
+
+        @Override
+        public boolean isAvailable() {
+            return false;
+        }
+
+        @Override
+        public String getModelName() {
+            return "missing-evaluator";
+        }
+
+        @Override
+        public String getEndpoint() {
+            return null;
         }
     }
 
