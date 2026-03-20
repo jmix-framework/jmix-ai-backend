@@ -23,6 +23,7 @@
             <textArea id="referenceAnswerField" minHeight="9.5em" property="referenceAnswer" colspan="3"/>
             <textArea id="actualAnswerField" minHeight="9.5em" property="actualAnswer" colspan="3"/>
             <textField id="scoreField" property="score"/>
+            <textField id="modelResponseTimeTextField" property="modelResponseTimeText" readOnly="true"/>
             <textArea id="logField" minHeight="9.5em" property="log" colspan="3"/>
         </formLayout>
     </layout>

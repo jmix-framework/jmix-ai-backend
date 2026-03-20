@@ -19,6 +19,8 @@ import test_support.AuthenticatedAsAdmin;
 import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -89,11 +91,13 @@ public class CheckRunnerTest {
         Check check1 = checks.stream().filter(c -> c.getCheckDef().equals(checkDef1)).findFirst().orElseThrow();
         assertThat(check1.getCheckRun()).isEqualTo(checkRun);
         assertThat(check1.getCategory()).isEqualTo(checkDef1.getCategory());
+        assertThat(check1.getModelResponseTimeMs()).isEqualTo(1000);
         assertThat(check1.getScore()).isEqualTo(1.0);
 
         Check check2 = checks.stream().filter(c -> c.getCheckDef().equals(checkDef2)).findFirst().orElseThrow();
         assertThat(check2.getCheckRun()).isEqualTo(checkRun);
         assertThat(check2.getCategory()).isEqualTo(checkDef2.getCategory());
+        assertThat(check2.getModelResponseTimeMs()).isEqualTo(1000);
         assertThat(check2.getScore()).isEqualTo(0.0);
 
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
@@ -104,6 +108,7 @@ public class CheckRunnerTest {
         assertThat(updatedCheckRun.getPromptRevision()).isEqualTo("prompt-v3");
         assertThat(updatedCheckRun.getKnowledgeSnapshot()).isEqualTo("kb-2026-03-16");
         assertThat(updatedCheckRun.getEvaluatorModel()).isEqualTo("test-evaluator");
+        assertThat(updatedCheckRun.getModelResponseTotalMs()).isEqualTo(2000);
         assertThat(updatedCheckRun.getStatus()).isEqualTo(io.jmix.ai.backend.entity.CheckRunStatus.SUCCESS);
     }
 
@@ -254,6 +259,58 @@ public class CheckRunnerTest {
         assertThat(updatedCheckRun.getScore()).isNull();
     }
 
+    @Test
+    void runChecks_whenChatReturnsEmptyAnswer_marksRunFailed() {
+        CheckRunner checkRunner = new CheckRunner(dataManager, new EmptyChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        dataManager.save(checkRun);
+
+        checkRunner.runChecks(Id.of(checkRun));
+
+        CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(updatedCheckRun.getStatus()).isEqualTo(io.jmix.ai.backend.entity.CheckRunStatus.FAILED);
+        assertThat(updatedCheckRun.getFailureReason()).contains("Chat request failed: Chat returned empty answer");
+        assertThat(updatedCheckRun.getScore()).isNull();
+    }
+
+    @Test
+    void runChecks_whenInterrupted_marksRunFailed() throws Exception {
+        CheckRunner checkRunner = new CheckRunner(dataManager, new SlowChat(), new TestExternalEvaluator(), 1, "dataset-v1");
+
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        dataManager.save(checkRun);
+
+        Thread testThread = Thread.currentThread();
+        Thread interrupter = new Thread(() -> {
+            try {
+                SlowChat.STARTED.await(1, TimeUnit.SECONDS);
+                testThread.interrupt();
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        interrupter.start();
+
+        try {
+            checkRunner.runChecks(Id.of(checkRun));
+        } finally {
+            interrupter.join(1000);
+            Thread.interrupted();
+        }
+
+        CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(updatedCheckRun.getStatus()).isEqualTo(io.jmix.ai.backend.entity.CheckRunStatus.FAILED);
+        assertThat(updatedCheckRun.getFailureReason()).contains("interrupted");
+        assertThat(updatedCheckRun.getScore()).isNull();
+
+        List<Check> checks = dataManager.load(Check.class).all().list();
+        assertThat(checks).allMatch(check -> check.getScore() == 0.0);
+        assertThat(checks).allMatch(check -> check.getLog().contains("interrupted"));
+    }
+
     private static class TestChat implements Chat {
 
         @Override
@@ -332,6 +389,30 @@ public class CheckRunnerTest {
         public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
             if ("fail".equals(userPrompt)) {
                 throw new RuntimeException("simulated failure");
+            }
+            return new StructuredResponse("ok", List.of(), null, 10, 10, 10);
+        }
+    }
+
+    private static class EmptyChat implements Chat {
+
+        @Override
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+            return new StructuredResponse("", List.of(), null, 10, 10, 10);
+        }
+    }
+
+    private static class SlowChat implements Chat {
+
+        private static final CountDownLatch STARTED = new CountDownLatch(1);
+
+        @Override
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+            STARTED.countDown();
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
             return new StructuredResponse("ok", List.of(), null, 10, 10, 10);
         }

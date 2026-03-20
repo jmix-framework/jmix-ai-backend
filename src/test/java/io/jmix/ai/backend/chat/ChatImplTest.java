@@ -79,15 +79,106 @@ class ChatImplTest {
     }
 
     @Test
+    void uiConfirmationPromptKeepsToolsEnabled() throws Exception {
+        ParametersReader parametersReader = new ParametersReader(readYaml("""
+                model:
+                  name: test-model
+                tools:
+                  skipForTrivialPrompts: true
+                """));
+
+        assertThat(ChatImpl.shouldEnableTools("Как реализовать диалог подтверждения перед удалением записи из таблицы?", parametersReader))
+                .isTrue();
+    }
+
+    @Test
+    void performanceScenarioPromptKeepsToolsEnabled() throws Exception {
+        ParametersReader parametersReader = new ParametersReader(readYaml("""
+                model:
+                  name: test-model
+                tools:
+                  skipForTrivialPrompts: true
+                """));
+
+        assertThat(ChatImpl.shouldEnableTools("Приложение работает медленно при загрузке списка заказов. Какие шаги предпринять для оптимизации производительности экрана?", parametersReader))
+                .isTrue();
+    }
+
+    @Test
+    void conceptualAccessControlPromptKeepsToolsEnabled() throws Exception {
+        ParametersReader parametersReader = new ParametersReader(readYaml("""
+                model:
+                  name: test-model
+                tools:
+                  skipForTrivialPrompts: true
+                """));
+
+        assertThat(ChatImpl.shouldEnableTools("Какой подход выбрать, если нужно ограничить редактирование заказов только их создателю, но при этом менеджер должен видеть все заказы?", parametersReader))
+                .isTrue();
+    }
+
+    @Test
+    void studioWorkflowPromptKeepsToolsEnabled() throws Exception {
+        ParametersReader parametersReader = new ParametersReader(readYaml("""
+                model:
+                  name: test-model
+                tools:
+                  skipForTrivialPrompts: true
+                """));
+
+        assertThat(ChatImpl.shouldEnableTools("Как создать новую сущность (entity) в проекте Jmix 1.7 через Studio? Опиши шаги.", parametersReader))
+                .isTrue();
+    }
+
+    @Test
+    void entityValidationPromptKeepsToolsEnabled() throws Exception {
+        ParametersReader parametersReader = new ParametersReader(readYaml("""
+                model:
+                  name: test-model
+                tools:
+                  skipForTrivialPrompts: true
+                """));
+
+        assertThat(ChatImpl.shouldEnableTools("Как настроить валидацию на уровне сущности, чтобы поле email было обязательным и имело формат email?", parametersReader))
+                .isTrue();
+    }
+
+    @Test
+    void aggregationScenarioPromptKeepsToolsEnabled() throws Exception {
+        ParametersReader parametersReader = new ParametersReader(readYaml("""
+                model:
+                  name: test-model
+                tools:
+                  skipForTrivialPrompts: true
+                """));
+
+        assertThat(ChatImpl.shouldEnableTools("У меня есть сущности Заказ (Order) и Товар (Product). Заказ может содержать несколько товаров (связь OneToMany). Мне нужно в таблице заказов отобразить колонку с общей суммой заказа. Как это лучше реализовать?", parametersReader))
+                .isTrue();
+    }
+
+    @Test
+    void serviceInjectionPromptKeepsToolsEnabled() throws Exception {
+        ParametersReader parametersReader = new ParametersReader(readYaml("""
+                model:
+                  name: test-model
+                tools:
+                  skipForTrivialPrompts: true
+                """));
+
+        assertThat(ChatImpl.shouldEnableTools("Как определить пользовательский сервис (Spring bean) и внедрить его в экран?", parametersReader))
+                .isTrue();
+    }
+
+    @Test
     void retrievalPlanAlwaysStartsWithDocumentation() {
         assertThat(ChatImpl.buildRetrievalPlan("Как работает DataManager внутри framework Jmix 1.7?").toolNames())
                 .containsExactly("documentation_retriever", "framework_retriever");
     }
 
     @Test
-    void retrievalPlanKeepsConceptualFactQuestionsOnDocumentationOnly() {
+    void retrievalPlanAddsFrameworkForConceptualFactQuestions() {
         assertThat(ChatImpl.buildRetrievalPlan("Объясни разницу между EntityManager и DataManager в Jmix. В каких случаях что рекомендуется использовать?").toolNames())
-                .containsExactly("documentation_retriever");
+                .containsExactly("documentation_retriever", "framework_retriever");
     }
 
     @Test
@@ -103,6 +194,12 @@ class ChatImplTest {
     }
 
     @Test
+    void retrievalPlanAddsUiSamplesForDelegateAnnotationQuestions() {
+        assertThat(ChatImpl.buildRetrievalPlan("Для чего используется аннотация @Install в Jmix?").toolNames())
+                .containsExactly("documentation_retriever", "framework_retriever", "uisamples_retriever");
+    }
+
+    @Test
     void retrievalPlanAddsTrainingsForStudioWorkflowQuestions() {
         assertThat(ChatImpl.buildRetrievalPlan("Как создать новую сущность (entity) в проекте Jmix 1.7 через Studio? Опиши шаги.").toolNames())
                 .containsExactly("documentation_retriever", "trainings_retriever");
@@ -112,6 +209,12 @@ class ChatImplTest {
     void retrievalPlanAddsTrainingsAndUiSamplesForStudioScreenGenerationQuestions() {
         assertThat(ChatImpl.buildRetrievalPlan("Как через Studio создать browse/edit screen для сущности Customer?").toolNames())
                 .containsExactly("documentation_retriever", "trainings_retriever", "uisamples_retriever");
+    }
+
+    @Test
+    void retrievalPlanAddsFrameworkForSecurityScenarioQuestions() {
+        assertThat(ChatImpl.buildRetrievalPlan("Какой подход выбрать, если нужно ограничить редактирование заказов только их создателю, но при этом менеджер должен видеть все заказы?").toolNames())
+                .containsExactly("documentation_retriever", "framework_retriever");
     }
 
     @Test

@@ -18,6 +18,14 @@
     </facets>
     <layout classNames="check-run-comparison-view">
         <vbox id="controlsBox" width="100%" spacing="true" classNames="comparison-controls">
+            <hbox id="historyControlsBox" width="100%" spacing="true" classNames="comparison-history-controls">
+                <checkbox id="historyComparableOnlyField"
+                          label="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.historyComparableOnly"/>
+                <comboBox id="historyModelFilterField"
+                          label="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.historyModelFilter"
+                          width="22em"/>
+            </hbox>
+            <vbox id="historyBox" width="100%" spacing="true" classNames="comparison-history"/>
             <hbox id="selectorsBox" width="100%" spacing="true" classNames="comparison-selectors">
                 <entityComboBox id="baselineRunField"
                                 label="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.baselineRun"

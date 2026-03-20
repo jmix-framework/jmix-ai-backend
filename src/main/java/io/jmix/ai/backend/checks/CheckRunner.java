@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -61,6 +63,7 @@ public class CheckRunner {
         if (checkDefs.isEmpty()) {
             checkRun.setScore(0.0);
             checkRun.setStatus(CheckRunStatus.SUCCESS);
+            markRunFinished(checkRun);
             dataManager.save(checkRun);
             return;
         }
@@ -82,8 +85,16 @@ public class CheckRunner {
                 try {
                     checks.add(futures.get(i).get());
                 } catch (InterruptedException e) {
+                    if (infrastructureFailure == null) {
+                        infrastructureFailure = "Check execution interrupted";
+                    }
+                    checks.add(failedCheck(checkDef, "Check execution interrupted"));
+                    for (int j = i + 1; j < futures.size(); j++) {
+                        futures.get(j).cancel(true);
+                        checks.add(failedCheck(checkDefs.get(j), "Check execution interrupted"));
+                    }
                     Thread.currentThread().interrupt();
-                    checks.add(failedCheck(checkDef, "Check execution interrupted: " + e.getMessage()));
+                    break;
                 } catch (ExecutionException e) {
                     Throwable cause = e.getCause();
                     if (cause instanceof CheckInfrastructureException infrastructureException) {
@@ -107,12 +118,19 @@ public class CheckRunner {
 
         double score = 0.0;
         int count = 0;
+        long modelResponseTotalMs = 0;
+        boolean hasModelResponseTiming = false;
         for (Check check : checks) {
             check.setCheckRun(checkRun);
             dataManager.save(check);
             score += check.getScore();
+            if (check.getModelResponseTimeMs() != null) {
+                modelResponseTotalMs += check.getModelResponseTimeMs();
+                hasModelResponseTiming = true;
+            }
             count++;
         }
+        checkRun.setModelResponseTotalMs(hasModelResponseTiming ? modelResponseTotalMs : null);
 
         if (infrastructureFailure != null) {
             failRun(checkRun, infrastructureFailure);
@@ -122,18 +140,25 @@ public class CheckRunner {
         checkRun.setScore(score / count);
         checkRun.setStatus(CheckRunStatus.SUCCESS);
         checkRun.setFailureReason(null);
+        markRunFinished(checkRun);
         dataManager.save(checkRun);
     }
 
     private Check runCheck(CheckDef checkDef, String parameters) {
         StringBuilder logStringBuilder = new StringBuilder();
         String actualAnswer = "";
+        long modelResponseTimeMs = 0;
         try {
             Consumer<String> logStringConsumer = str ->
                     logStringBuilder.append(str).append("\n");
 
             try {
-                actualAnswer = getAnswer(checkDef.getQuestion(), parameters, logStringConsumer);
+                Chat.StructuredResponse response = getAnswer(checkDef.getQuestion(), parameters, logStringConsumer);
+                actualAnswer = response.text();
+                modelResponseTimeMs = Math.max(response.responseTime(), 0);
+                if (actualAnswer == null || actualAnswer.isBlank()) {
+                    throw new ChatInfrastructureException("Chat returned empty answer", new IllegalStateException("empty answer"));
+                }
             } catch (Exception e) {
                 throw new ChatInfrastructureException("Chat request failed: " + e.getMessage(), e);
             }
@@ -144,15 +169,16 @@ public class CheckRunner {
             double score = externalEvaluator.evaluateSemantic(
                     checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
 
-            return buildCheck(checkDef, actualAnswer, score, logStringBuilder.toString());
+            return buildCheck(checkDef, actualAnswer, modelResponseTimeMs, score, logStringBuilder.toString());
         } catch (ExternalEvaluatorException | ChatInfrastructureException e) {
             throw new CheckInfrastructureException(
                     e.getMessage(),
-                    failedCheck(checkDef, actualAnswer, "Check execution failed: " + e.getMessage(), logStringBuilder),
+                    failedCheck(checkDef, actualAnswer, modelResponseTimeMs,
+                            "Check execution failed: " + e.getMessage(), logStringBuilder),
                     e
             );
         } catch (Exception e) {
-            return failedCheck(checkDef, actualAnswer, "Check failed: " + e.getMessage(), logStringBuilder);
+            return failedCheck(checkDef, actualAnswer, modelResponseTimeMs, "Check failed: " + e.getMessage(), logStringBuilder);
         }
     }
 
@@ -167,6 +193,9 @@ public class CheckRunner {
         checkRun.setEvaluatorEndpoint(externalEvaluator.getEndpoint());
         checkRun.setStatus(CheckRunStatus.RUNNING);
         checkRun.setFailureReason(null);
+        checkRun.setFinishedAt(null);
+        checkRun.setDurationMs(null);
+        checkRun.setModelResponseTotalMs(null);
         checkRun.setScore(null);
         dataManager.save(checkRun);
     }
@@ -272,40 +301,52 @@ public class CheckRunner {
         checkRun.setStatus(CheckRunStatus.FAILED);
         checkRun.setFailureReason(failureReason);
         checkRun.setScore(null);
+        markRunFinished(checkRun);
         dataManager.save(checkRun);
     }
 
+    private void markRunFinished(CheckRun checkRun) {
+        OffsetDateTime finishedAt = OffsetDateTime.now();
+        checkRun.setFinishedAt(finishedAt);
+        if (checkRun.getCreatedDate() != null) {
+            checkRun.setDurationMs(Duration.between(checkRun.getCreatedDate(), finishedAt).toMillis());
+        } else {
+            checkRun.setDurationMs(null);
+        }
+    }
+
     private Check failedCheck(CheckDef checkDef, String message) {
-        return failedCheck(checkDef, "", message, new StringBuilder());
+        return failedCheck(checkDef, "", 0, message, new StringBuilder());
     }
 
     private Check failedCheck(CheckDef checkDef, String message, StringBuilder logStringBuilder) {
-        return failedCheck(checkDef, "", message, logStringBuilder);
+        return failedCheck(checkDef, "", 0, message, logStringBuilder);
     }
 
-    private Check failedCheck(CheckDef checkDef, String actualAnswer, String message, StringBuilder logStringBuilder) {
+    private Check failedCheck(CheckDef checkDef, String actualAnswer, long modelResponseTimeMs,
+                              String message, StringBuilder logStringBuilder) {
         if (!logStringBuilder.isEmpty()) {
             logStringBuilder.append("\n");
         }
         logStringBuilder.append(message);
-        return buildCheck(checkDef, actualAnswer, 0.0, logStringBuilder.toString());
+        return buildCheck(checkDef, actualAnswer, modelResponseTimeMs, 0.0, logStringBuilder.toString());
     }
 
-    private Check buildCheck(CheckDef checkDef, String actualAnswer, double score, String log) {
+    private Check buildCheck(CheckDef checkDef, String actualAnswer, long modelResponseTimeMs, double score, String log) {
         Check check = dataManager.create(Check.class);
         check.setCheckDef(checkDef);
         check.setCategory(checkDef.getCategory());
         check.setQuestion(checkDef.getQuestion());
         check.setReferenceAnswer(checkDef.getAnswer());
         check.setActualAnswer(actualAnswer);
+        check.setModelResponseTimeMs(modelResponseTimeMs);
         check.setScore(score);
         check.setLog(log);
         return check;
     }
 
-    private String getAnswer(String question, String parameters, Consumer<String> logger) {
-        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, logger);
-        return response.text();
+    private Chat.StructuredResponse getAnswer(String question, String parameters, Consumer<String> logger) {
+        return chat.requestStructured(question, parameters, null, logger);
     }
 
     private static class ChatInfrastructureException extends RuntimeException {

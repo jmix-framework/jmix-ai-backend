@@ -3,14 +3,14 @@
 
     <item view="ChatView" title="msg://io.jmix.ai.backend.view.chat/chatView.title" icon="vaadin:chat"/>
     <item view="ChatLog.list" title="msg://io.jmix.ai.backend.view.chatlog/chatLogListView.title" icon="vaadin:archive"/>
+    <menu id="knowledge" title="msg://menu.knowledge.title">
+        <item view="KnowledgeBase.list" title="msg://knowledgeBaseListView.title"/>
+        <item view="KnowledgeSource.list" title="msg://knowledgeSourceListView.title"/>
+        <item view="IngestionJob.list" title="msg://ingestionJobListView.title"/>
+    </menu>
     <menu opened="true" id="config" title="msg://io.jmix.ai.backend/menu.config.title">
         <item view="Parameters.list" title="msg://io.jmix.ai.backend.view.parameters/parametersListView.title"/>
         <item view="VectorStoreView" title="msg://io.jmix.ai.backend.view.vectorstore/vectorStoreView.title"/>
-        <menu id="knowledge" title="msg://menu.knowledge.title">
-            <item view="KnowledgeBase.list" title="msg://knowledgeBaseListView.title"/>
-            <item view="KnowledgeSource.list" title="msg://knowledgeSourceListView.title"/>
-            <item view="IngestionJob.list" title="msg://ingestionJobListView.title"/>
-        </menu>
         <item view="datatl_entityInspectorListView"
               title="msg://io.jmix.datatoolsflowui.view.entityinspector/listTitle"/>
     </menu>

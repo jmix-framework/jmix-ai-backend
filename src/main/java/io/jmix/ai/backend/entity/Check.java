@@ -1,11 +1,14 @@
 package io.jmix.ai.backend.entity;
 
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
+import io.jmix.core.metamodel.annotation.DependsOnProperties;
 import io.jmix.core.metamodel.annotation.JmixEntity;
+import io.jmix.core.metamodel.annotation.JmixProperty;
 import jakarta.persistence.*;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -55,6 +58,9 @@ public class Check {
     @Column(name = "SCORE")
     private Double score;
 
+    @Column(name = "MODEL_RESPONSE_TIME_MS")
+    private Long modelResponseTimeMs;
+
     @Column(name = "LOG")
     @Lob
     private String log;
@@ -81,6 +87,14 @@ public class Check {
 
     public void setScore(Double score) {
         this.score = score;
+    }
+
+    public Long getModelResponseTimeMs() {
+        return modelResponseTimeMs;
+    }
+
+    public void setModelResponseTimeMs(Long modelResponseTimeMs) {
+        this.modelResponseTimeMs = modelResponseTimeMs;
     }
 
     public String getActualAnswer() {
@@ -147,4 +161,29 @@ public class Check {
         this.id = id;
     }
 
+    @Transient
+    @JmixProperty
+    @DependsOnProperties({"modelResponseTimeMs"})
+    public String getModelResponseTimeText() {
+        return formatDuration(modelResponseTimeMs);
+    }
+
+    private static String formatDuration(Long durationMs) {
+        if (durationMs == null || durationMs < 0) {
+            return null;
+        }
+
+        long totalSeconds = Duration.ofMillis(durationMs).toSeconds();
+        long hours = totalSeconds / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return "%dh %02dm %02ds".formatted(hours, minutes, seconds);
+        }
+        if (minutes > 0) {
+            return "%dm %02ds".formatted(minutes, seconds);
+        }
+        return "%ds".formatted(seconds);
+    }
 }

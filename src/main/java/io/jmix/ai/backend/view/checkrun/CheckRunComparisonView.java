@@ -36,9 +36,11 @@ import io.jmix.flowui.view.MessageBundle;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 @Route(value = "check-runs/compare", layout = MainView.class)
@@ -62,13 +64,19 @@ public class CheckRunComparisonView extends StandardView {
     @ViewComponent
     private HorizontalLayout summaryCards;
     @ViewComponent
+    private VerticalLayout historyBox;
+    @ViewComponent
     private HorizontalLayout chartsBox;
     @ViewComponent
     private VerticalLayout resultsBox;
     @ViewComponent
     private Checkbox regressionsOnlyField;
     @ViewComponent
+    private Checkbox historyComparableOnlyField;
+    @ViewComponent
     private JmixComboBox<String> categoryFilterField;
+    @ViewComponent
+    private JmixComboBox<String> historyModelFilterField;
     @ViewComponent
     private VerticalLayout metaBox;
     @ViewComponent
@@ -93,10 +101,15 @@ public class CheckRunComparisonView extends StandardView {
         regressionsOnlyField.getElement().setProperty("title", messageBundle.getMessage("checkRunComparisonView.regressionsOnly.tooltip"));
         categoryFilterField.getElement().setProperty("title", messageBundle.getMessage("checkRunComparisonView.categoryFilter.tooltip"));
         compareButton.getElement().setProperty("title", messageBundle.getMessage("checkRunComparisonView.compare.tooltip"));
+        historyComparableOnlyField.setValue(Boolean.TRUE);
+        historyModelFilterField.setPlaceholder(messageBundle.getMessage("checkRunComparisonView.historyModelFilter.placeholder"));
+        historyComparableOnlyField.getElement().setProperty("title", messageBundle.getMessage("checkRunComparisonView.historyComparableOnly.tooltip"));
+        historyModelFilterField.getElement().setProperty("title", messageBundle.getMessage("checkRunComparisonView.historyModelFilter.tooltip"));
     }
 
     @Subscribe
     public void onBeforeShow(BeforeShowEvent event) {
+        updateHistoryModelFilter();
         List<CheckRun> runs = successfulRunsDc.getItems();
         if (runs.size() >= 2) {
             baselineRunField.setValue(runs.get(1));
@@ -105,6 +118,7 @@ public class CheckRunComparisonView extends StandardView {
         } else if (runs.size() == 1) {
             baselineRunField.setValue(runs.getFirst());
         }
+        renderHistorySection();
     }
 
     @Subscribe(id = "compareButton", subject = "clickListener")
@@ -116,6 +130,7 @@ public class CheckRunComparisonView extends StandardView {
     public void onBaselineRunFieldValueChange(com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent<EntityComboBox<CheckRun>, CheckRun> event) {
         if (event.isFromClient()) {
             renderComparison();
+            renderHistorySection();
         }
     }
 
@@ -123,6 +138,7 @@ public class CheckRunComparisonView extends StandardView {
     public void onCandidateRunFieldValueChange(com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent<EntityComboBox<CheckRun>, CheckRun> event) {
         if (event.isFromClient()) {
             renderComparison();
+            renderHistorySection();
         }
     }
 
@@ -144,6 +160,149 @@ public class CheckRunComparisonView extends StandardView {
         renderCategoryFilter(report.categorySummaries());
         currentRows = report.rows();
         renderGrid(currentRows);
+        renderHistorySection();
+    }
+
+    private void renderHistorySection() {
+        historyBox.removeAll();
+        List<CheckRun> runs = getHistoryRuns();
+        if (runs.isEmpty()) {
+            Span emptyState = new Span(messageBundle.getMessage("checkRunComparisonView.history.empty"));
+            emptyState.getStyle().set("color", "var(--lumo-secondary-text-color)");
+            historyBox.add(emptyState);
+            return;
+        }
+        historyBox.add(createHistoryNote(runs), createHistoryChart(runs));
+    }
+
+    private void updateHistoryModelFilter() {
+        String currentValue = historyModelFilterField.getValue();
+        List<String> modelNames = successfulRunsDc.getItems().stream()
+                .filter(run -> Boolean.TRUE.equals(run.getGoldenOnly()))
+                .map(CheckRun::getAnswerModel)
+                .filter(Objects::nonNull)
+                .filter(model -> !model.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
+        historyModelFilterField.setItems(modelNames);
+        if (currentValue != null && modelNames.contains(currentValue)) {
+            historyModelFilterField.setValue(currentValue);
+        } else {
+            historyModelFilterField.clear();
+        }
+    }
+
+    private List<CheckRun> getHistoryRuns() {
+        Stream<CheckRun> stream = successfulRunsDc.getItems().stream()
+                .filter(run -> Boolean.TRUE.equals(run.getGoldenOnly()));
+
+        String modelFilter = historyModelFilterField.getValue();
+        if (modelFilter != null && !modelFilter.isBlank()) {
+            stream = stream.filter(run -> Objects.equals(run.getAnswerModel(), modelFilter));
+        }
+
+        if (Boolean.TRUE.equals(historyComparableOnlyField.getValue())) {
+            CheckRun anchor = Optional.ofNullable(candidateRunField.getValue())
+                    .or(() -> Optional.ofNullable(baselineRunField.getValue()))
+                    .or(() -> successfulRunsDc.getItems().stream().findFirst())
+                    .orElse(null);
+            if (anchor != null) {
+                stream = stream.filter(run -> isComparableToAnchor(run, anchor));
+            }
+        }
+
+        return stream
+                .sorted((left, right) -> {
+                    if (left.getCreatedDate() == null && right.getCreatedDate() == null) {
+                        return left.getId().compareTo(right.getId());
+                    }
+                    if (left.getCreatedDate() == null) {
+                        return -1;
+                    }
+                    if (right.getCreatedDate() == null) {
+                        return 1;
+                    }
+                    int byDate = left.getCreatedDate().compareTo(right.getCreatedDate());
+                    return byDate != 0 ? byDate : left.getId().compareTo(right.getId());
+                })
+                .toList();
+    }
+
+    private boolean isComparableToAnchor(CheckRun run, CheckRun anchor) {
+        return Objects.equals(Boolean.TRUE.equals(run.getGoldenOnly()), Boolean.TRUE.equals(anchor.getGoldenOnly()))
+                && Objects.equals(run.getDatasetVersion(), anchor.getDatasetVersion())
+                && Objects.equals(run.getRetrievalProfile(), anchor.getRetrievalProfile())
+                && Objects.equals(run.getPromptRevision(), anchor.getPromptRevision())
+                && Objects.equals(run.getKnowledgeSnapshot(), anchor.getKnowledgeSnapshot())
+                && Objects.equals(run.getEvaluatorModel(), anchor.getEvaluatorModel())
+                && Objects.equals(run.getEvaluatorEndpoint(), anchor.getEvaluatorEndpoint());
+    }
+
+    private Component createHistoryNote(List<CheckRun> runs) {
+        CheckRun anchor = Optional.ofNullable(candidateRunField.getValue())
+                .or(() -> Optional.ofNullable(baselineRunField.getValue()))
+                .orElse(null);
+
+        String anchorText = anchor != null
+                ? formatRunLabel(anchor)
+                : messageBundle.getMessage("checkRunComparisonView.history.anchor.latest");
+        String noteText = Boolean.TRUE.equals(historyComparableOnlyField.getValue())
+                ? messageBundle.formatMessage("checkRunComparisonView.history.note.comparable", Integer.toString(runs.size()), anchorText)
+                : messageBundle.formatMessage("checkRunComparisonView.history.note.all", Integer.toString(runs.size()));
+
+        Span note = new Span(noteText);
+        note.getStyle()
+                .set("display", "block")
+                .set("padding", "0.8rem 1rem")
+                .set("border-radius", "var(--lumo-border-radius-l)")
+                .set("background", "var(--lumo-contrast-5pct)")
+                .set("color", "var(--lumo-secondary-text-color)");
+        return note;
+    }
+
+    private Component createHistoryChart(List<CheckRun> runs) {
+        Chart chart = uiComponents.create(Chart.class);
+        chart.setWidthFull();
+        chart.setHeight("24em");
+
+        List<String> xAxisLabels = runs.stream()
+                .map(run -> run.getCreatedDate() != null ? RUN_LABEL_FORMATTER.format(run.getCreatedDate()) : "n/a")
+                .toList();
+        List<String> modelNames = runs.stream()
+                .map(run -> nullToDash(run.getAnswerModel()))
+                .distinct()
+                .toList();
+
+        List<Map<String, Object>> series = new ArrayList<>();
+        for (String modelName : modelNames) {
+            List<Object> data = new ArrayList<>();
+            for (CheckRun run : runs) {
+                if (Objects.equals(nullToDash(run.getAnswerModel()), modelName)) {
+                    data.add(roundToThreeDecimals(run.getScore()));
+                } else {
+                    data.add(null);
+                }
+            }
+            series.add(Map.of(
+                    "name", modelName,
+                    "type", "line",
+                    "connectNulls", false,
+                    "showSymbol", true,
+                    "symbolSize", 8,
+                    "data", data
+            ));
+        }
+
+        chart.setNativeJson(toJson(Map.of(
+                "tooltip", Map.of("trigger", "axis"),
+                "legend", Map.of("top", "bottom"),
+                "grid", Map.of("left", "4%", "right", "4%", "bottom", "15%", "containLabel", true),
+                "xAxis", Map.of("type", "category", "data", xAxisLabels),
+                "yAxis", Map.of("type", "value", "min", 0, "max", 1),
+                "series", series
+        )));
+        return wrapChart(messageBundle.getMessage("checkRunComparisonView.chart.history"), chart);
     }
 
     private void renderCategoryFilter(List<CheckRunComparisonService.CategorySummary> categorySummaries) {
@@ -740,6 +899,16 @@ public class CheckRunComparisonView extends StandardView {
     @Subscribe("regressionsOnlyField")
     public void onRegressionsOnlyFieldValueChange(com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent<Checkbox, Boolean> event) {
         renderGrid(currentRows);
+    }
+
+    @Subscribe("historyComparableOnlyField")
+    public void onHistoryComparableOnlyFieldValueChange(com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent<Checkbox, Boolean> event) {
+        renderHistorySection();
+    }
+
+    @Subscribe("historyModelFilterField")
+    public void onHistoryModelFilterFieldValueChange(com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent<JmixComboBox<String>, String> event) {
+        renderHistorySection();
     }
 
     @Subscribe("categoryFilterField")

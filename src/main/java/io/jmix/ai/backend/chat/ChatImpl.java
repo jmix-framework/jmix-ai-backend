@@ -36,8 +36,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.Disposable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,6 +47,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
 import static io.jmix.ai.backend.retrieval.Utils.getDistinctDocuments;
@@ -55,6 +59,13 @@ public class ChatImpl implements Chat {
 
     private static final Logger log = LoggerFactory.getLogger(ChatImpl.class);
     private static final ChatQueryClassifier QUERY_CLASSIFIER = new ChatQueryClassifier();
+    private static final Pattern EXACT_IDENTIFIER_PATTERN = Pattern.compile(
+            "(?iu)(" +
+                    "@[a-z_][a-z0-9_]*|" +
+                    "\\b(beforeActionPerformedHandler|afterSaveHandler|loadDelegate|saveDelegate|removeDelegate|totalCountDelegate|optionCaptionProvider|valueProvider)\\b|" +
+                    "\\b[a-z][a-z0-9]*?(delegate|provider|handler|listener|formatter|validator)\\b" +
+                    ")"
+    );
 
     private final ParametersRepository parametersRepository;
     private final ChatMemory chatMemory;
@@ -280,10 +291,16 @@ public class ChatImpl implements Chat {
         ChatQueryClassifier.RetrievalPlan retrievalPlan = QUERY_CLASSIFIER.buildRetrievalPlan(userPrompt);
         internalLogger.accept("Retrieval plan: %s".formatted(retrievalPlan.toolNames()));
 
+        List<String> exactIdentifiers = extractExactIdentifiers(userPrompt);
         List<String> contextSections = new ArrayList<>();
         for (String toolName : retrievalPlan.toolNames()) {
             String context = executePrefetchTool(toolName, userPrompt, tools, internalLogger);
             if (StringUtils.isBlank(context)) {
+                continue;
+            }
+            if (!isContextRelevantToExactIdentifiers(context, exactIdentifiers)) {
+                internalLogger.accept("Skipping prefetched context [%s]: no exact identifier match for %s"
+                        .formatted(toolName, exactIdentifiers));
                 continue;
             }
             contextSections.add("""
@@ -314,6 +331,40 @@ public class ChatImpl implements Chat {
             }
         }
         return null;
+    }
+
+    private static List<String> extractExactIdentifiers(String userPrompt) {
+        if (StringUtils.isBlank(userPrompt)) {
+            return List.of();
+        }
+
+        Matcher matcher = EXACT_IDENTIFIER_PATTERN.matcher(userPrompt);
+        Set<String> identifiers = new LinkedHashSet<>();
+        while (matcher.find()) {
+            String raw = matcher.group();
+            if (StringUtils.isBlank(raw)) {
+                continue;
+            }
+            identifiers.add(raw);
+            if (raw.startsWith("@") && raw.length() > 1) {
+                identifiers.add(raw.substring(1));
+            }
+        }
+        return List.copyOf(identifiers);
+    }
+
+    private static boolean isContextRelevantToExactIdentifiers(String context, List<String> exactIdentifiers) {
+        if (exactIdentifiers.isEmpty() || StringUtils.isBlank(context)) {
+            return true;
+        }
+
+        String lowerContext = context.toLowerCase();
+        for (String identifier : exactIdentifiers) {
+            if (lowerContext.contains(identifier.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ChatModel buildChatModel(ParametersReader parametersReader) {
