@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
 import static io.jmix.ai.backend.retrieval.Utils.getDistinctDocuments;
@@ -33,13 +32,20 @@ public class SearchService {
 
         List<String> logMessages = new ArrayList<>();
 
-        Consumer<String> internalLogger = message -> {
-            addLogMessage(logger, logMessages, message);
+        ToolEventListener listener = new ToolEventListener() {
+            @Override
+            public void onToolCall(String toolName, String query) {
+                addLogMessage(logger, logMessages, "Using " + toolName + ": " + query);
+            }
+            @Override
+            public void onLog(String message) {
+                addLogMessage(logger, logMessages, message);
+            }
         };
 
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.SEARCH);
 
-        List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, internalLogger);
+        List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, listener);
 
         for (AbstractRagTool tool : ragTools) {
             tool.execute(query);

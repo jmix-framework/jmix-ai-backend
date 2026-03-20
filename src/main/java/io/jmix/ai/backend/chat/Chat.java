@@ -2,6 +2,7 @@ package io.jmix.ai.backend.chat;
 
 import org.springframework.ai.document.Document;
 import org.springframework.lang.Nullable;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Objects;
@@ -11,6 +12,21 @@ public interface Chat {
 
     StructuredResponse requestStructured(String userPrompt, String parametersYaml, @Nullable String conversationId,
                                          @Nullable Consumer<String> externalLogger);
+
+    Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId);
+
+    /**
+     * Renders a StreamEvent as markdown text for display in chat UI.
+     * Keeps StreamEvent type resolution in the app classloader (avoids Jmix hot-reload ClassCastException).
+     */
+    static String renderStreamEvent(StreamEvent event) {
+        return switch (event) {
+            case StreamEvent.Content c -> c.text();
+            case StreamEvent.ToolCall tc -> "_Searching: " + tc.query() + "_\n\n";
+            case StreamEvent.Metadata m -> "\n\n---\n**Sources:** " + String.join("\n",
+                    m.sources().stream().map(url -> "[%s](%s)".formatted(url, url)).toList());
+        };
+    }
 
     record StructuredResponse(
             String text,

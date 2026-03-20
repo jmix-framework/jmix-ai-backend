@@ -1,54 +1,30 @@
 package io.jmix.ai.backend.view.chat;
 
-
-import com.google.common.base.Strings;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Hr;
-import com.vaadin.flow.component.icon.Icon;
-import com.vaadin.flow.component.icon.VaadinIcon;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.messages.MessageInput;
+import com.vaadin.flow.component.messages.MessageList;
+import com.vaadin.flow.component.messages.MessageListItem;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.VaadinServletRequest;
 import io.jmix.ai.backend.chat.Chat;
-import io.jmix.ai.backend.chat.ChatImpl;
-import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.UuidProvider;
-import io.jmix.flowui.DialogWindows;
 import io.jmix.flowui.Notifications;
-import io.jmix.flowui.UiComponents;
-import io.jmix.flowui.backgroundtask.BackgroundTask;
-import io.jmix.flowui.backgroundtask.BackgroundTaskHandler;
-import io.jmix.flowui.backgroundtask.BackgroundWorker;
-import io.jmix.flowui.backgroundtask.TaskLifeCycle;
-import io.jmix.flowui.component.UiComponentUtils;
-import io.jmix.flowui.component.scroller.JmixScroller;
-import io.jmix.flowui.component.textarea.JmixTextArea;
 import io.jmix.flowui.component.valuepicker.EntityPicker;
-import io.jmix.flowui.exception.DefaultUiExceptionHandler;
 import io.jmix.flowui.facet.UrlQueryParametersFacet;
 import io.jmix.flowui.facet.urlqueryparameters.AbstractUrlQueryParametersBinder;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.view.*;
-import org.apache.commons.lang3.StringUtils;
-import org.commonmark.node.Node;
-import org.commonmark.parser.Parser;
-import org.commonmark.renderer.html.HtmlRenderer;
-import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.lang.Nullable;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Consumer;
 
 @Route(value = "chat-view", layout = MainView.class)
 @ViewController(id = "ChatView")
@@ -61,240 +37,117 @@ public class ChatView extends StandardView {
     private Notifications notifications;
     @Autowired
     private ParametersRepository parametersRepository;
-    @Autowired
-    private DefaultUiExceptionHandler defaultUiExceptionHandler;
-    @Autowired
-    private BackgroundWorker backgroundWorker;
-    @Autowired
-    private DialogWindows dialogWindows;
-    @Autowired
-    private UiComponents uiComponents;
-    @Autowired
-    private ChatLogManager chatLogManager;
 
-    @ViewComponent
-    private JmixTextArea userMessageField;
     @ViewComponent
     private EntityPicker<Parameters> parametersPicker;
     @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
-    @ViewComponent
-    private JmixScroller scroller;
-    @ViewComponent
-    private VerticalLayout responseBox;
 
-    private String contextPath;
-
+    private MessageList messageList;
+    private MessageInput messageInput;
+    private final List<MessageListItem> items = new ArrayList<>();
     private String conversationId;
 
     @Subscribe
     public void onInit(final InitEvent event) {
         parametersPicker.setValue(parametersRepository.loadActive(ParametersTargetType.CHAT));
-
         urlQueryParameters.registerBinder(new UrlBinder());
-
-        contextPath = VaadinServletRequest.getCurrent().getContextPath();
-
         updateConversationId();
+
+        messageList = new MessageList();
+        messageList.setSizeFull();
+        messageList.setMarkdown(true);
+
+        messageInput = new MessageInput();
+        messageInput.setWidthFull();
+        messageInput.addSubmitListener(this::onSubmit);
+
+        var content = getContent();
+        content.setSizeFull();
+        // XML has hbox (toolbar) at index 0. Insert messageList after it, messageInput at the end.
+        content.addComponentAtIndex(1, messageList);
+        content.add(messageInput);
+        content.expand(messageList);
+    }
+
+    private void onSubmit(MessageInput.SubmitEvent submitEvent) {
+        String text = submitEvent.getValue();
+        Parameters parameters = parametersRepository.findById(parametersPicker.getValue().getId())
+                .orElse(parametersRepository.loadActive(ParametersTargetType.CHAT));
+
+        addUserMessage(text);
+        MessageListItem botMsg = addBotMessage();
+        messageInput.setEnabled(false);
+
+        UI ui = submitEvent.getSource().getUI().orElseThrow();
+
+        // Reactive stream from ChatImpl delivers events in order:
+        //   ToolCall → Content tokens → Metadata (sources)
+        //
+        // Chat.renderStreamEvent() converts each event to a markdown string.
+        // This mapping runs in the app classloader (streaming thread).
+        // Only the resulting String crosses into ui.access() — this avoids
+        // ClassCastException caused by Jmix's hot-reload classloader in dev mode.
+        //
+        // doOnNext  — append each markdown chunk to the bot message and scroll down
+        // doOnError — show error notification and re-enable input
+        // doOnComplete — re-enable input so user can send the next message
+        // subscribe() — starts the stream (nothing happens until subscribe is called)
+        chat.requestStream(text, parameters.getContent(), conversationId)
+                .map(Chat::renderStreamEvent)
+                .doOnNext(md -> ui.access(() -> {
+                    botMsg.appendText(md);
+                    scrollToBottom();
+                }))
+                .doOnError(e -> ui.access(() -> {
+                    notifications.show("Error: " + e.getMessage());
+                    messageInput.setEnabled(true);
+                }))
+                .doOnComplete(() -> ui.access(() -> messageInput.setEnabled(true)))
+                .subscribe();
+    }
+
+    private void addUserMessage(String text) {
+        var msg = new MessageListItem(text, Instant.now(), "You");
+        msg.setUserColorIndex(0);
+        items.add(msg);
+        messageList.setItems(items);
+    }
+
+    private MessageListItem addBotMessage() {
+        var msg = new MessageListItem("", Instant.now(), "AI Assistant");
+        msg.setUserColorIndex(2);
+        items.add(msg);
+        messageList.setItems(items);
+        return msg;
+    }
+
+    private void scrollToBottom() {
+        messageList.getElement().executeJs("this.scrollTop = this.scrollHeight");
     }
 
     private void updateConversationId() {
         conversationId = UuidProvider.createUuidV7().toString();
     }
 
-    @Subscribe(id = "sendButton", subject = "clickListener")
-    public void onSendButtonClick(final ClickEvent<JmixButton> event) {
-        if (StringUtils.isBlank(userMessageField.getValue())) {
-            notifications.show("Enter a question");
-        } else {
-            Parameters parameters = parametersRepository.findById(parametersPicker.getValue().getId())
-                    .orElse(parametersRepository.loadActive(ParametersTargetType.CHAT));
-
-            DialogWindow<ChatProgressView> chatProgressWindow = dialogWindows.view(this, ChatProgressView.class).build();
-            chatProgressWindow.open();
-
-            final BackgroundTaskHandler<ChatImpl.StructuredResponse> taskHandler = backgroundWorker.handle(
-                    new ChatBackgroundTask(chatProgressWindow.getView(), parameters)
-            );
-            taskHandler.execute();
-        }
-    }
-
     @Subscribe(id = "newChatButton", subject = "clickListener")
     public void onNewChatButtonClick(final ClickEvent<JmixButton> event) {
-        responseBox.removeAll();
+        items.clear();
+        messageList.setItems(items);
         updateConversationId();
-    }
-
-    private void showResult(ChatImpl.StructuredResponse result) {
-        if (responseBox.getChildren().findAny().isPresent()) {
-            responseBox.add(uiComponents.create(Hr.class));
-        }
-
-        Div requestDiv = uiComponents.create(Div.class);
-        requestDiv.setText(StringUtils.abbreviate(userMessageField.getValue(), 100));
-        requestDiv.getStyle().set("font-weight", "bold");
-        responseBox.add(requestDiv);
-
-        JmixTextArea logField = uiComponents.create(JmixTextArea.class);
-        logField.setWidthFull();
-        logField.setReadOnly(true);
-        logField.getStyle().set("font-family", "monospace");
-        logField.getStyle().set("font-size", "smaller");
-        String logText = "Conversation ID: " + conversationId + "\n" +
-                String.join("\n", result.logMessages());
-        logField.setValue(logText);
-        responseBox.add(logField);
-
-        String mdText = result.text();
-
-        Parser parser = Parser.builder().build();
-        Node document = parser.parse(mdText);
-        HtmlRenderer renderer = HtmlRenderer.builder().escapeHtml(true).build();
-        String html = renderer.render(document) + addSourceLinks(result.sourceLinks()) + addRetrievedDocs(result.retrievedDocuments());
-
-        Div responseDiv = uiComponents.create(Div.class);
-        responseDiv.getElement().setProperty("innerHTML", html);
-
-        responseBox.add(responseDiv);
-
-        Button copyButton = uiComponents.create(Button.class);
-        copyButton.setText("Copy");
-        copyButton.setIcon(new Icon(VaadinIcon.CLIPBOARD));
-        copyButton.addClickListener(clickEvent -> {
-            UiComponentUtils.copyToClipboard(mdText)
-                    .then(jsonValue -> notifications.show("Copied!"));
-        });
-        responseBox.add(copyButton);
-
-        scroller.scrollToBottom();
-    }
-
-    private String addSourceLinks(@Nullable List<String> strings) {
-        if (strings == null || strings.isEmpty()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder("<hr><p><strong>Source links:</strong></p><ul>");
-        for (String string : strings) {
-            sb.append("<li><a href=\"").append(string).append("\" target=\"_blank\">").append(string).append("</a></li>");
-        }
-        sb.append("</ul>");
-        return sb.toString();
-    }
-
-    private String addRetrievedDocs(List<Document> documents) {
-        if (documents == null || documents.isEmpty()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder("<hr><p><strong>Retrieved documents:</strong></p><ul>");
-        for (Document document : documents) {
-            sb.append("<li><a href=\"").append(getDocLinkUrl(document)).append("\" target=\"_blank\">").append(getDocLinkText(document)).append("</a></li>");
-        }
-        sb.append("</ul>");
-        return sb.toString();
-    }
-
-    private String getDocLinkUrl(Document document) {
-        return contextPath + "/vector-store/" + document.getId();
-    }
-
-    private String getDocLinkText(Document document) {
-        Object type = document.getMetadata().get("type");
-        Double score = document.getScore();
-        Double rerankScore = (Double) document.getMetadata().get("rerankScore");
-        String text = StringUtils.abbreviate(Objects.toString(document.getText(), ""), 80);
-        return "[" + type + "] " +
-                getScoreString(score, rerankScore) + " " +
-                text.replaceAll("\n", " ").replaceAll("<", "&lt;")
-                        .replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
-                        .replaceAll("'", "&#39;");
-    }
-
-    private static String getScoreString(Double score, Double rerankScore) {
-        if (score == null && rerankScore == null) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder("(");
-        if (score != null) {
-            sb.append(String.format("%.2f", score));
-        }
-        sb.append("/");
-        if (rerankScore != null) {
-            sb.append(String.format("%.2f", rerankScore));
-        }
-        sb.append(")");
-        return sb.toString();
-    }
-
-    @Subscribe(id = "copyToClipboardButton", subject = "clickListener")
-    public void onCopyToClipboardButtonClick(final ClickEvent<JmixButton> event) {
-        if (StringUtils.isNotBlank(userMessageField.getValue())) {
-            UiComponentUtils.copyToClipboard(userMessageField.getValue())
-                    .then(jsonValue -> notifications.show("Copied!"));
-        }
     }
 
     private class UrlBinder extends AbstractUrlQueryParametersBinder {
         public UrlBinder() {
-            userMessageField.addValueChangeListener(valueChangeEvent -> {
-                String value = Strings.nullToEmpty(valueChangeEvent.getValue());
-                QueryParameters queryParameters = QueryParameters.of("userMessage", value);
-                fireQueryParametersChanged(new UrlQueryParametersFacet.UrlQueryParametersChangeEvent(this, queryParameters));
-            });
         }
 
         @Override
         public void updateState(QueryParameters queryParameters) {
-            Optional<String> userMessageOptional = queryParameters.getSingleParameter("userMessage");
-            userMessageField.setValue(userMessageOptional.orElse(""));
         }
 
         @Override
         public Component getComponent() {
             return null;
-        }
-    }
-
-    private class ChatBackgroundTask extends BackgroundTask<String, ChatImpl.StructuredResponse> {
-
-        private final ChatProgressView chatProgressView;
-        private final Parameters parameters;
-
-        public ChatBackgroundTask(ChatProgressView chatProgressView, Parameters parameters) {
-            super(600, ChatView.this);
-            this.chatProgressView = chatProgressView;
-            this.parameters = parameters;
-        }
-
-        @Override
-        public ChatImpl.StructuredResponse run(TaskLifeCycle<String> taskLifeCycle) throws Exception {
-            Consumer<String> logger = s -> {
-                try {
-                    taskLifeCycle.publish(s);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            };
-            ChatImpl.StructuredResponse response = chat.requestStructured(
-                    userMessageField.getValue(), parameters.getContent(), conversationId, logger);
-            return response;
-        }
-
-        @Override
-        public void progress(List<String> changes) {
-            chatProgressView.addLogMessages(changes);
-        }
-
-        @Override
-        public void done(ChatImpl.StructuredResponse result) {
-            chatProgressView.closeWithDefaultAction();
-            chatLogManager.saveResponse(conversationId, result);
-            showResult(result);
-        }
-
-        @Override
-        public boolean handleException(Exception ex) {
-            return defaultUiExceptionHandler.handle(ex);
         }
     }
 }

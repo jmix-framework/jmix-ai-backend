@@ -15,7 +15,6 @@ import org.springframework.util.ReflectionUtils;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static io.jmix.ai.backend.retrieval.Utils.getDocSourcesAsString;
@@ -28,7 +27,7 @@ public abstract class AbstractRagTool {
     private final PostRetrievalProcessor postRetrievalProcessor;
     private final Reranker reranker;
     private final List<Document> retrievedDocuments;
-    private final Consumer<String> logger;
+    private final ToolEventListener listener;
     protected final String type;
     protected String description;
     protected double similarityThreshold;
@@ -40,13 +39,14 @@ public abstract class AbstractRagTool {
 
     protected AbstractRagTool(String toolName, String type, VectorStore vectorStore,
                               PostRetrievalProcessor postRetrievalProcessor, Reranker reranker,
-                              ParametersReader parametersReader, List<Document> retrievedDocuments, Consumer<String> logger) {
+                              ParametersReader parametersReader, List<Document> retrievedDocuments,
+                              ToolEventListener listener) {
         this.toolName = toolName;
         this.vectorStore = vectorStore;
         this.postRetrievalProcessor = postRetrievalProcessor;
         this.reranker = reranker;
         this.retrievedDocuments = retrievedDocuments;
-        this.logger = logger;
+        this.listener = listener;
         this.type = type;
         init(parametersReader);
     }
@@ -84,7 +84,8 @@ public abstract class AbstractRagTool {
     }
 
     protected String executeSearch(String queryText, double similarityThreshold, int topK) {
-        logger.accept(">>> Using %s ['%s', %.2f, %d, %.2f]: %s".formatted(
+        listener.onToolCall(toolName, queryText);
+        listener.onLog("Using %s ['%s', %.2f, %d, %.2f]: %s".formatted(
                 toolName, StringUtils.abbreviate(description, 10), similarityThreshold, topK, minScore, queryText));
 
         SearchRequest searchRequest = SearchRequest.builder()
@@ -96,14 +97,14 @@ public abstract class AbstractRagTool {
 
         List<Document> documents = vectorStore.similaritySearch(searchRequest);
         if (documents == null) {
-            logger.accept("No documents found for the query");
+            listener.onLog("No documents found for the query");
             return getNoResultsMessage();
         }
-        logger.accept("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
+        listener.onLog("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
 
         documents = postRetrievalProcessor.process(queryText, documents);
         if (documents.isEmpty()) {
-            logger.accept("All documents filtered out by PostRetrievalProcessor");
+            listener.onLog("All documents filtered out by PostRetrievalProcessor");
             return getNoResultsMessage();
         }
 
@@ -112,18 +113,18 @@ public abstract class AbstractRagTool {
         List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
 
         if (rerankResults == null) {
-            logger.accept("Reranking failed, filtering by minScore");
+            listener.onLog("Reranking failed, filtering by minScore");
             filteredDocuments = documents.stream()
                     .filter(document ->
                             minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
                     .toList();
-            logger.accept("Filtered documents (%d): %s".formatted(filteredDocuments.size(), getDocSourcesAsString(filteredDocuments)));
+            listener.onLog("Filtered documents (%d): %s".formatted(filteredDocuments.size(), getDocSourcesAsString(filteredDocuments)));
 
         } else {
             List<Reranker.Result> filteredRerankResults = rerankResults.stream()
                     .filter(rr -> rr.score() >= minRerankedScore)
                     .toList();
-            logger.accept("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
+            listener.onLog("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
 
             for (Reranker.Result result : filteredRerankResults) {
                 result.document().getMetadata().put("rerankScore", result.score());
@@ -139,6 +140,16 @@ public abstract class AbstractRagTool {
         }
 
         retrievedDocuments.addAll(filteredDocuments);
+
+        List<String> sourceUrls = filteredDocuments.stream()
+                .map(doc -> doc.getMetadata().get("url"))
+                .filter(java.util.Objects::nonNull)
+                .map(Object::toString)
+                .distinct()
+                .toList();
+        if (!sourceUrls.isEmpty()) {
+            listener.onSourcesFound(sourceUrls);
+        }
 
         return filteredDocuments.stream()
                 .map(Document::getText)

@@ -30,6 +30,8 @@ dependencies {
     implementation "org.springframework.ai:spring-ai-rag:$springAiVersion"
     implementation "org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc:$springAiVersion"
 
+    implementation 'io.projectreactor:reactor-core'
+
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:1.32.1-alpha'
