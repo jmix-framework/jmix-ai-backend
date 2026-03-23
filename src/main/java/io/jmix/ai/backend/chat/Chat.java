@@ -15,19 +15,6 @@ public interface Chat {
 
     Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId);
 
-    /**
-     * Renders a StreamEvent as markdown text for display in chat UI.
-     * Keeps StreamEvent type resolution in the app classloader (avoids Jmix hot-reload ClassCastException).
-     */
-    static String renderStreamEvent(StreamEvent event) {
-        return switch (event) {
-            case StreamEvent.Content c -> c.text();
-            case StreamEvent.ToolCall tc -> "_Searching: " + tc.query() + "_\n\n";
-            case StreamEvent.Metadata m -> "\n\n---\n**Sources:** " + String.join("\n",
-                    m.sources().stream().map(url -> "[%s](%s)".formatted(url, url)).toList());
-        };
-    }
-
     record StructuredResponse(
             String text,
             List<String> logMessages,

@@ -9,6 +9,7 @@ import com.vaadin.flow.component.messages.MessageListItem;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.chat.Chat;
+import io.jmix.ai.backend.chat.StreamEvent;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -84,17 +85,13 @@ public class ChatView extends StandardView {
         // Reactive stream from ChatImpl delivers events in order:
         //   ToolCall → Content tokens → Metadata (sources)
         //
-        // Chat.renderStreamEvent() converts each event to a markdown string.
-        // This mapping runs in the app classloader (streaming thread).
-        // Only the resulting String crosses into ui.access() — this avoids
-        // ClassCastException caused by Jmix's hot-reload classloader in dev mode.
-        //
-        // doOnNext  — append each markdown chunk to the bot message and scroll down
-        // doOnError — show error notification and re-enable input
-        // doOnComplete — re-enable input so user can send the next message
-        // subscribe() — starts the stream (nothing happens until subscribe is called)
+        // doOnNext     — append each markdown chunk to the bot message and scroll down
+        // doOnError    — show error notification and re-enable input
+        // doOnComplete — append total elapsed time, re-enable input
+        // subscribe()  — starts the stream (nothing happens until subscribe is called)
+        long startTime = System.currentTimeMillis();
         chat.requestStream(text, parameters.getContent(), conversationId)
-                .map(Chat::renderStreamEvent)
+                .map(this::renderStreamEvent)
                 .doOnNext(md -> ui.access(() -> {
                     botMsg.appendText(md);
                     scrollToBottom();
@@ -103,8 +100,24 @@ public class ChatView extends StandardView {
                     notifications.show("Error: " + e.getMessage());
                     messageInput.setEnabled(true);
                 }))
-                .doOnComplete(() -> ui.access(() -> messageInput.setEnabled(true)))
+                .doOnComplete(() -> ui.access(() -> {
+                    long elapsed = System.currentTimeMillis() - startTime;
+                    botMsg.appendText("\n\n---\n_Total time: %.1fs_".formatted(elapsed / 1000.0));
+                    scrollToBottom();
+                    messageInput.setEnabled(true);
+                }))
                 .subscribe();
+    }
+
+    private String renderStreamEvent(StreamEvent event) {
+        return switch (event) {
+            case StreamEvent.ToolCall tc -> "_%s: %s (%.1fs)_\n\n".formatted(tc.tool(), tc.query(), tc.durationMs() / 1000.0);
+            case StreamEvent.TokensStart ignored -> "";
+            case StreamEvent.Content c -> c.text();
+            case StreamEvent.TokensEnd ignored -> "";
+            case StreamEvent.SourcesStart ignored -> "\n\n---\n**Sources:**";
+            case StreamEvent.Metadata m -> "\n- [%s](%s)".formatted(m.source(), m.source());
+        };
     }
 
     private void addUserMessage(String text) {

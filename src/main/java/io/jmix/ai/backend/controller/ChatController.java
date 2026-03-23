@@ -2,8 +2,8 @@ package io.jmix.ai.backend.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.jmix.ai.backend.chat.Chat;
-import io.jmix.ai.backend.chat.StreamEvent;
 import io.jmix.ai.backend.chatlog.ChatLogManager;
+import io.jmix.ai.backend.dto.StreamEventDto;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -57,13 +57,14 @@ public class ChatController {
     }
 
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<StreamEvent> chatStream(@RequestBody Request request) {
+    public Flux<StreamEventDto> chatStream(@RequestBody Request request) {
         validateRequest(request);
 
         return Flux.defer(() -> {
-            Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
-            return chat.requestStream(request.text(), parameters.getContent(), request.conversationId());
-        });
+                    Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
+                    return chat.requestStream(request.text(), parameters.getContent(), request.conversationId());
+                })
+                .map(StreamEventDto::fromModel);
     }
 
     private void validateRequest(Request request) {

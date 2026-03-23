@@ -34,8 +34,8 @@ public class SearchService {
 
         ToolEventListener listener = new ToolEventListener() {
             @Override
-            public void onToolCall(String toolName, String query) {
-                addLogMessage(logger, logMessages, "Using " + toolName + ": " + query);
+            public void onToolCall(String toolName, String query, long durationMs) {
+                addLogMessage(logger, logMessages, "%s: %s (%d ms)".formatted(toolName, query, durationMs));
             }
             @Override
             public void onLog(String message) {

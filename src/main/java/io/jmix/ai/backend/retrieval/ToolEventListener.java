@@ -4,7 +4,8 @@ import java.util.List;
 
 public interface ToolEventListener {
 
-    void onToolCall(String toolName, String query);
+    /** Called when a tool finishes execution with full results. */
+    void onToolCall(String toolName, String query, long durationMs);
 
     void onLog(String message);
 

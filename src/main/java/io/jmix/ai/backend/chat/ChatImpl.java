@@ -111,8 +111,8 @@ public class ChatImpl implements Chat {
 
         ToolEventListener listener = new ToolEventListener() {
             @Override
-            public void onToolCall(String toolName, String query) {
-                String msg = "Using " + toolName + ": " + query;
+            public void onToolCall(String toolName, String query, long durationMs) {
+                String msg = "%s: %s (%d ms)".formatted(toolName, query, durationMs);
                 if (externalLogger != null) externalLogger.accept(msg);
                 addLogMessage(log, logMessages, msg);
             }
@@ -152,85 +152,84 @@ public class ChatImpl implements Chat {
     }
 
     /**
-     * Streams the assistant response as a flat sequence of {@link StreamEvent}s.
+     * Streams the assistant response as a sequence of {@link StreamEvent}s via SSE.
      *
-     * <p>The stream has three phases, always in this order:
-     * <ol>
-     *   <li><b>Tool calls</b> — "Searching documentation...", "Searching forum..." etc.</li>
-     *   <li><b>Content</b> — response text, token by token</li>
-     *   <li><b>Sources</b> — URLs of documents used to generate the response</li>
-     * </ol>
-     *
-     * <h4>How it works (Reactor reactive streams)</h4>
-     *
-     * <p>The challenge: tool call events happen <b>synchronously</b> inside Spring AI
-     * (when the model decides to invoke a RAG tool), but content tokens arrive as a
-     * <b>reactive stream</b> from OpenAI SSE. We need to combine both into one output.
-     *
-     * <p>Solution: we use a {@link Sinks.Many} as a bridge. Our {@link ToolEventListener}
-     * pushes ToolCall events into the sink during tool execution. Then we combine three Flux sources:
+     * <p>Events always arrive in this order:
      * <pre>
-     * toolCallsFlux.mergeWith(contentFlux).concatWith(sourcesFlux)
+     * ToolCall* → TokensStart → Content* → TokensEnd → [SourcesStart → Metadata*]
      * </pre>
+     *
+     * <p><b>Why Reactor here:</b> Spring AI executes tool calls synchronously (blocking),
+     * but streams content tokens from OpenAI as a reactive {@code Flux}. We need to merge
+     * both into a single output stream — that's why we use {@code Sinks.Many} as a bridge
+     * between the blocking callback ({@link ToolEventListener}) and the reactive pipeline.
+     *
+     * <p><b>Key operators explained:</b>
      * <ul>
-     *   <li>{@code mergeWith} — tool calls and content arrive concurrently (tool calls fire
-     *       during content setup, before tokens start flowing). Merge interleaves both.</li>
-     *   <li>{@code concatWith} — sources are appended strictly after all content tokens.
-     *       They're extracted from documents that tools retrieved during Phase 1.</li>
+     *   <li>{@code Flux.defer} — delays execution until someone subscribes. Without it,
+     *       the blocking {@code prepareRequest} would run immediately on the caller's thread.</li>
+     *   <li>{@code mergeWith} — interleaves two streams as events arrive. Tool call events
+     *       fire during the blocking setup phase, content tokens flow after.</li>
+     *   <li>{@code Flux.concat} — plays streams one after another in strict order:
+     *       TokensStart → content tokens → TokensEnd → sources.</li>
+     *   <li>{@code subscribeOn} — moves the whole chain to a dedicated thread pool,
+     *       so Tomcat servlet threads are not blocked by JDBC/tool execution.</li>
      * </ul>
-     *
-     * <p>When content stream completes, we close the toolCallSink via {@code doOnComplete},
-     * which signals mergeWith to finish. Then concatWith kicks in and emits sources.
-     *
-     * <p>All blocking work (JDBC, tool resolution) runs on a dedicated
-     * {@code streamingScheduler} thread pool via {@code subscribeOn}, keeping
-     * Tomcat servlet threads free for other requests.
      */
     @Override
     public Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId) {
-        // Sink that collects tool call events as they happen during model processing.
-        // Spring AI calls our ToolEventListener synchronously when a tool is invoked —
-        // the listener pushes ToolCall events into this sink.
+        // Think of this as a queue: our ToolEventListener pushes events into it,
+        // and the Flux reads from the other end. Buffered, so events are not lost
+        // even if nobody is reading yet.
         Sinks.Many<StreamEvent> toolCallSink = Sinks.many().unicast().onBackpressureBuffer();
 
         return Flux.defer(() -> {
-                    // Blocking setup on streamingScheduler thread.
-                    // MDC "cid" is set for the duration so tool/search logs include conversation id.
+                    // Blocking: loads parameters from DB, builds the model client, resolves tools.
+                    // Runs on streamingScheduler thread (not Tomcat).
                     ChatRequestContext ctx = prepareRequestWithMdc(
                             userPrompt, parametersYaml, conversationId, createStreamingListener(toolCallSink));
 
-                    // Phase 1: Tool call events (e.g. "Searching docs for: jmix security")
-                    // These arrive via toolCallSink while Spring AI processes tool calls.
+                    // Tool call events arrive via the sink (pushed by ToolEventListener).
                     Flux<StreamEvent> toolCallsFlux = toolCallSink.asFlux();
 
-                    // Phase 2: Content tokens from OpenAI (the actual response text).
-                    // When content finishes, close the tool call sink.
-                    // Without this, mergeWith would wait for toolCallSink forever → deadlock.
+                    // Content tokens from OpenAI. Each string chunk becomes a Content event.
+                    // When the last token arrives, we close the tool call sink —
+                    // otherwise mergeWith would hang waiting for more tool calls forever.
                     Flux<StreamEvent> contentFlux = ctx.request()
                             .stream()
                             .content()
                             .<StreamEvent>map(StreamEvent.Content::new)
                             .doOnComplete(toolCallSink::tryEmitComplete);
 
-                    // Phase 3: Source URLs extracted from documents that tools retrieved
-                    Flux<StreamEvent> sourcesFlux = Flux.fromIterable(extractSourceUrls(ctx.retrievedDocuments()))
-                            .map(List::of)
-                            .map(StreamEvent.Metadata::new);
+                    // Source URLs from documents that tools found during execution.
+                    // Wrapped in Flux.defer because the document list is empty at assembly time —
+                    // it gets populated later, while content tokens are streaming.
+                    // SourcesStart is only emitted when there are actual sources.
+                    Flux<StreamEvent> sourcesFlux = Flux.defer(() -> {
+                        List<String> urls = extractSourceUrls(ctx.retrievedDocuments());
+                        if (urls.isEmpty()) return Flux.empty();
+                        return Flux.concat(
+                                Flux.just(new StreamEvent.SourcesStart()),
+                                Flux.fromIterable(urls).map(StreamEvent.Metadata::new));
+                    });
 
-                    // Combine: tool calls interleave with content (mergeWith),
-                    // sources come strictly after all content (concatWith).
+                    // Final assembly:
+                    // - mergeWith: tool calls interleave with the main sequence as they arrive
+                    // - Flux.concat: TokensStart → content → TokensEnd → sources (strict order)
                     return toolCallsFlux
-                            .mergeWith(contentFlux)
-                            .concatWith(sourcesFlux);
+                            .mergeWith(Flux.concat(
+                                    Flux.just(new StreamEvent.TokensStart()),
+                                    contentFlux,
+                                    Flux.just(new StreamEvent.TokensEnd()),
+                                    sourcesFlux));
                 })
-                // Run on a dedicated thread pool, not on Tomcat servlet threads
                 .subscribeOn(streamingScheduler);
     }
 
     /**
-     * Runs blocking setup with MDC "cid" set for the duration.
-     * Tool execution, vector search, reranking — all log entries will include conversation id.
-     * MDC is cleaned up after setup because subsequent reactive operators may run on other threads.
+     * Blocking setup with MDC "cid" for logging.
+     * MDC is thread-local, so we clean it up before returning — subsequent reactive
+     * operators may run on different threads.
      */
     private ChatRequestContext prepareRequestWithMdc(String userPrompt, String parametersYaml,
                                                      @Nullable String conversationId,
@@ -259,8 +258,8 @@ public class ChatImpl implements Chat {
     private ToolEventListener createStreamingListener(Sinks.Many<StreamEvent> toolCallSink) {
         return new ToolEventListener() {
             @Override
-            public void onToolCall(String toolName, String query) {
-                toolCallSink.tryEmitNext(new StreamEvent.ToolCall(toolName, query));
+            public void onToolCall(String toolName, String query, long durationMs) {
+                toolCallSink.tryEmitNext(new StreamEvent.ToolCall(toolName, query, durationMs));
             }
 
             @Override

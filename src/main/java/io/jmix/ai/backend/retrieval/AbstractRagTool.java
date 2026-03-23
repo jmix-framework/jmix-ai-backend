@@ -84,76 +84,80 @@ public abstract class AbstractRagTool {
     }
 
     protected String executeSearch(String queryText, double similarityThreshold, int topK) {
-        listener.onToolCall(toolName, queryText);
+        long startTime = System.currentTimeMillis();
         listener.onLog("Using %s ['%s', %.2f, %d, %.2f]: %s".formatted(
                 toolName, StringUtils.abbreviate(description, 10), similarityThreshold, topK, minScore, queryText));
 
-        SearchRequest searchRequest = SearchRequest.builder()
-                .filterExpression(new FilterExpressionBuilder().eq("type", type).build())
-                .query(queryText)
-                .similarityThreshold(similarityThreshold)
-                .topK(topK)
-                .build();
+        try {
+            SearchRequest searchRequest = SearchRequest.builder()
+                    .filterExpression(new FilterExpressionBuilder().eq("type", type).build())
+                    .query(queryText)
+                    .similarityThreshold(similarityThreshold)
+                    .topK(topK)
+                    .build();
 
-        List<Document> documents = vectorStore.similaritySearch(searchRequest);
-        if (documents == null) {
-            listener.onLog("No documents found for the query");
-            return getNoResultsMessage();
-        }
-        listener.onLog("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
+            List<Document> documents = vectorStore.similaritySearch(searchRequest);
+            if (documents == null) {
+                listener.onLog("No documents found for the query");
+                return getNoResultsMessage();
+            }
+            listener.onLog("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
 
-        documents = postRetrievalProcessor.process(queryText, documents);
-        if (documents.isEmpty()) {
-            listener.onLog("All documents filtered out by PostRetrievalProcessor");
-            return getNoResultsMessage();
-        }
-
-        List<Document> filteredDocuments;
-
-        List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
-
-        if (rerankResults == null) {
-            listener.onLog("Reranking failed, filtering by minScore");
-            filteredDocuments = documents.stream()
-                    .filter(document ->
-                            minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                    .toList();
-            listener.onLog("Filtered documents (%d): %s".formatted(filteredDocuments.size(), getDocSourcesAsString(filteredDocuments)));
-
-        } else {
-            List<Reranker.Result> filteredRerankResults = rerankResults.stream()
-                    .filter(rr -> rr.score() >= minRerankedScore)
-                    .toList();
-            listener.onLog("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
-
-            for (Reranker.Result result : filteredRerankResults) {
-                result.document().getMetadata().put("rerankScore", result.score());
+            documents = postRetrievalProcessor.process(queryText, documents);
+            if (documents.isEmpty()) {
+                listener.onLog("All documents filtered out by PostRetrievalProcessor");
+                return getNoResultsMessage();
             }
 
-            filteredDocuments = filteredRerankResults.stream()
-                    .map(Reranker.Result::document)
+            List<Document> filteredDocuments;
+
+            List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
+
+            if (rerankResults == null) {
+                listener.onLog("Reranking failed, filtering by minScore");
+                filteredDocuments = documents.stream()
+                        .filter(document ->
+                                minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
+                        .toList();
+                listener.onLog("Filtered documents (%d): %s".formatted(filteredDocuments.size(), getDocSourcesAsString(filteredDocuments)));
+
+            } else {
+                List<Reranker.Result> filteredRerankResults = rerankResults.stream()
+                        .filter(rr -> rr.score() >= minRerankedScore)
+                        .toList();
+                listener.onLog("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
+
+                for (Reranker.Result result : filteredRerankResults) {
+                    result.document().getMetadata().put("rerankScore", result.score());
+                }
+
+                filteredDocuments = filteredRerankResults.stream()
+                        .map(Reranker.Result::document)
+                        .toList();
+            }
+
+            if (filteredDocuments.isEmpty()) {
+                return getNoResultsMessage();
+            }
+
+            retrievedDocuments.addAll(filteredDocuments);
+
+            List<String> sourceUrls = filteredDocuments.stream()
+                    .map(doc -> doc.getMetadata().get("url"))
+                    .filter(java.util.Objects::nonNull)
+                    .map(Object::toString)
+                    .distinct()
                     .toList();
+            if (!sourceUrls.isEmpty()) {
+                listener.onSourcesFound(sourceUrls);
+            }
+
+            return filteredDocuments.stream()
+                    .map(Document::getText)
+                    .collect(Collectors.joining("\n\n"));
+        } finally {
+            listener.onToolCall(toolName, queryText, System.currentTimeMillis() - startTime);
         }
-
-        if (filteredDocuments.isEmpty()) {
-            return getNoResultsMessage();
-        }
-
-        retrievedDocuments.addAll(filteredDocuments);
-
-        List<String> sourceUrls = filteredDocuments.stream()
-                .map(doc -> doc.getMetadata().get("url"))
-                .filter(java.util.Objects::nonNull)
-                .map(Object::toString)
-                .distinct()
-                .toList();
-        if (!sourceUrls.isEmpty()) {
-            listener.onSourcesFound(sourceUrls);
-        }
-
-        return filteredDocuments.stream()
-                .map(Document::getText)
-                .collect(Collectors.joining("\n\n"));
     }
 
     protected String getNoResultsMessage() {
