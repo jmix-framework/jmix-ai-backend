@@ -2,6 +2,7 @@ package io.jmix.ai.backend.view.chat;
 
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.messages.MessageInput;
 import com.vaadin.flow.component.messages.MessageList;
@@ -22,6 +23,7 @@ import io.jmix.flowui.facet.urlqueryparameters.AbstractUrlQueryParametersBinder;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.view.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import reactor.core.Disposable;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -48,6 +50,7 @@ public class ChatView extends StandardView {
     private MessageInput messageInput;
     private final List<MessageListItem> items = new ArrayList<>();
     private String conversationId;
+    private Disposable activeStreamDisposable;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -90,7 +93,8 @@ public class ChatView extends StandardView {
         // doOnComplete — append total elapsed time, re-enable input
         // subscribe()  — starts the stream (nothing happens until subscribe is called)
         long startTime = System.currentTimeMillis();
-        chat.requestStream(text, parameters.getContent(), conversationId)
+        disposeActiveStream();
+        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId)
                 .map(this::renderStreamEvent)
                 .doOnNext(md -> ui.access(() -> {
                     botMsg.appendText(md);
@@ -143,8 +147,20 @@ public class ChatView extends StandardView {
         conversationId = UuidProvider.createUuidV7().toString();
     }
 
+    @Subscribe
+    public void onDetach(final DetachEvent event) {
+        disposeActiveStream();
+    }
+
+    private void disposeActiveStream() {
+        if (activeStreamDisposable != null && !activeStreamDisposable.isDisposed()) {
+            activeStreamDisposable.dispose();
+        }
+    }
+
     @Subscribe(id = "newChatButton", subject = "clickListener")
     public void onNewChatButtonClick(final ClickEvent<JmixButton> event) {
+        disposeActiveStream();
         items.clear();
         messageList.setItems(items);
         updateConversationId();

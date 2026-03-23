@@ -3,8 +3,6 @@ package io.jmix.ai.backend.chat;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
-import java.util.List;
-
 /**
  * Typed streaming event emitted during chat response generation.
  * Jackson polymorphic serialization includes a {@code "type"} discriminator,

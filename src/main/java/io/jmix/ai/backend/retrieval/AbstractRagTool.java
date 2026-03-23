@@ -142,16 +142,6 @@ public abstract class AbstractRagTool {
 
             retrievedDocuments.addAll(filteredDocuments);
 
-            List<String> sourceUrls = filteredDocuments.stream()
-                    .map(doc -> doc.getMetadata().get("url"))
-                    .filter(java.util.Objects::nonNull)
-                    .map(Object::toString)
-                    .distinct()
-                    .toList();
-            if (!sourceUrls.isEmpty()) {
-                listener.onSourcesFound(sourceUrls);
-            }
-
             return filteredDocuments.stream()
                     .map(Document::getText)
                     .collect(Collectors.joining("\n\n"));

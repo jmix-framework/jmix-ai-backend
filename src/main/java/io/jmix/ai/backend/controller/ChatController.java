@@ -60,10 +60,8 @@ public class ChatController {
     public Flux<StreamEventDto> chatStream(@RequestBody Request request) {
         validateRequest(request);
 
-        return Flux.defer(() -> {
-                    Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
-                    return chat.requestStream(request.text(), parameters.getContent(), request.conversationId());
-                })
+        Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
+        return chat.requestStream(request.text(), parameters.getContent(), request.conversationId())
                 .map(StreamEventDto::fromModel);
     }
 
