@@ -61,7 +61,7 @@ public class ChatController {
         validateRequest(request);
 
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
-        return chat.requestStream(request.text(), parameters.getContent(), request.conversationId())
+        return chat.requestStream(request.text(), parameters.getContent(), request.conversationId(), null)
                 .map(StreamEventDto::fromModel);
     }
 

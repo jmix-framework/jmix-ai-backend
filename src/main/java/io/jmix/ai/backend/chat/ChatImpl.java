@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.chat;
 
+import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.retrieval.AbstractRagTool;
@@ -41,6 +42,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
@@ -55,14 +58,17 @@ public class ChatImpl implements Chat {
     private final ChatMemory chatMemory;
     private final ObservationRegistry observationRegistry;
     private final ToolsManager toolsManager;
+    private final ChatLogManager chatLogManager;
     private final Scheduler streamingScheduler;
 
     public ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
                     ParametersRepository parametersRepository,
                     @Qualifier("streamingScheduler") Scheduler streamingScheduler,
-                    ToolsManager toolsManager) {
+                    ToolsManager toolsManager,
+                    ChatLogManager chatLogManager) {
         this.parametersRepository = parametersRepository;
         this.streamingScheduler = streamingScheduler;
+        this.chatLogManager = chatLogManager;
 
         chatMemory = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
@@ -177,34 +183,87 @@ public class ChatImpl implements Chat {
      * </ul>
      */
     @Override
-    public Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId) {
-        // Think of this as a queue: our ToolEventListener pushes events into it,
-        // and the Flux reads from the other end. Buffered, so events are not lost
-        // even if nobody is reading yet.
-        Sinks.Many<StreamEvent> toolCallSink = Sinks.many().unicast().onBackpressureBuffer();
+    public Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml,
+                                            @Nullable String conversationId,
+                                            @Nullable Consumer<String> logConsumer) {
+        // --- Mutable state shared across the reactive pipeline ---
+        // These are declared before the Flux because they accumulate data across phases:
+        // tool execution (blocking) → content streaming (reactive) → completion callback.
+
+        // Sink that bridges blocking ToolEventListener callbacks with the reactive stream.
+        // Think of it as a queue: the listener pushes ToolCall events into one end,
+        // and the Flux reads from the other. Unicast = single subscriber only.
+        Sinks.Many<StreamEvent> toolCallSink = Sinks.many()
+                .unicast()
+                .onBackpressureBuffer();
+
+        // Accumulates diagnostic log messages (e.g. "Found documents (10): [...]")
+        // from tool execution. Used for ChatLog persistence after the stream completes.
+        List<String> logMessages = new ArrayList<>();
+
+        long startTime = System.currentTimeMillis();
+
+        // These hold values produced deep inside the reactive chain (blocking setup,
+        // streaming chunks) that we need in doOnComplete for logging and ChatLog saving.
+        // AtomicReference/AtomicInteger because the chain runs across multiple threads.
+        AtomicReference<ChatRequestContext> ctxRef = new AtomicReference<>();
+        AtomicInteger promptTokensRef = new AtomicInteger();
+        AtomicInteger completionTokensRef = new AtomicInteger();
 
         return Flux.defer(() -> {
-                    // Blocking: loads parameters from DB, builds the model client, resolves tools.
-                    // Runs on streamingScheduler thread (not Tomcat).
+                    // --- Phase 0: Blocking setup (runs on streamingScheduler, NOT Tomcat thread) ---
+                    // Loads parameters from DB, builds the OpenAI client, resolves tools.
+                    // MDC "cid" is set for the duration so tool/search logs include conversation id.
                     ChatRequestContext ctx = prepareRequestWithMdc(
-                            userPrompt, parametersYaml, conversationId, createStreamingListener(toolCallSink));
+                            userPrompt, parametersYaml, conversationId,
+                            createStreamingListener(toolCallSink, logConsumer, logMessages));
+                    ctxRef.set(ctx);
 
-                    // Tool call events arrive via the sink (pushed by ToolEventListener).
+                    // --- Phase 1: Tool call events ---
+                    // Spring AI calls tools synchronously during .stream(). As each tool finishes,
+                    // ToolEventListener.onToolCall() pushes a ToolCall event into the sink.
+                    // These events appear in the output stream before content tokens.
                     Flux<StreamEvent> toolCallsFlux = toolCallSink.asFlux();
 
-                    // Content tokens from OpenAI. Each string chunk becomes a Content event.
-                    // When the last token arrives, we close the tool call sink —
-                    // otherwise mergeWith would hang waiting for more tool calls forever.
+                    // --- Phase 2: Content tokens from OpenAI ---
+                    // We use chatResponse() instead of content() to get the full ChatResponse
+                    // objects. This lets us capture token usage from the final chunk — OpenAI
+                    // includes usage stats only in the last streaming chunk when
+                    // streamUsage(true) is set (see buildChatModel).
+                    //
+                    // flatMap extracts text content from each chunk and emits Content events.
+                    // Chunks without text (e.g. role assignment, usage-only final chunk) are
+                    // filtered out via Flux.empty().
+                    //
+                    // doOnComplete closes the tool call sink — without this, mergeWith would
+                    // wait for more tool call events forever, causing a deadlock.
                     Flux<StreamEvent> contentFlux = ctx.request()
                             .stream()
-                            .content()
-                            .<StreamEvent>map(StreamEvent.Content::new)
+                            .chatResponse()
+                            .<StreamEvent>flatMap(chatResponse -> {
+                                // Capture token usage if present. Only the final chunk has non-zero
+                                // values; earlier chunks report null or zero.
+                                if (chatResponse.getMetadata().getUsage() != null) {
+                                    var usage = chatResponse.getMetadata().getUsage();
+                                    int pt = usage.getPromptTokens() != null ? usage.getPromptTokens() : 0;
+                                    int ct = usage.getCompletionTokens() != null ? usage.getCompletionTokens() : 0;
+                                    if (pt > 0 || ct > 0) {
+                                        promptTokensRef.set(pt);
+                                        completionTokensRef.set(ct);
+                                    }
+                                }
+                                String text = getContentFromChatResponse(chatResponse);
+                                if (text != null && !text.isEmpty()) {
+                                    return Flux.just(new StreamEvent.Content(text));
+                                }
+                                return Flux.empty();
+                            })
                             .doOnComplete(toolCallSink::tryEmitComplete);
 
-                    // Source URLs from documents that tools found during execution.
+                    // --- Phase 3: Source URLs from retrieved documents ---
                     // Wrapped in Flux.defer because the document list is empty at assembly time —
-                    // it gets populated later, while content tokens are streaming.
-                    // SourcesStart is only emitted when there are actual sources.
+                    // it gets populated during Phase 1 (tool execution).
+                    // SourcesStart marker is only emitted when there are actual sources.
                     Flux<StreamEvent> sourcesFlux = Flux.defer(() -> {
                         List<String> urls = extractSourceUrls(ctx.retrievedDocuments());
                         if (urls.isEmpty()) return Flux.empty();
@@ -213,9 +272,12 @@ public class ChatImpl implements Chat {
                                 Flux.fromIterable(urls).map(StreamEvent.Metadata::new));
                     });
 
-                    // Final assembly:
-                    // - mergeWith: tool calls interleave with the main sequence as they arrive
-                    // - Flux.concat: TokensStart → content → TokensEnd → sources (strict order)
+                    // --- Final assembly ---
+                    // mergeWith: tool calls interleave with the content sequence as they arrive.
+                    //   In practice, all tool calls fire during the blocking phase (before content
+                    //   tokens start), so they always appear first.
+                    // Flux.concat: ensures strict ordering within the content sequence:
+                    //   TokensStart → content tokens → TokensEnd → [SourcesStart → sources]
                     return toolCallsFlux
                             .mergeWith(Flux.concat(
                                     Flux.just(new StreamEvent.TokensStart()),
@@ -223,6 +285,29 @@ public class ChatImpl implements Chat {
                                     Flux.just(new StreamEvent.TokensEnd()),
                                     sourcesFlux));
                 })
+                // --- Completion: log summary and persist ChatLog ---
+                // Fires after ALL events (including sources) have been emitted.
+                // Logs the final "Received response in X ms [tokens]" line,
+                // forwards it to the logConsumer (if any), and saves a ChatLog entity
+                // with accumulated log messages, sources, and token counts.
+                .doOnComplete(() -> {
+                    long elapsed = System.currentTimeMillis() - startTime;
+                    String msg = "Received response in %d ms [promptTokens: %d, completionTokens: %d]"
+                            .formatted(elapsed, promptTokensRef.get(), completionTokensRef.get());
+                    log.info(msg);
+                    logMessages.add(msg);
+                    if (logConsumer != null) logConsumer.accept(msg);
+
+                    ChatRequestContext ctx = ctxRef.get();
+                    if (ctx != null) {
+                        List<String> urls = extractSourceUrls(ctx.retrievedDocuments());
+                        chatLogManager.saveStreamResponse(ctx.conversationId(), logMessages,
+                                urls.isEmpty() ? null : String.join(",", urls),
+                                promptTokensRef.get(), completionTokensRef.get(), (int) elapsed);
+                    }
+                })
+                // Run the entire chain on a dedicated thread pool so Tomcat servlet
+                // threads are never blocked by JDBC lookups or tool execution.
                 .subscribeOn(streamingScheduler);
     }
 
@@ -255,7 +340,9 @@ public class ChatImpl implements Chat {
         return urls;
     }
 
-    private ToolEventListener createStreamingListener(Sinks.Many<StreamEvent> toolCallSink) {
+    private ToolEventListener createStreamingListener(Sinks.Many<StreamEvent> toolCallSink,
+                                                       @Nullable Consumer<String> logConsumer,
+                                                       List<String> logMessages) {
         return new ToolEventListener() {
             @Override
             public void onToolCall(String toolName, String query, long durationMs) {
@@ -265,6 +352,8 @@ public class ChatImpl implements Chat {
             @Override
             public void onLog(String message) {
                 log.info(message);
+                logMessages.add(message);
+                if (logConsumer != null) logConsumer.accept(message);
             }
         };
     }
@@ -306,6 +395,7 @@ public class ChatImpl implements Chat {
             optionsBuilder.reasoningEffort(reasoningEffort);
 
         OpenAiChatOptions openAiChatOptions = optionsBuilder
+                .streamUsage(true)
                 .build();
 
         return OpenAiChatModel.builder()
