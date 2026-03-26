@@ -117,8 +117,29 @@ public class ChatImpl implements Chat {
 
         ToolEventListener listener = new ToolEventListener() {
             @Override
-            public void onToolCall(String toolName, String query, long durationMs) {
-                String msg = "%s: %s (%d ms)".formatted(toolName, query, durationMs);
+            public void onToolCallStart(String tool, String query) {
+                String msg = "Using %s: %s".formatted(tool, query);
+                if (externalLogger != null) externalLogger.accept(msg);
+                addLogMessage(log, logMessages, msg);
+            }
+
+            @Override
+            public void onToolRetrieved(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
+                String msg = "Retrieved %d docs in %d ms".formatted(documents.size(), durationMs);
+                if (externalLogger != null) externalLogger.accept(msg);
+                addLogMessage(log, logMessages, msg);
+            }
+
+            @Override
+            public void onToolReranked(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
+                String msg = "Reranked to %d docs in %d ms".formatted(documents.size(), durationMs);
+                if (externalLogger != null) externalLogger.accept(msg);
+                addLogMessage(log, logMessages, msg);
+            }
+
+            @Override
+            public void onToolCallEnd(String tool, long totalDurationMs) {
+                String msg = "%s done in %d ms".formatted(tool, totalDurationMs);
                 if (externalLogger != null) externalLogger.accept(msg);
                 addLogMessage(log, logMessages, msg);
             }
@@ -158,157 +179,225 @@ public class ChatImpl implements Chat {
     }
 
     /**
-     * Streams the assistant response as a sequence of {@link StreamEvent}s via SSE.
+     * Streams the assistant response as a sequence of typed {@link StreamEvent}s via SSE.
      *
      * <p>Events always arrive in this order:
      * <pre>
-     * ToolCall* → TokensStart → Content* → TokensEnd → [SourcesStart → Metadata*]
+     * RequestInfo
+     *   → [ToolCallStart → ToolRetrieved → ToolReranked → ToolCallEnd]*
+     *   → TokensStart → Content* → TokensEnd
+     *   → [SourcesStart → Metadata*]
+     *   → RequestEnd
      * </pre>
      *
-     * <p><b>Why Reactor here:</b> Spring AI executes tool calls synchronously (blocking),
+     * <p><b>Why Reactor here:</b> Spring AI executes tools synchronously (blocking),
      * but streams content tokens from OpenAI as a reactive {@code Flux}. We need to merge
      * both into a single output stream — that's why we use {@code Sinks.Many} as a bridge
-     * between the blocking callback ({@link ToolEventListener}) and the reactive pipeline.
+     * between the blocking callbacks ({@link ToolEventListener}) and the reactive pipeline.
      *
      * <p><b>Key operators explained:</b>
      * <ul>
      *   <li>{@code Flux.defer} — delays execution until someone subscribes. Without it,
      *       the blocking {@code prepareRequest} would run immediately on the caller's thread.</li>
-     *   <li>{@code mergeWith} — interleaves two streams as events arrive. Tool call events
-     *       fire during the blocking setup phase, content tokens flow after.</li>
-     *   <li>{@code Flux.concat} — plays streams one after another in strict order:
-     *       TokensStart → content tokens → TokensEnd → sources.</li>
+     *   <li>{@code mergeWith} — interleaves two streams as events arrive. Tool events
+     *       fire during the blocking phase, content tokens flow after.</li>
+     *   <li>{@code concatWith} — plays streams one after another in strict order.</li>
      *   <li>{@code subscribeOn} — moves the whole chain to a dedicated thread pool,
      *       so Tomcat servlet threads are not blocked by JDBC/tool execution.</li>
      * </ul>
+     *
+     * <p>Console logging and ChatLog persistence are applied transparently
+     * by {@link #withDiagnostics} — callers see a clean event stream.
      */
     @Override
-    public Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml,
-                                            @Nullable String conversationId,
-                                            @Nullable Consumer<String> logConsumer) {
-        // --- Mutable state shared across the reactive pipeline ---
-        // These are declared before the Flux because they accumulate data across phases:
-        // tool execution (blocking) → content streaming (reactive) → completion callback.
+    public Flux<StreamEvent> requestStream(String userPrompt,
+                                           String parametersYaml,
+                                           @Nullable String conversationId) {
+        // Event buffer: tool execution is synchronous (blocking), but we need to
+        // deliver tool events into a reactive stream. This sink acts as a queue —
+        // the listener pushes events in, the flux reads them out.
+        Sinks.Many<StreamEvent> toolCallSink = Sinks.many().unicast().onBackpressureBuffer();
 
-        // Sink that bridges blocking ToolEventListener callbacks with the reactive stream.
-        // Think of it as a queue: the listener pushes ToolCall events into one end,
-        // and the Flux reads from the other. Unicast = single subscriber only.
-        Sinks.Many<StreamEvent> toolCallSink = Sinks.many()
-                .unicast()
-                .onBackpressureBuffer();
-
-        // Accumulates diagnostic log messages (e.g. "Found documents (10): [...]")
-        // from tool execution. Used for ChatLog persistence after the stream completes.
-        List<String> logMessages = new ArrayList<>();
-
+        // OpenAI reports token usage only in the very last streaming chunk.
+        // We capture it here during streaming, then read when building RequestEnd.
         long startTime = System.currentTimeMillis();
-
-        // These hold values produced deep inside the reactive chain (blocking setup,
-        // streaming chunks) that we need in doOnComplete for logging and ChatLog saving.
-        // AtomicReference/AtomicInteger because the chain runs across multiple threads.
-        AtomicReference<ChatRequestContext> ctxRef = new AtomicReference<>();
         AtomicInteger promptTokensRef = new AtomicInteger();
         AtomicInteger completionTokensRef = new AtomicInteger();
 
-        return Flux.defer(() -> {
-                    // --- Phase 0: Blocking setup (runs on streamingScheduler, NOT Tomcat thread) ---
-                    // Loads parameters from DB, builds the OpenAI client, resolves tools.
-                    // MDC "cid" is set for the duration so tool/search logs include conversation id.
-                    ChatRequestContext ctx = prepareRequestWithMdc(
-                            userPrompt, parametersYaml, conversationId,
-                            createStreamingListener(toolCallSink, logConsumer, logMessages));
-                    ctxRef.set(ctx);
+        // Flux.defer = "don't run this code now, run it when someone subscribes".
+        // This is how we move the blocking DB/tool setup off the caller's thread
+        // onto streamingScheduler (applied in withDiagnostics via subscribeOn).
+        Flux<StreamEvent> stream = Flux.defer(() -> {
+            // -- Blocking setup: loads config from DB, creates OpenAI client, resolves tools --
+            ToolEventListener listener = createStreamingListener(toolCallSink);
+            ChatRequestContext ctx = prepareRequestWithMdc(
+                    userPrompt, parametersYaml, conversationId, listener);
+            String cid = ctx.conversationId();
 
-                    // --- Phase 1: Tool call events ---
-                    // Spring AI calls tools synchronously during .stream(). As each tool finishes,
-                    // ToolEventListener.onToolCall() pushes a ToolCall event into the sink.
-                    // These events appear in the output stream before content tokens.
-                    Flux<StreamEvent> toolCallsFlux = toolCallSink.asFlux();
+            // Tool events (ToolCallStart, ToolRetrieved, etc.) are pushed into the sink
+            // by the listener during Spring AI's synchronous tool execution.
+            var toolEvents = toolCallSink.asFlux();
 
-                    // --- Phase 2: Content tokens from OpenAI ---
-                    // We use chatResponse() instead of content() to get the full ChatResponse
-                    // objects. This lets us capture token usage from the final chunk — OpenAI
-                    // includes usage stats only in the last streaming chunk when
-                    // streamUsage(true) is set (see buildChatModel).
-                    //
-                    // flatMap extracts text content from each chunk and emits Content events.
-                    // Chunks without text (e.g. role assignment, usage-only final chunk) are
-                    // filtered out via Flux.empty().
-                    //
-                    // doOnComplete closes the tool call sink — without this, mergeWith would
-                    // wait for more tool call events forever, causing a deadlock.
-                    Flux<StreamEvent> contentFlux = ctx.request()
-                            .stream()
-                            .chatResponse()
-                            .<StreamEvent>flatMap(chatResponse -> {
-                                // Capture token usage if present. Only the final chunk has non-zero
-                                // values; earlier chunks report null or zero.
-                                if (chatResponse.getMetadata().getUsage() != null) {
-                                    var usage = chatResponse.getMetadata().getUsage();
-                                    int pt = usage.getPromptTokens() != null ? usage.getPromptTokens() : 0;
-                                    int ct = usage.getCompletionTokens() != null ? usage.getCompletionTokens() : 0;
-                                    if (pt > 0 || ct > 0) {
-                                        promptTokensRef.set(pt);
-                                        completionTokensRef.set(ct);
-                                    }
-                                }
-                                String text = getContentFromChatResponse(chatResponse);
-                                if (text != null && !text.isEmpty()) {
-                                    return Flux.just(new StreamEvent.Content(text));
-                                }
-                                return Flux.empty();
-                            })
-                            .doOnComplete(toolCallSink::tryEmitComplete);
+            var requestInfo = emit(new StreamEvent.RequestInfo(
+                    cid, ctx.chatModel().getDefaultOptions().toString(), userPrompt));
 
-                    // --- Phase 3: Source URLs from retrieved documents ---
-                    // Wrapped in Flux.defer because the document list is empty at assembly time —
-                    // it gets populated during Phase 1 (tool execution).
-                    // SourcesStart marker is only emitted when there are actual sources.
-                    Flux<StreamEvent> sourcesFlux = Flux.defer(() -> {
-                        List<String> urls = extractSourceUrls(ctx.retrievedDocuments());
-                        if (urls.isEmpty()) return Flux.empty();
-                        return Flux.concat(
-                                Flux.just(new StreamEvent.SourcesStart()),
-                                Flux.fromIterable(urls).map(StreamEvent.Metadata::new));
-                    });
+            // Stream content tokens from OpenAI. Each chunk is a ChatResponse object —
+            // we extract the text and capture token usage from the last chunk.
+            // IMPORTANT: doOnComplete closes the tool sink. Without this, mergeWith
+            // below would wait for more tool events forever and the stream would hang.
+            var content = ctx.request().stream().chatResponse()
+                    .<StreamEvent>flatMap(chunk -> {
+                        captureTokenUsage(chunk, promptTokensRef, completionTokensRef);
+                        String text = getContentFromChatResponse(chunk);
+                        return (text != null && !text.isEmpty())
+                                ? Flux.just(new StreamEvent.Content(text))
+                                : Flux.empty();
+                    })
+                    .doOnComplete(toolCallSink::tryEmitComplete);
 
-                    // --- Final assembly ---
-                    // mergeWith: tool calls interleave with the content sequence as they arrive.
-                    //   In practice, all tool calls fire during the blocking phase (before content
-                    //   tokens start), so they always appear first.
-                    // Flux.concat: ensures strict ordering within the content sequence:
-                    //   TokensStart → content tokens → TokensEnd → [SourcesStart → sources]
-                    return toolCallsFlux
-                            .mergeWith(Flux.concat(
-                                    Flux.just(new StreamEvent.TokensStart()),
-                                    contentFlux,
-                                    Flux.just(new StreamEvent.TokensEnd()),
-                                    sourcesFlux));
+            // Flux.defer = "evaluate this later, not now". We need it here because
+            // ctx.retrievedDocuments() is empty right now — it gets filled while
+            // content streams (tools run first, then tokens flow).
+            Flux<StreamEvent> sources = Flux.defer(() -> {
+                List<String> urls = extractSourceUrls(ctx.retrievedDocuments());
+                if (urls.isEmpty()) return Flux.empty();
+                return emit(new StreamEvent.SourcesStart())
+                        .concatWith(Flux.fromIterable(urls).map(StreamEvent.Metadata::new));
+            });
+
+            // Same idea: token counts and total duration are only known after
+            // all content has been streamed, so we defer the construction.
+            Flux<StreamEvent> summary = Flux.defer(() -> emit(
+                    new StreamEvent.RequestEnd(promptTokensRef.get(), completionTokensRef.get(),
+                            System.currentTimeMillis() - startTime)));
+
+            // -- Assembly --
+            // concatWith = "after this finishes, play the next one" (strict order)
+            // mergeWith  = "play both at the same time, interleave as events arrive"
+            //
+            // Main sequence plays in order: info → tokens → sources → summary.
+            // Tool events merge in alongside — they arrive during content streaming
+            // but in practice all fire before the first content token.
+            var mainSequence = requestInfo
+                    .concatWith(emit(new StreamEvent.TokensStart()))
+                    .concatWith(content)
+                    .concatWith(emit(new StreamEvent.TokensEnd()))
+                    .concatWith(sources)
+                    .concatWith(summary);
+
+            return toolEvents
+                    .mergeWith(mainSequence);
+        });
+
+        return withDiagnostics(stream);
+    }
+
+    /** Wraps a single event as a Flux — DSL helper for readable stream assembly. */
+    private static Flux<StreamEvent> emit(StreamEvent e) {
+        return Flux.just(e);
+    }
+
+    /**
+     * Captures token usage from an OpenAI streaming chunk.
+     * Only the final chunk carries non-zero values (when streamUsage is enabled).
+     * Earlier chunks report null or zero — safe to overwrite, last value wins.
+     */
+    private static void captureTokenUsage(ChatResponse chatResponse,
+                                          AtomicInteger promptTokensRef,
+                                          AtomicInteger completionTokensRef) {
+        if (chatResponse.getMetadata().getUsage() != null) {
+            var usage = chatResponse.getMetadata().getUsage();
+            promptTokensRef.set(usage.getPromptTokens() != null ? usage.getPromptTokens() : 0);
+            completionTokensRef.set(usage.getCompletionTokens() != null ? usage.getCompletionTokens() : 0);
+        }
+    }
+
+    /**
+     * Adds cross-cutting diagnostics to the event stream:
+     * <ul>
+     *   <li>{@code doOnNext} — logs each event to console via {@link #logEventToConsole}</li>
+     *   <li>{@code doOnComplete} — persists the accumulated events as a ChatLog via {@link #persistChatLog}</li>
+     *   <li>{@code subscribeOn} — runs the entire chain on {@code streamingScheduler},
+     *       keeping Tomcat servlet threads free</li>
+     * </ul>
+     * All data for ChatLog (conversationId, sources, tokens, log lines) is extracted
+     * from the events themselves — no external mutable state needed.
+     */
+    private Flux<StreamEvent> withDiagnostics(Flux<StreamEvent> stream) {
+        List<StreamEvent> eventLog = new ArrayList<>();
+        return stream
+                .doOnNext(event -> {
+                    eventLog.add(event);
+                    logEventToConsole(event);
                 })
-                // --- Completion: log summary and persist ChatLog ---
-                // Fires after ALL events (including sources) have been emitted.
-                // Logs the final "Received response in X ms [tokens]" line,
-                // forwards it to the logConsumer (if any), and saves a ChatLog entity
-                // with accumulated log messages, sources, and token counts.
-                .doOnComplete(() -> {
-                    long elapsed = System.currentTimeMillis() - startTime;
-                    String msg = "Received response in %d ms [promptTokens: %d, completionTokens: %d]"
-                            .formatted(elapsed, promptTokensRef.get(), completionTokensRef.get());
-                    log.info(msg);
-                    logMessages.add(msg);
-                    if (logConsumer != null) logConsumer.accept(msg);
-
-                    ChatRequestContext ctx = ctxRef.get();
-                    if (ctx != null) {
-                        List<String> urls = extractSourceUrls(ctx.retrievedDocuments());
-                        chatLogManager.saveStreamResponse(ctx.conversationId(), logMessages,
-                                urls.isEmpty() ? null : String.join(",", urls),
-                                promptTokensRef.get(), completionTokensRef.get(), (int) elapsed);
-                    }
-                })
-                // Run the entire chain on a dedicated thread pool so Tomcat servlet
-                // threads are never blocked by JDBC lookups or tool execution.
+                .doOnComplete(() -> persistChatLog(eventLog))
                 .subscribeOn(streamingScheduler);
+    }
+
+    /**
+     * Builds a ChatLog entity from accumulated stream events and persists it.
+     * Extracts conversationId from RequestInfo, sources from Metadata,
+     * token counts and duration from RequestEnd, and formats log lines from all events.
+     */
+    private void persistChatLog(List<StreamEvent> events) {
+        String conversationId = null;
+        List<String> logLines = new ArrayList<>();
+        List<String> sourceUrls = new ArrayList<>();
+        int promptTokens = 0;
+        int completionTokens = 0;
+        long totalDurationMs = 0;
+
+        for (StreamEvent event : events) {
+            switch (event) {
+                case StreamEvent.RequestInfo ri -> {
+                    conversationId = ri.conversationId();
+                    logLines.add("Model: %s, User prompt: %s".formatted(ri.model(), ri.userPrompt()));
+                }
+                case StreamEvent.ToolCallStart tc ->
+                        logLines.add("Using %s: %s".formatted(tc.tool(), tc.query()));
+                case StreamEvent.ToolRetrieved tr ->
+                        logLines.add("Retrieved %d docs in %d ms".formatted(tr.documents().size(), tr.durationMs()));
+                case StreamEvent.ToolReranked tr ->
+                        logLines.add("Reranked to %d docs in %d ms".formatted(tr.documents().size(), tr.durationMs()));
+                case StreamEvent.ToolCallEnd tc ->
+                        logLines.add("%s done in %d ms".formatted(tc.tool(), tc.totalDurationMs()));
+                case StreamEvent.Metadata m -> sourceUrls.add(m.source());
+                case StreamEvent.RequestEnd re -> {
+                    promptTokens = re.promptTokens();
+                    completionTokens = re.completionTokens();
+                    totalDurationMs = re.totalDurationMs();
+                    logLines.add("Received response in %d ms [promptTokens: %d, completionTokens: %d]"
+                            .formatted(re.totalDurationMs(), re.promptTokens(), re.completionTokens()));
+                }
+                default -> {}
+            }
+        }
+
+        if (conversationId != null) {
+            chatLogManager.saveStreamResponse(conversationId, logLines,
+                    sourceUrls.isEmpty() ? null : String.join(",", sourceUrls),
+                    promptTokens, completionTokens, (int) totalDurationMs);
+        }
+    }
+
+    /** Logs significant stream events to console. Content tokens and markers are skipped. */
+    private void logEventToConsole(StreamEvent event) {
+        switch (event) {
+            case StreamEvent.RequestInfo ri ->
+                    log.info("Model: {}, User prompt: {}", ri.model(), abbreviate(ri.userPrompt(), 200));
+            case StreamEvent.ToolCallStart tc ->
+                    log.info("Using {}: {}", tc.tool(), tc.query());
+            case StreamEvent.ToolRetrieved tr ->
+                    log.info("Retrieved {} docs in {} ms", tr.documents().size(), tr.durationMs());
+            case StreamEvent.ToolReranked tr ->
+                    log.info("Reranked to {} docs in {} ms", tr.documents().size(), tr.durationMs());
+            case StreamEvent.ToolCallEnd tc ->
+                    log.info("{} done in {} ms", tc.tool(), tc.totalDurationMs());
+            case StreamEvent.RequestEnd re ->
+                    log.info("Received response in {} ms [promptTokens: {}, completionTokens: {}]",
+                            re.totalDurationMs(), re.promptTokens(), re.completionTokens());
+            default -> {}
+        }
     }
 
     /**
@@ -321,39 +410,46 @@ public class ChatImpl implements Chat {
                                                      ToolEventListener listener) {
         try {
             MDC.put("cid", conversationId != null ? conversationId : "");
-            ChatRequestContext ctx = prepareRequest(userPrompt, parametersYaml, conversationId, listener);
-            log.info("Streaming: model={}, prompt={}",
-                    ctx.chatModel().getDefaultOptions(), abbreviate(userPrompt, 200));
-            return ctx;
+            return prepareRequest(userPrompt, parametersYaml, conversationId, listener);
         } finally {
             MDC.remove("cid");
         }
     }
 
     private List<String> extractSourceUrls(List<Document> documents) {
-        List<String> urls = documents.stream()
+        return documents.stream()
                 .map(doc -> doc.getMetadata().get("url"))
                 .filter(Objects::nonNull)
                 .map(Object::toString)
                 .distinct()
                 .toList();
-        return urls;
     }
 
-    private ToolEventListener createStreamingListener(Sinks.Many<StreamEvent> toolCallSink,
-                                                       @Nullable Consumer<String> logConsumer,
-                                                       List<String> logMessages) {
+    private ToolEventListener createStreamingListener(Sinks.Many<StreamEvent> toolCallSink) {
         return new ToolEventListener() {
             @Override
-            public void onToolCall(String toolName, String query, long durationMs) {
-                toolCallSink.tryEmitNext(new StreamEvent.ToolCall(toolName, query, durationMs));
+            public void onToolCallStart(String tool, String query) {
+                toolCallSink.tryEmitNext(new StreamEvent.ToolCallStart(tool, query));
+            }
+
+            @Override
+            public void onToolRetrieved(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
+                toolCallSink.tryEmitNext(new StreamEvent.ToolRetrieved(tool, documents, durationMs));
+            }
+
+            @Override
+            public void onToolReranked(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
+                toolCallSink.tryEmitNext(new StreamEvent.ToolReranked(tool, documents, durationMs));
+            }
+
+            @Override
+            public void onToolCallEnd(String tool, long totalDurationMs) {
+                toolCallSink.tryEmitNext(new StreamEvent.ToolCallEnd(tool, totalDurationMs));
             }
 
             @Override
             public void onLog(String message) {
                 log.info(message);
-                logMessages.add(message);
-                if (logConsumer != null) logConsumer.accept(message);
             }
         };
     }

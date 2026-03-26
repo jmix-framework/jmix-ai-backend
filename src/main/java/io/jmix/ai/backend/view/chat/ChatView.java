@@ -93,9 +93,8 @@ public class ChatView extends StandardView {
         // doOnError    — show error notification and re-enable input
         // doOnComplete — append total elapsed time, re-enable input
         // subscribe()  — starts the stream (nothing happens until subscribe is called)
-        long startTime = System.currentTimeMillis();
         disposeActiveStream();
-        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId, null)
+        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId)
                 .map(this::renderStreamEvent)
                 .doOnNext(md -> ui.access(() -> {
                     botMsg.appendText(md);
@@ -105,24 +104,43 @@ public class ChatView extends StandardView {
                     notifications.show("Error: " + e.getMessage());
                     messageInput.setEnabled(true);
                 }))
-                .doOnComplete(() -> ui.access(() -> {
-                    long elapsed = System.currentTimeMillis() - startTime;
-                    botMsg.appendText("\n\n---\n_Total time: %.1fs_".formatted(elapsed / 1000.0));
-                    scrollToBottom();
-                    messageInput.setEnabled(true);
-                }))
+                .doOnComplete(() -> ui.access(() -> messageInput.setEnabled(true)))
                 .subscribe();
     }
 
     private String renderStreamEvent(StreamEvent event) {
         return switch (event) {
-            case StreamEvent.ToolCall tc -> "_Using %s %s (%.1fs)_\n\n".formatted(tc.tool(), tc.query(), tc.durationMs() / 1000.0);
+            case StreamEvent.RequestInfo ri ->
+                    "Model: %s  \nUser prompt: %s\n\n---\n".formatted(ri.model(), ri.userPrompt());
+            case StreamEvent.ToolCallStart tc ->
+                    "\n\n**%s**: %s".formatted(tc.tool(), tc.query());
+            case StreamEvent.ToolRetrieved tr -> renderDocList("Retrieved", tr.documents(), tr.durationMs());
+            case StreamEvent.ToolReranked tr -> renderDocList("Reranked", tr.documents(), tr.durationMs());
+            case StreamEvent.ToolCallEnd tc ->
+                    "  \n_%s done in %s_\n\n---\n".formatted(tc.tool(), formatMs(tc.totalDurationMs()));
             case StreamEvent.TokensStart ignored -> "";
             case StreamEvent.Content c -> c.text();
             case StreamEvent.TokensEnd ignored -> "";
             case StreamEvent.SourcesStart ignored -> "\n\n---\n**Sources:**";
             case StreamEvent.Metadata m -> "\n- [%s](%s)".formatted(m.source(), m.source());
+            case StreamEvent.RequestEnd re ->
+                    "\n\n---\nReceived response in %d ms \\[promptTokens: %d, completionTokens: %d\\]"
+                            .formatted(re.totalDurationMs(), re.promptTokens(), re.completionTokens());
         };
+    }
+
+    private static String renderDocList(String label, List<StreamEvent.DocScore> docs, long durationMs) {
+        if (docs.isEmpty()) return "  \n%s (0) - %s".formatted(label, formatMs(durationMs));
+        var sb = new StringBuilder("  \n%s (%d) - %s: ".formatted(label, docs.size(), formatMs(durationMs)));
+        var entries = docs.stream()
+                .map(d -> "(%.3f) %s".formatted(d.score(), d.url()))
+                .toList();
+        sb.append(String.join(", ", entries));
+        return sb.toString();
+    }
+
+    private static String formatMs(long ms) {
+        return ms < 1000 ? ms + "ms" : "%.1fs".formatted(ms / 1000.0);
     }
 
     private void addUserMessage(String text) {
@@ -140,8 +158,17 @@ public class ChatView extends StandardView {
         return msg;
     }
 
+    /**
+     * Auto-scrolls to bottom only if the user hasn't scrolled up.
+     * Uses setTimeout to run after markdown re-renders — without it,
+     * scrollHeight may not reflect the new content yet, causing
+     * the threshold check to falsely detect "user scrolled up".
+     */
     private void scrollToBottom() {
-        messageList.getElement().executeJs("this.scrollTop = this.scrollHeight");
+        messageList.getElement().executeJs(
+                "setTimeout(() => { " +
+                "if (this.scrollHeight - this.scrollTop - this.clientHeight < 110) " +
+                "this.scrollTop = this.scrollHeight; }, 50)");
     }
 
     private void updateConversationId() {

@@ -12,12 +12,15 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.util.ReflectionUtils;
 
+import io.jmix.ai.backend.chat.StreamEvent;
+
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static io.jmix.ai.backend.retrieval.Utils.getDocSourcesAsString;
+import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
 import static io.jmix.ai.backend.retrieval.Utils.getRerankResultsAsString;
 
 public abstract class AbstractRagTool {
@@ -85,11 +88,10 @@ public abstract class AbstractRagTool {
 
     protected String executeSearch(String queryText, double similarityThreshold, int topK) {
         long startTime = System.currentTimeMillis();
-        String toolParams = "['%s', %.2f, %d, %.2f]".formatted(
-                StringUtils.abbreviate(description, 30), similarityThreshold, topK, minScore);
-        listener.onLog("Using %s %s: %s".formatted(toolName, toolParams, queryText));
+        listener.onToolCallStart(toolName, queryText);
 
         try {
+            // Retrieval
             SearchRequest searchRequest = SearchRequest.builder()
                     .filterExpression(new FilterExpressionBuilder().eq("type", type).build())
                     .query(queryText)
@@ -97,12 +99,15 @@ public abstract class AbstractRagTool {
                     .topK(topK)
                     .build();
 
+            long retrievalStart = System.currentTimeMillis();
             List<Document> documents = vectorStore.similaritySearch(searchRequest);
+            long retrievalMs = System.currentTimeMillis() - retrievalStart;
+
             if (documents == null) {
-                listener.onLog("No documents found for the query");
+                listener.onToolRetrieved(toolName, List.of(), retrievalMs);
                 return getNoResultsMessage();
             }
-            listener.onLog("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
+            listener.onToolRetrieved(toolName, toDocScores(documents), retrievalMs);
 
             documents = postRetrievalProcessor.process(queryText, documents);
             if (documents.isEmpty()) {
@@ -110,9 +115,12 @@ public abstract class AbstractRagTool {
                 return getNoResultsMessage();
             }
 
+            // Reranking
             List<Document> filteredDocuments;
 
+            long rerankStart = System.currentTimeMillis();
             List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
+            long rerankMs = System.currentTimeMillis() - rerankStart;
 
             if (rerankResults == null) {
                 listener.onLog("Reranking failed, filtering by minScore");
@@ -120,13 +128,11 @@ public abstract class AbstractRagTool {
                         .filter(document ->
                                 minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
                         .toList();
-                listener.onLog("Filtered documents (%d): %s".formatted(filteredDocuments.size(), getDocSourcesAsString(filteredDocuments)));
-
+                listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
             } else {
                 List<Reranker.Result> filteredRerankResults = rerankResults.stream()
                         .filter(rr -> rr.score() >= minRerankedScore)
                         .toList();
-                listener.onLog("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
 
                 for (Reranker.Result result : filteredRerankResults) {
                     result.document().getMetadata().put("rerankScore", result.score());
@@ -135,6 +141,11 @@ public abstract class AbstractRagTool {
                 filteredDocuments = filteredRerankResults.stream()
                         .map(Reranker.Result::document)
                         .toList();
+                listener.onToolReranked(toolName,
+                        filteredRerankResults.stream()
+                                .map(rr -> new StreamEvent.DocScore(rr.score(), getUrlOrSource(rr.document())))
+                                .toList(),
+                        rerankMs);
             }
 
             if (filteredDocuments.isEmpty()) {
@@ -147,9 +158,16 @@ public abstract class AbstractRagTool {
                     .map(Document::getText)
                     .collect(Collectors.joining("\n\n"));
         } finally {
-            listener.onToolCall(toolName, "%s: %s".formatted(toolParams, queryText),
-                    System.currentTimeMillis() - startTime);
+            listener.onToolCallEnd(toolName, System.currentTimeMillis() - startTime);
         }
+    }
+
+    private static List<StreamEvent.DocScore> toDocScores(List<Document> documents) {
+        return documents.stream()
+                .map(doc -> new StreamEvent.DocScore(
+                        doc.getScore() != null ? doc.getScore() : 0.0,
+                        getUrlOrSource(doc)))
+                .toList();
     }
 
     protected String getNoResultsMessage() {

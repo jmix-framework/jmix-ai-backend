@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Objects;
 
 @RestController
 public class ChatController {
@@ -61,8 +62,8 @@ public class ChatController {
         validateRequest(request);
 
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
-        return chat.requestStream(request.text(), parameters.getContent(), request.conversationId(), null)
-                .map(StreamEventDto::fromModel);
+        return chat.requestStream(request.text(), parameters.getContent(), request.conversationId())
+                .mapNotNull(StreamEventDto::fromModel); // filter out nulls
     }
 
     private void validateRequest(Request request) {
