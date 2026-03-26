@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+
 @Route(value = "chat-view", layout = MainView.class)
 @ViewController(id = "ChatView")
 @ViewDescriptor(path = "chat-view.xml")
@@ -94,7 +95,7 @@ public class ChatView extends StandardView {
         // subscribe()  — starts the stream (nothing happens until subscribe is called)
         long startTime = System.currentTimeMillis();
         disposeActiveStream();
-        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId)
+        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId, null)
                 .map(this::renderStreamEvent)
                 .doOnNext(md -> ui.access(() -> {
                     botMsg.appendText(md);
@@ -115,7 +116,7 @@ public class ChatView extends StandardView {
 
     private String renderStreamEvent(StreamEvent event) {
         return switch (event) {
-            case StreamEvent.ToolCall tc -> "_%s: %s (%.1fs)_\n\n".formatted(tc.tool(), tc.query(), tc.durationMs() / 1000.0);
+            case StreamEvent.ToolCall tc -> "_Using %s %s (%.1fs)_\n\n".formatted(tc.tool(), tc.query(), tc.durationMs() / 1000.0);
             case StreamEvent.TokensStart ignored -> "";
             case StreamEvent.Content c -> c.text();
             case StreamEvent.TokensEnd ignored -> "";

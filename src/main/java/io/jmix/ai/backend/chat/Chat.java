@@ -13,7 +13,8 @@ public interface Chat {
     StructuredResponse requestStructured(String userPrompt, String parametersYaml, @Nullable String conversationId,
                                          @Nullable Consumer<String> externalLogger);
 
-    Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId);
+    Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId,
+                                    @Nullable Consumer<String> logConsumer);
 
     record StructuredResponse(
             String text,

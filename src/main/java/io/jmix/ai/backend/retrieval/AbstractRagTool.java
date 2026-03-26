@@ -85,8 +85,9 @@ public abstract class AbstractRagTool {
 
     protected String executeSearch(String queryText, double similarityThreshold, int topK) {
         long startTime = System.currentTimeMillis();
-        listener.onLog("Using %s ['%s', %.2f, %d, %.2f]: %s".formatted(
-                toolName, StringUtils.abbreviate(description, 10), similarityThreshold, topK, minScore, queryText));
+        String toolParams = "['%s', %.2f, %d, %.2f]".formatted(
+                StringUtils.abbreviate(description, 30), similarityThreshold, topK, minScore);
+        listener.onLog("Using %s %s: %s".formatted(toolName, toolParams, queryText));
 
         try {
             SearchRequest searchRequest = SearchRequest.builder()
@@ -146,7 +147,8 @@ public abstract class AbstractRagTool {
                     .map(Document::getText)
                     .collect(Collectors.joining("\n\n"));
         } finally {
-            listener.onToolCall(toolName, queryText, System.currentTimeMillis() - startTime);
+            listener.onToolCall(toolName, "%s: %s".formatted(toolParams, queryText),
+                    System.currentTimeMillis() - startTime);
         }
     }
 
