@@ -356,9 +356,9 @@ public class ChatImpl implements Chat {
                 case StreamEvent.ToolCallStart tc ->
                         logLines.add("Using %s: %s".formatted(tc.tool(), tc.query()));
                 case StreamEvent.ToolRetrieved tr ->
-                        logLines.add("Retrieved %d docs in %d ms".formatted(tr.documents().size(), tr.durationMs()));
+                        logLines.add("Found documents (%d): %s".formatted(tr.documents().size(), formatDocScores(tr.documents())));
                 case StreamEvent.ToolReranked tr ->
-                        logLines.add("Reranked to %d docs in %d ms".formatted(tr.documents().size(), tr.durationMs()));
+                        logLines.add("Reranked documents (%d): %s".formatted(tr.documents().size(), formatDocScores(tr.documents())));
                 case StreamEvent.ToolCallEnd tc ->
                         logLines.add("%s done in %d ms".formatted(tc.tool(), tc.totalDurationMs()));
                 case StreamEvent.Metadata m -> sourceUrls.add(m.source());
@@ -388,9 +388,9 @@ public class ChatImpl implements Chat {
             case StreamEvent.ToolCallStart tc ->
                     log.info("Using {}: {}", tc.tool(), tc.query());
             case StreamEvent.ToolRetrieved tr ->
-                    log.info("Retrieved {} docs in {} ms", tr.documents().size(), tr.durationMs());
+                    log.info("Found documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
             case StreamEvent.ToolReranked tr ->
-                    log.info("Reranked to {} docs in {} ms", tr.documents().size(), tr.durationMs());
+                    log.info("Reranked documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
             case StreamEvent.ToolCallEnd tc ->
                     log.info("{} done in {} ms", tc.tool(), tc.totalDurationMs());
             case StreamEvent.RequestEnd re ->
@@ -398,6 +398,12 @@ public class ChatImpl implements Chat {
                             re.totalDurationMs(), re.promptTokens(), re.completionTokens());
             default -> {}
         }
+    }
+
+    private static String formatDocScores(List<StreamEvent.DocScore> docs) {
+        return docs.stream()
+                .map(d -> "(%.3f) %s".formatted(d.score(), d.url()))
+                .toList().toString();
     }
 
     /**
@@ -449,7 +455,7 @@ public class ChatImpl implements Chat {
 
             @Override
             public void onLog(String message) {
-                log.info(message);
+                log.debug(message);
             }
         };
     }
