@@ -214,10 +214,14 @@ public class ChatImpl implements Chat {
                     // --- Phase 0: Blocking setup (runs on streamingScheduler, NOT Tomcat thread) ---
                     // Loads parameters from DB, builds the OpenAI client, resolves tools.
                     // MDC "cid" is set for the duration so tool/search logs include conversation id.
+                    ToolEventListener listener = createStreamingListener(toolCallSink, logConsumer, logMessages);
                     ChatRequestContext ctx = prepareRequestWithMdc(
-                            userPrompt, parametersYaml, conversationId,
-                            createStreamingListener(toolCallSink, logConsumer, logMessages));
+                            userPrompt, parametersYaml, conversationId, listener);
                     ctxRef.set(ctx);
+
+                    // Log model info and user prompt through the listener
+                    listener.onLog("Model: %s".formatted(ctx.chatModel().getDefaultOptions()));
+                    listener.onLog("User prompt: %s".formatted(abbreviate(userPrompt, 200)));
 
                     // --- Phase 1: Tool call events ---
                     // Spring AI calls tools synchronously during .stream(). As each tool finishes,
@@ -321,10 +325,7 @@ public class ChatImpl implements Chat {
                                                      ToolEventListener listener) {
         try {
             MDC.put("cid", conversationId != null ? conversationId : "");
-            ChatRequestContext ctx = prepareRequest(userPrompt, parametersYaml, conversationId, listener);
-            log.info("Streaming: model={}, prompt={}",
-                    ctx.chatModel().getDefaultOptions(), abbreviate(userPrompt, 200));
-            return ctx;
+            return prepareRequest(userPrompt, parametersYaml, conversationId, listener);
         } finally {
             MDC.remove("cid");
         }
@@ -346,6 +347,7 @@ public class ChatImpl implements Chat {
         return new ToolEventListener() {
             @Override
             public void onToolCall(String toolName, String query, long durationMs) {
+                logMessages.add("%s: %s (%d ms)".formatted(toolName, query, durationMs));
                 toolCallSink.tryEmitNext(new StreamEvent.ToolCall(toolName, query, durationMs));
             }
 

@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.retrieval;
 
-
 public interface ToolEventListener {
 
     /** Called when a tool finishes execution with full results. */

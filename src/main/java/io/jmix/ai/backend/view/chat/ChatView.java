@@ -93,9 +93,22 @@ public class ChatView extends StandardView {
         // doOnError    — show error notification and re-enable input
         // doOnComplete — append total elapsed time, re-enable input
         // subscribe()  — starts the stream (nothing happens until subscribe is called)
-        long startTime = System.currentTimeMillis();
         disposeActiveStream();
-        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId, null)
+        // logConsumer pushes diagnostic messages (model info, found docs, reranked)
+        // directly into the chat in real-time as tools execute.
+        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId,
+                        msg -> ui.access(() -> {
+                            String prefix;
+                            if (msg.startsWith("Received response")) {
+                                prefix = "\n\n---\n";
+                            } else if (msg.startsWith("Using ")) {
+                                prefix = "\n\n---\n";
+                            } else {
+                                prefix = "  \n";
+                            }
+                            botMsg.appendText(prefix + msg.replace("[", "(").replace("]", ")"));
+                            scrollToBottom();
+                        }))
                 .map(this::renderStreamEvent)
                 .doOnNext(md -> ui.access(() -> {
                     botMsg.appendText(md);
@@ -106,9 +119,6 @@ public class ChatView extends StandardView {
                     messageInput.setEnabled(true);
                 }))
                 .doOnComplete(() -> ui.access(() -> {
-                    long elapsed = System.currentTimeMillis() - startTime;
-                    botMsg.appendText("\n\n---\n_Total time: %.1fs_".formatted(elapsed / 1000.0));
-                    scrollToBottom();
                     messageInput.setEnabled(true);
                 }))
                 .subscribe();
@@ -116,7 +126,7 @@ public class ChatView extends StandardView {
 
     private String renderStreamEvent(StreamEvent event) {
         return switch (event) {
-            case StreamEvent.ToolCall tc -> "_Using %s %s (%.1fs)_\n\n".formatted(tc.tool(), tc.query(), tc.durationMs() / 1000.0);
+            case StreamEvent.ToolCall tc -> "\n\n%s done in %.1fs\n\n---\n\n".formatted(tc.tool(), tc.durationMs() / 1000.0);
             case StreamEvent.TokensStart ignored -> "";
             case StreamEvent.Content c -> c.text();
             case StreamEvent.TokensEnd ignored -> "";
@@ -140,8 +150,16 @@ public class ChatView extends StandardView {
         return msg;
     }
 
+    /**
+     * Auto-scrolls to bottom only if the user hasn't scrolled up.
+     * If the user is within 50px of the bottom, we consider them "following"
+     * the stream and keep scrolling. If they scrolled up to read earlier
+     * content, we leave them alone.
+     */
     private void scrollToBottom() {
-        messageList.getElement().executeJs("this.scrollTop = this.scrollHeight");
+        messageList.getElement().executeJs(
+                "if (this.scrollHeight - this.scrollTop - this.clientHeight < 50) " +
+                "this.scrollTop = this.scrollHeight");
     }
 
     private void updateConversationId() {
