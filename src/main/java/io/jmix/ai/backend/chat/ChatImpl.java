@@ -118,21 +118,21 @@ public class ChatImpl implements Chat {
         ToolEventListener listener = new ToolEventListener() {
             @Override
             public void onToolCallStart(String tool, String query) {
-                String msg = "Using %s: %s".formatted(tool, query);
+                String msg = ">>> Using %s: %s".formatted(tool, query);
                 if (externalLogger != null) externalLogger.accept(msg);
                 addLogMessage(log, logMessages, msg);
             }
 
             @Override
             public void onToolRetrieved(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
-                String msg = "Retrieved %d docs in %d ms".formatted(documents.size(), durationMs);
+                String msg = "Found documents (%d): %s".formatted(documents.size(), formatDocScores(documents));
                 if (externalLogger != null) externalLogger.accept(msg);
                 addLogMessage(log, logMessages, msg);
             }
 
             @Override
             public void onToolReranked(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
-                String msg = "Reranked to %d docs in %d ms".formatted(documents.size(), durationMs);
+                String msg = "Reranked documents (%d): %s".formatted(documents.size(), formatDocScores(documents));
                 if (externalLogger != null) externalLogger.accept(msg);
                 addLogMessage(log, logMessages, msg);
             }
@@ -210,9 +210,9 @@ public class ChatImpl implements Chat {
      * by {@link #withDiagnostics} — callers see a clean event stream.
      */
     @Override
-    public Flux<StreamEvent> requestStream(String userPrompt,
-                                           String parametersYaml,
-                                           @Nullable String conversationId) {
+    public Flux<StreamEventConvHolder> requestStream(String userPrompt,
+                                                      String parametersYaml,
+                                                      @Nullable String conversationId) {
         // Event buffer: tool execution is synchronous (blocking), but we need to
         // deliver tool events into a reactive stream. This sink acts as a queue —
         // the listener pushes events in, the flux reads them out.
@@ -230,16 +230,16 @@ public class ChatImpl implements Chat {
         Flux<StreamEvent> stream = Flux.defer(() -> {
             // -- Blocking setup: loads config from DB, creates OpenAI client, resolves tools --
             ToolEventListener listener = createStreamingListener(toolCallSink);
-            ChatRequestContext ctx = prepareRequestWithMdc(
+            ChatRequestContext ctx = prepareRequest(
                     userPrompt, parametersYaml, conversationId, listener);
-            String cid = ctx.conversationId();
 
             // Tool events (ToolCallStart, ToolRetrieved, etc.) are pushed into the sink
             // by the listener during Spring AI's synchronous tool execution.
             var toolEvents = toolCallSink.asFlux();
 
+            // Request metadata — model config and user prompt
             var requestInfo = emit(new StreamEvent.RequestInfo(
-                    cid, ctx.chatModel().getDefaultOptions().toString(), userPrompt));
+                    ctx.chatModel().getDefaultOptions().toString(), userPrompt));
 
             // Stream content tokens from OpenAI. Each chunk is a ChatResponse object —
             // we extract the text and capture token usage from the last chunk.
@@ -255,9 +255,8 @@ public class ChatImpl implements Chat {
                     })
                     .doOnComplete(toolCallSink::tryEmitComplete);
 
-            // Flux.defer = "evaluate this later, not now". We need it here because
-            // ctx.retrievedDocuments() is empty right now — it gets filled while
-            // content streams (tools run first, then tokens flow).
+            // Source URLs — Flux.defer because the document list is empty right now,
+            // it gets filled during tool execution (which happens during content streaming).
             Flux<StreamEvent> sources = Flux.defer(() -> {
                 List<String> urls = extractSourceUrls(ctx.retrievedDocuments());
                 if (urls.isEmpty()) return Flux.empty();
@@ -265,8 +264,8 @@ public class ChatImpl implements Chat {
                         .concatWith(Flux.fromIterable(urls).map(StreamEvent.Metadata::new));
             });
 
-            // Same idea: token counts and total duration are only known after
-            // all content has been streamed, so we defer the construction.
+            // Final summary — Flux.defer because token counts and duration
+            // are only known after all content has been streamed.
             Flux<StreamEvent> summary = Flux.defer(() -> emit(
                     new StreamEvent.RequestEnd(promptTokensRef.get(), completionTokensRef.get(),
                             System.currentTimeMillis() - startTime)));
@@ -289,7 +288,10 @@ public class ChatImpl implements Chat {
                     .mergeWith(mainSequence);
         });
 
-        return withDiagnostics(stream);
+        // Wrap each event with conversationId for logging/persistence,
+        // then apply cross-cutting diagnostics (console log + ChatLog save).
+        String cid = conversationId != null ? conversationId : "";
+        return withDiagnostics(stream.map(event -> new StreamEventConvHolder(cid, event)));
     }
 
     /** Wraps a single event as a Flux — DSL helper for readable stream assembly. */
@@ -313,46 +315,45 @@ public class ChatImpl implements Chat {
     }
 
     /**
-     * Adds cross-cutting diagnostics to the event stream:
+     * Cross-cutting diagnostics applied to every stream regardless of caller:
      * <ul>
-     *   <li>{@code doOnNext} — logs each event to console via {@link #logEventToConsole}</li>
-     *   <li>{@code doOnComplete} — persists the accumulated events as a ChatLog via {@link #persistChatLog}</li>
-     *   <li>{@code subscribeOn} — runs the entire chain on {@code streamingScheduler},
-     *       keeping Tomcat servlet threads free</li>
+     *   <li>{@code doOnNext} — logs each event to console with conversation id in MDC
+     *       (via {@link #runWithConvId}), so logback pattern {@code [%X{cid}]} works</li>
+     *   <li>{@code doOnComplete} — extracts all data from accumulated events and
+     *       persists a ChatLog entity (no external mutable state — everything from events)</li>
+     *   <li>{@code subscribeOn(streamingScheduler)} — runs the entire chain on a
+     *       dedicated thread pool, keeping Tomcat servlet threads free</li>
      * </ul>
-     * All data for ChatLog (conversationId, sources, tokens, log lines) is extracted
-     * from the events themselves — no external mutable state needed.
      */
-    private Flux<StreamEvent> withDiagnostics(Flux<StreamEvent> stream) {
-        List<StreamEvent> eventLog = new ArrayList<>();
+    private Flux<StreamEventConvHolder> withDiagnostics(Flux<StreamEventConvHolder> stream) {
+        List<StreamEventConvHolder> eventLog = new ArrayList<>();
         return stream
-                .doOnNext(event -> {
-                    eventLog.add(event);
-                    logEventToConsole(event);
+                .doOnNext(holder -> {
+                    eventLog.add(holder);
+                    runWithConvId(holder.conversationId(), () -> logEventToConsole(holder));
                 })
                 .doOnComplete(() -> persistChatLog(eventLog))
                 .subscribeOn(streamingScheduler);
     }
 
     /**
-     * Builds a ChatLog entity from accumulated stream events and persists it.
-     * Extracts conversationId from RequestInfo, sources from Metadata,
-     * token counts and duration from RequestEnd, and formats log lines from all events.
+     * Persists a ChatLog from accumulated stream events.
+     * All data (conversationId, sources, tokens, duration, log lines) is extracted
+     * from the events — no external mutable state needed.
      */
-    private void persistChatLog(List<StreamEvent> events) {
-        String conversationId = null;
+    private void persistChatLog(List<StreamEventConvHolder> holders) {
+        if (holders.isEmpty()) return;
+        String conversationId = holders.getFirst().conversationId();
         List<String> logLines = new ArrayList<>();
         List<String> sourceUrls = new ArrayList<>();
         int promptTokens = 0;
         int completionTokens = 0;
         long totalDurationMs = 0;
 
-        for (StreamEvent event : events) {
-            switch (event) {
-                case StreamEvent.RequestInfo ri -> {
-                    conversationId = ri.conversationId();
+        for (StreamEventConvHolder holder : holders) {
+            switch (holder.event()) {
+                case StreamEvent.RequestInfo ri ->
                     logLines.add("Model: %s, User prompt: %s".formatted(ri.model(), ri.userPrompt()));
-                }
                 case StreamEvent.ToolCallStart tc ->
                         logLines.add("Using %s: %s".formatted(tc.tool(), tc.query()));
                 case StreamEvent.ToolRetrieved tr ->
@@ -373,20 +374,19 @@ public class ChatImpl implements Chat {
             }
         }
 
-        if (conversationId != null) {
-            chatLogManager.saveStreamResponse(conversationId, logLines,
-                    sourceUrls.isEmpty() ? null : String.join(",", sourceUrls),
-                    promptTokens, completionTokens, (int) totalDurationMs);
-        }
+        chatLogManager.saveStreamResponse(conversationId, logLines,
+                sourceUrls.isEmpty() ? null : String.join(",", sourceUrls),
+                promptTokens, completionTokens, (int) totalDurationMs);
     }
 
-    /** Logs significant stream events to console. Content tokens and markers are skipped. */
-    private void logEventToConsole(StreamEvent event) {
-        switch (event) {
+    /** Logs significant stream events to console with conversation id. */
+    /** Logs significant stream events to console. MDC "cid" is set by runWithConvId. */
+    private void logEventToConsole(StreamEventConvHolder holder) {
+        switch (holder.event()) {
             case StreamEvent.RequestInfo ri ->
                     log.info("Model: {}, User prompt: {}", ri.model(), abbreviate(ri.userPrompt(), 200));
             case StreamEvent.ToolCallStart tc ->
-                    log.info("Using {}: {}", tc.tool(), tc.query());
+                    log.info(">>> Using {}: {}", tc.tool(), tc.query());
             case StreamEvent.ToolRetrieved tr ->
                     log.info("Found documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
             case StreamEvent.ToolReranked tr ->
@@ -400,26 +400,26 @@ public class ChatImpl implements Chat {
         }
     }
 
+    /**
+     * Sets MDC "cid" for the duration of the action, then cleans up.
+     * MDC is thread-local, so we can't set it once for the whole stream —
+     * reactive operators may run on different threads. Instead, we set/remove
+     * it around each individual log call. This way logback pattern
+     * {@code [%X{cid}]} shows the conversation id in every log line.
+     */
+    private static void runWithConvId(String conversationId, Runnable action) {
+        MDC.put("cid", conversationId);
+        try {
+            action.run();
+        } finally {
+            MDC.remove("cid");
+        }
+    }
+
     private static String formatDocScores(List<StreamEvent.DocScore> docs) {
         return docs.stream()
                 .map(d -> "(%.3f) %s".formatted(d.score(), d.url()))
                 .toList().toString();
-    }
-
-    /**
-     * Blocking setup with MDC "cid" for logging.
-     * MDC is thread-local, so we clean it up before returning — subsequent reactive
-     * operators may run on different threads.
-     */
-    private ChatRequestContext prepareRequestWithMdc(String userPrompt, String parametersYaml,
-                                                     @Nullable String conversationId,
-                                                     ToolEventListener listener) {
-        try {
-            MDC.put("cid", conversationId != null ? conversationId : "");
-            return prepareRequest(userPrompt, parametersYaml, conversationId, listener);
-        } finally {
-            MDC.remove("cid");
-        }
     }
 
     private List<String> extractSourceUrls(List<Document> documents) {

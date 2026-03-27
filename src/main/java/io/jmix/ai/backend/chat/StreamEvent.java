@@ -35,7 +35,7 @@ public sealed interface StreamEvent {
 
     // --- Request lifecycle ---
 
-    record RequestInfo(String conversationId, String model, String userPrompt) implements StreamEvent {}
+    record RequestInfo(String model, String userPrompt) implements StreamEvent {}
 
     record RequestEnd(int promptTokens, int completionTokens, long totalDurationMs) implements StreamEvent {}
 

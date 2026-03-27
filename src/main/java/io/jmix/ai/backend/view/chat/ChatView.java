@@ -11,6 +11,7 @@ import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chat.StreamEvent;
+import io.jmix.ai.backend.chat.StreamEventConvHolder;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -108,10 +109,10 @@ public class ChatView extends StandardView {
                 .subscribe();
     }
 
-    private String renderStreamEvent(StreamEvent event) {
-        return switch (event) {
+    private String renderStreamEvent(StreamEventConvHolder holder) {
+        return switch (holder.event()) {
             case StreamEvent.RequestInfo ri ->
-                    "Model: %s  \nUser prompt: %s\n\n---\n".formatted(ri.model(), ri.userPrompt());
+                    "Conversation ID: %s  \nModel: %s  \nUser prompt: %s\n\n---\n".formatted(holder.conversationId(), ri.model(), ri.userPrompt());
             case StreamEvent.ToolCallStart tc ->
                     "\n\n**%s**: %s".formatted(tc.tool(), tc.query());
             case StreamEvent.ToolRetrieved tr -> renderDocList("Retrieved", tr.documents(), tr.durationMs());

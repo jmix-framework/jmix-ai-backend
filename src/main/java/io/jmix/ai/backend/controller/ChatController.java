@@ -63,7 +63,7 @@ public class ChatController {
 
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
         return chat.requestStream(request.text(), parameters.getContent(), request.conversationId())
-                .mapNotNull(StreamEventDto::fromModel); // filter out nulls
+                .mapNotNull(holder -> StreamEventDto.fromModel(holder.event()));
     }
 
     private void validateRequest(Request request) {

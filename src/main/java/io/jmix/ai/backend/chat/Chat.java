@@ -10,10 +10,12 @@ import java.util.function.Consumer;
 
 public interface Chat {
 
+    /** @deprecated Use {@link #requestStream} instead. */
+    @Deprecated
     StructuredResponse requestStructured(String userPrompt, String parametersYaml, @Nullable String conversationId,
                                          @Nullable Consumer<String> externalLogger);
 
-    default Flux<StreamEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId) {
+    default Flux<StreamEventConvHolder> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId) {
         throw new UnsupportedOperationException("Streaming not supported");
     }
 
