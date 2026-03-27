@@ -39,11 +39,11 @@ import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Scheduler;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
@@ -213,21 +213,21 @@ public class ChatImpl implements Chat {
     public Flux<StreamEventConvHolder> requestStream(String userPrompt,
                                                       String parametersYaml,
                                                       @Nullable String conversationId) {
-        // Event buffer: tool execution is synchronous (blocking), but we need to
-        // deliver tool events into a reactive stream. This sink acts as a queue —
-        // the listener pushes events in, the flux reads them out.
-        Sinks.Many<StreamEvent> toolCallSink = Sinks.many().unicast().onBackpressureBuffer();
-
-        // OpenAI reports token usage only in the very last streaming chunk.
-        // We capture it here during streaming, then read when building RequestEnd.
-        long startTime = System.currentTimeMillis();
-        AtomicInteger promptTokensRef = new AtomicInteger();
-        AtomicInteger completionTokensRef = new AtomicInteger();
-
         // Flux.defer = "don't run this code now, run it when someone subscribes".
         // This is how we move the blocking DB/tool setup off the caller's thread
         // onto streamingScheduler (applied in withDiagnostics via subscribeOn).
+        //
+        // NOTE: returned Flux is single-subscription only (unicast sink).
+        // Do not cache, share, or resubscribe — each call to requestStream
+        // must create a fresh subscription.
         Flux<StreamEvent> stream = Flux.defer(() -> {
+            // Event buffer: tool execution is synchronous (blocking), but we need to
+            // deliver tool events into a reactive stream. This sink acts as a queue —
+            // the listener pushes events in, the flux reads them out.
+            Sinks.Many<StreamEvent> toolCallSink = Sinks.many().unicast().onBackpressureBuffer();
+            long startTime = System.currentTimeMillis();
+            AtomicInteger promptTokensRef = new AtomicInteger();
+            AtomicInteger completionTokensRef = new AtomicInteger();
             // -- Blocking setup: loads config from DB, creates OpenAI client, resolves tools --
             ToolEventListener listener = createStreamingListener(toolCallSink);
             ChatRequestContext ctx = prepareRequest(
@@ -246,7 +246,7 @@ public class ChatImpl implements Chat {
             // IMPORTANT: doOnComplete closes the tool sink. Without this, mergeWith
             // below would wait for more tool events forever and the stream would hang.
             var content = ctx.request().stream().chatResponse()
-                    .<StreamEvent>flatMap(chunk -> {
+                    .<StreamEvent>concatMap(chunk -> {
                         captureTokenUsage(chunk, promptTokensRef, completionTokensRef);
                         String text = getContentFromChatResponse(chunk);
                         return (text != null && !text.isEmpty())
@@ -326,7 +326,7 @@ public class ChatImpl implements Chat {
      * </ul>
      */
     private Flux<StreamEventConvHolder> withDiagnostics(Flux<StreamEventConvHolder> stream) {
-        List<StreamEventConvHolder> eventLog = new ArrayList<>();
+        List<StreamEventConvHolder> eventLog = Collections.synchronizedList(new ArrayList<>());
         return stream
                 .doOnNext(holder -> {
                     eventLog.add(holder);
