@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.retrieval;
 
+import io.jmix.ai.backend.chat.EventStreamValueHolder;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -10,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
 import static io.jmix.ai.backend.retrieval.Utils.getDistinctDocuments;
@@ -33,13 +33,36 @@ public class SearchService {
 
         List<String> logMessages = new ArrayList<>();
 
-        Consumer<String> internalLogger = message -> {
-            addLogMessage(logger, logMessages, message);
+        ToolEventListener listener = new ToolEventListener() {
+            @Override
+            public void onToolCallStart(String tool, String query) {
+                addLogMessage(logger, logMessages, "Using %s: %s".formatted(tool, query));
+            }
+
+            @Override
+            public void onToolRetrieved(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
+                addLogMessage(logger, logMessages, "Retrieved %d docs in %d ms".formatted(documents.size(), durationMs));
+            }
+
+            @Override
+            public void onToolReranked(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
+                addLogMessage(logger, logMessages, "Reranked to %d docs in %d ms".formatted(documents.size(), durationMs));
+            }
+
+            @Override
+            public void onToolCallEnd(String tool, long totalDurationMs) {
+                addLogMessage(logger, logMessages, "%s done in %d ms".formatted(tool, totalDurationMs));
+            }
+
+            @Override
+            public void onLog(String message) {
+                addLogMessage(logger, logMessages, message);
+            }
         };
 
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.SEARCH);
 
-        List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, internalLogger);
+        List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, listener);
 
         for (AbstractRagTool tool : ragTools) {
             tool.execute(query);

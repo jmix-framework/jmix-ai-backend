@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 @Component
 public class ToolsManager {
@@ -27,23 +26,21 @@ public class ToolsManager {
         this.reranker = reranker;
     }
 
-    public List<AbstractRagTool> getTools(String parametersYaml, List<Document> retrievedDocuments, Consumer<String> internalLogger) {
+    public List<AbstractRagTool> getTools(String parametersYaml, List<Document> retrievedDocuments, ToolEventListener listener) {
         ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
 
-        PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(PostRetrievalProcessor.class, parametersReader, internalLogger);
+        PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(
+                PostRetrievalProcessor.class, parametersReader, (java.util.function.Consumer<String>) listener::onLog);
 
         List<AbstractRagTool> tools = new ArrayList<>();
         if (parametersReader.getBoolean("tools.documentation_retriever.enabled", true)) {
-            DocsTool tool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-            tools.add(tool);
+            tools.add(new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener));
         }
         if (parametersReader.getBoolean("tools.uisamples_retriever.enabled", true)) {
-            UiSamplesTool tool = new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-            tools.add(tool);
+            tools.add(new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener));
         }
         if (parametersReader.getBoolean("tools.trainings_retriever.enabled", true)) {
-            TrainingsTool tool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
-            tools.add(tool);
+            tools.add(new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener));
         }
         return tools;
     }

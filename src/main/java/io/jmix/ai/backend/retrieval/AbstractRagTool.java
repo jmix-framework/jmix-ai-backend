@@ -12,14 +12,14 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.util.ReflectionUtils;
 
+import io.jmix.ai.backend.chat.EventStreamValueHolder;
+
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.jmix.ai.backend.retrieval.Utils.getDocSourcesAsString;
-import static io.jmix.ai.backend.retrieval.Utils.getRerankResultsAsString;
+import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
 
 public abstract class AbstractRagTool {
 
@@ -28,7 +28,7 @@ public abstract class AbstractRagTool {
     private final PostRetrievalProcessor postRetrievalProcessor;
     private final Reranker reranker;
     private final List<Document> retrievedDocuments;
-    private final Consumer<String> logger;
+    private final ToolEventListener listener;
     protected final String type;
     protected String description;
     protected double similarityThreshold;
@@ -40,13 +40,14 @@ public abstract class AbstractRagTool {
 
     protected AbstractRagTool(String toolName, String type, VectorStore vectorStore,
                               PostRetrievalProcessor postRetrievalProcessor, Reranker reranker,
-                              ParametersReader parametersReader, List<Document> retrievedDocuments, Consumer<String> logger) {
+                              ParametersReader parametersReader, List<Document> retrievedDocuments,
+                              ToolEventListener listener) {
         this.toolName = toolName;
         this.vectorStore = vectorStore;
         this.postRetrievalProcessor = postRetrievalProcessor;
         this.reranker = reranker;
         this.retrievedDocuments = retrievedDocuments;
-        this.logger = logger;
+        this.listener = listener;
         this.type = type;
         init(parametersReader);
     }
@@ -84,65 +85,87 @@ public abstract class AbstractRagTool {
     }
 
     protected String executeSearch(String queryText, double similarityThreshold, int topK) {
-        logger.accept(">>> Using %s ['%s', %.2f, %d, %.2f]: %s".formatted(
-                toolName, StringUtils.abbreviate(description, 10), similarityThreshold, topK, minScore, queryText));
+        long startTime = System.currentTimeMillis();
+        listener.onToolCallStart(toolName, queryText);
 
-        SearchRequest searchRequest = SearchRequest.builder()
-                .filterExpression(new FilterExpressionBuilder().eq("type", type).build())
-                .query(queryText)
-                .similarityThreshold(similarityThreshold)
-                .topK(topK)
-                .build();
+        try {
+            // Retrieval
+            SearchRequest searchRequest = SearchRequest.builder()
+                    .filterExpression(new FilterExpressionBuilder().eq("type", type).build())
+                    .query(queryText)
+                    .similarityThreshold(similarityThreshold)
+                    .topK(topK)
+                    .build();
 
-        List<Document> documents = vectorStore.similaritySearch(searchRequest);
-        if (documents == null) {
-            logger.accept("No documents found for the query");
-            return getNoResultsMessage();
-        }
-        logger.accept("Found documents (%d): %s".formatted(documents.size(), getDocSourcesAsString(documents)));
+            long retrievalStart = System.currentTimeMillis();
+            List<Document> documents = vectorStore.similaritySearch(searchRequest);
+            long retrievalMs = System.currentTimeMillis() - retrievalStart;
 
-        documents = postRetrievalProcessor.process(queryText, documents);
-        if (documents.isEmpty()) {
-            logger.accept("All documents filtered out by PostRetrievalProcessor");
-            return getNoResultsMessage();
-        }
+            if (documents == null) {
+                listener.onToolRetrieved(toolName, List.of(), retrievalMs);
+                return getNoResultsMessage();
+            }
+            listener.onToolRetrieved(toolName, toDocScores(documents), retrievalMs);
 
-        List<Document> filteredDocuments;
-
-        List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
-
-        if (rerankResults == null) {
-            logger.accept("Reranking failed, filtering by minScore");
-            filteredDocuments = documents.stream()
-                    .filter(document ->
-                            minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                    .toList();
-            logger.accept("Filtered documents (%d): %s".formatted(filteredDocuments.size(), getDocSourcesAsString(filteredDocuments)));
-
-        } else {
-            List<Reranker.Result> filteredRerankResults = rerankResults.stream()
-                    .filter(rr -> rr.score() >= minRerankedScore)
-                    .toList();
-            logger.accept("Reranked documents (%d): %s".formatted(filteredRerankResults.size(), getRerankResultsAsString(filteredRerankResults)));
-
-            for (Reranker.Result result : filteredRerankResults) {
-                result.document().getMetadata().put("rerankScore", result.score());
+            documents = postRetrievalProcessor.process(queryText, documents);
+            if (documents.isEmpty()) {
+                listener.onLog("All documents filtered out by PostRetrievalProcessor");
+                return getNoResultsMessage();
             }
 
-            filteredDocuments = filteredRerankResults.stream()
-                    .map(Reranker.Result::document)
-                    .toList();
+            // Reranking
+            List<Document> filteredDocuments;
+
+            long rerankStart = System.currentTimeMillis();
+            List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
+            long rerankMs = System.currentTimeMillis() - rerankStart;
+
+            if (rerankResults == null) {
+                listener.onLog("Reranking failed, filtering by minScore");
+                filteredDocuments = documents.stream()
+                        .filter(document ->
+                                minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
+                        .toList();
+                listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
+            } else {
+                List<Reranker.Result> filteredRerankResults = rerankResults.stream()
+                        .filter(rr -> rr.score() >= minRerankedScore)
+                        .toList();
+
+                for (Reranker.Result result : filteredRerankResults) {
+                    result.document().getMetadata().put("rerankScore", result.score());
+                }
+
+                filteredDocuments = filteredRerankResults.stream()
+                        .map(Reranker.Result::document)
+                        .toList();
+                listener.onToolReranked(toolName,
+                        filteredRerankResults.stream()
+                                .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), getUrlOrSource(rr.document())))
+                                .toList(),
+                        rerankMs);
+            }
+
+            if (filteredDocuments.isEmpty()) {
+                return getNoResultsMessage();
+            }
+
+            retrievedDocuments.addAll(filteredDocuments);
+
+            return filteredDocuments.stream()
+                    .map(Document::getText)
+                    .collect(Collectors.joining("\n\n"));
+        } finally {
+            listener.onToolCallEnd(toolName, System.currentTimeMillis() - startTime);
         }
+    }
 
-        if (filteredDocuments.isEmpty()) {
-            return getNoResultsMessage();
-        }
-
-        retrievedDocuments.addAll(filteredDocuments);
-
-        return filteredDocuments.stream()
-                .map(Document::getText)
-                .collect(Collectors.joining("\n\n"));
+    private static List<EventStreamValueHolder.DocScore> toDocScores(List<Document> documents) {
+        return documents.stream()
+                .map(doc -> new EventStreamValueHolder.DocScore(
+                        doc.getScore() != null ? doc.getScore() : 0.0,
+                        getUrlOrSource(doc)))
+                .toList();
     }
 
     protected String getNoResultsMessage() {

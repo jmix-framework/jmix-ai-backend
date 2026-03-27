@@ -4,17 +4,10 @@
     <facets>
         <urlQueryParameters id="urlQueryParameters"/>
     </facets>
-    <layout>
-        <textArea id="userMessageField" height="10em" width="100%">
-            <suffix>
-                <button id="copyToClipboardButton" icon="CLIPBOARD" title="Copy to clipboard"
-                        themeNames="tertiary-inline" tabIndex="-1"/>
-            </suffix>
-        </textArea>
-        <hbox width="100%" alignItems="CENTER">
-            <button id="sendButton" text="Send" themeNames="primary"/>
-            <button id="newChatButton" text="New chat"/>
-            <span text="Parameters"/>
+    <layout spacing="true" padding="false">
+        <hbox width="100%" alignItems="CENTER" padding="true" spacing="true">
+            <button id="newChatButton" text="New chat" themeNames="tertiary"/>
+            <span text="Parameters:"/>
             <entityPicker id="parametersPicker" metaClass="Parameters" required="true" width="100%">
                 <actions>
                     <action id="lookupAction" type="entity_lookup">
@@ -30,8 +23,5 @@
                 </actions>
             </entityPicker>
         </hbox>
-        <scroller id="scroller" width="100%">
-            <vbox id="responseBox" width="100%"/>
-        </scroller>
     </layout>
 </view>

@@ -3,7 +3,10 @@ package io.jmix.ai.backend.chatlog;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.entity.ChatLog;
 import io.jmix.core.UnconstrainedDataManager;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 public class ChatLogManager {
@@ -22,6 +25,19 @@ public class ChatLogManager {
         chatLog.setPromptTokens(response.promptTokens());
         chatLog.setCompletionTokens(response.completionTokens());
         chatLog.setResponseTime(response.responseTime());
+        dataManager.save(chatLog);
+    }
+
+    public void saveStreamResponse(String conversationId, List<String> logMessages,
+                                    @Nullable String sources,
+                                    int promptTokens, int completionTokens, int responseTime) {
+        ChatLog chatLog = dataManager.create(ChatLog.class);
+        chatLog.setConversationId(conversationId);
+        chatLog.setContent(String.join("\n", logMessages));
+        chatLog.setSources(sources);
+        chatLog.setPromptTokens(promptTokens);
+        chatLog.setCompletionTokens(completionTokens);
+        chatLog.setResponseTime(responseTime);
         dataManager.save(chatLog);
     }
 
