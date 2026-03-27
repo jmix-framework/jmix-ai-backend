@@ -2,11 +2,11 @@ package io.jmix.ai.backend.dto;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import io.jmix.ai.backend.chat.StreamEvent;
+import io.jmix.ai.backend.chat.EventStreamValueHolder;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Public API representation of {@link StreamEvent}.
+ * Public API representation of {@link EventStreamValueHolder}.
  * Exposes only what external consumers need — no internal details like search queries or diagnostics.
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
@@ -33,20 +33,20 @@ public sealed interface StreamEventDto {
     record Metadata(String source) implements StreamEventDto {}
 
     /** Maps internal StreamEvent to public DTO. Returns null for internal-only events. */
-    static StreamEventDto fromModel(StreamEvent event) {
+    static StreamEventDto fromModel(EventStreamValueHolder event) {
         return switch (event) {
-            case StreamEvent.ToolCallStart tc -> new ToolCall(tc.tool());
-            case StreamEvent.TokensStart ignored -> new TokensStart();
-            case StreamEvent.Content c -> new Content(c.text());
-            case StreamEvent.TokensEnd ignored -> new TokensEnd();
-            case StreamEvent.SourcesStart ignored -> new SourcesStart();
-            case StreamEvent.Metadata m -> new Metadata(m.source());
+            case EventStreamValueHolder.ToolCallStart tc -> new ToolCall(tc.tool());
+            case EventStreamValueHolder.TokensStart ignored -> new TokensStart();
+            case EventStreamValueHolder.Content c -> new Content(c.text());
+            case EventStreamValueHolder.TokensEnd ignored -> new TokensEnd();
+            case EventStreamValueHolder.SourcesStart ignored -> new SourcesStart();
+            case EventStreamValueHolder.Metadata m -> new Metadata(m.source());
             // Internal-only events — filtered by Objects::nonNull in controller
-            case StreamEvent.RequestInfo ignored -> null;
-            case StreamEvent.ToolRetrieved ignored -> null;
-            case StreamEvent.ToolReranked ignored -> null;
-            case StreamEvent.ToolCallEnd ignored -> null;
-            case StreamEvent.RequestEnd ignored -> null;
+            case EventStreamValueHolder.RequestInfo ignored -> null;
+            case EventStreamValueHolder.ToolRetrieved ignored -> null;
+            case EventStreamValueHolder.ToolReranked ignored -> null;
+            case EventStreamValueHolder.ToolCallEnd ignored -> null;
+            case EventStreamValueHolder.RequestEnd ignored -> null;
         };
     }
 }

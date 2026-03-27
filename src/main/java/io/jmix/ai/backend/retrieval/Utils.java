@@ -20,22 +20,6 @@ public final class Utils {
             return (String) document.getMetadata().get("source");
     }
 
-    public static String getDocSourcesAsString(List<Document> documents) {
-        return documents.stream()
-                .map(document ->
-                        "(%.3f) %s".formatted(document.getScore(), getUrlOrSource(document)))
-                .toList()
-                .toString();
-    }
-
-    public static String getRerankResultsAsString(List<Reranker.Result> rerankResults) {
-        return rerankResults.stream()
-                .map(rr ->
-                        "(%.3f) %s".formatted(rr.score(), getUrlOrSource(rr.document())))
-                .toList()
-                .toString();
-    }
-
     public static List<Document> getDistinctDocuments(List<Document> documents) {
         Set<Object> seen = new HashSet<>();
         return documents.stream()

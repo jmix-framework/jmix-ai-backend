@@ -12,16 +12,14 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.util.ReflectionUtils;
 
-import io.jmix.ai.backend.chat.StreamEvent;
+import io.jmix.ai.backend.chat.EventStreamValueHolder;
 
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static io.jmix.ai.backend.retrieval.Utils.getDocSourcesAsString;
 import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
-import static io.jmix.ai.backend.retrieval.Utils.getRerankResultsAsString;
 
 public abstract class AbstractRagTool {
 
@@ -143,7 +141,7 @@ public abstract class AbstractRagTool {
                         .toList();
                 listener.onToolReranked(toolName,
                         filteredRerankResults.stream()
-                                .map(rr -> new StreamEvent.DocScore(rr.score(), getUrlOrSource(rr.document())))
+                                .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), getUrlOrSource(rr.document())))
                                 .toList(),
                         rerankMs);
             }
@@ -162,9 +160,9 @@ public abstract class AbstractRagTool {
         }
     }
 
-    private static List<StreamEvent.DocScore> toDocScores(List<Document> documents) {
+    private static List<EventStreamValueHolder.DocScore> toDocScores(List<Document> documents) {
         return documents.stream()
-                .map(doc -> new StreamEvent.DocScore(
+                .map(doc -> new EventStreamValueHolder.DocScore(
                         doc.getScore() != null ? doc.getScore() : 0.0,
                         getUrlOrSource(doc)))
                 .toList();

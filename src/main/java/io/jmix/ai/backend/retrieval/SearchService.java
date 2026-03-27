@@ -1,6 +1,6 @@
 package io.jmix.ai.backend.retrieval;
 
-import io.jmix.ai.backend.chat.StreamEvent;
+import io.jmix.ai.backend.chat.EventStreamValueHolder;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -40,12 +40,12 @@ public class SearchService {
             }
 
             @Override
-            public void onToolRetrieved(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
+            public void onToolRetrieved(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
                 addLogMessage(logger, logMessages, "Retrieved %d docs in %d ms".formatted(documents.size(), durationMs));
             }
 
             @Override
-            public void onToolReranked(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
+            public void onToolReranked(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
                 addLogMessage(logger, logMessages, "Reranked to %d docs in %d ms".formatted(documents.size(), durationMs));
             }
 

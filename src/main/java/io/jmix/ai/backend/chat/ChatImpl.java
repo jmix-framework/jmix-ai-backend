@@ -38,6 +38,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Scheduler;
 
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -124,14 +128,14 @@ public class ChatImpl implements Chat {
             }
 
             @Override
-            public void onToolRetrieved(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
+            public void onToolRetrieved(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
                 String msg = "Found documents (%d): %s".formatted(documents.size(), formatDocScores(documents));
                 if (externalLogger != null) externalLogger.accept(msg);
                 addLogMessage(log, logMessages, msg);
             }
 
             @Override
-            public void onToolReranked(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
+            public void onToolReranked(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
                 String msg = "Reranked documents (%d): %s".formatted(documents.size(), formatDocScores(documents));
                 if (externalLogger != null) externalLogger.accept(msg);
                 addLogMessage(log, logMessages, msg);
@@ -179,7 +183,7 @@ public class ChatImpl implements Chat {
     }
 
     /**
-     * Streams the assistant response as a sequence of typed {@link StreamEvent}s via SSE.
+     * Streams the assistant response as a sequence of typed {@link EventStreamValueHolder}s via SSE.
      *
      * <p>Events always arrive in this order:
      * <pre>
@@ -210,7 +214,7 @@ public class ChatImpl implements Chat {
      * by {@link #withDiagnostics} — callers see a clean event stream.
      */
     @Override
-    public Flux<StreamEventConvHolder> requestStream(String userPrompt,
+    public Flux<StreamingEvent> requestStream(String userPrompt,
                                                       String parametersYaml,
                                                       @Nullable String conversationId) {
         // Flux.defer = "don't run this code now, run it when someone subscribes".
@@ -220,16 +224,21 @@ public class ChatImpl implements Chat {
         // NOTE: returned Flux is single-subscription only (unicast sink).
         // Do not cache, share, or resubscribe — each call to requestStream
         // must create a fresh subscription.
-        Flux<StreamEvent> stream = Flux.defer(() -> {
+        Flux<EventStreamValueHolder> stream = Flux.defer(() -> {
             // Event buffer: tool execution is synchronous (blocking), but we need to
             // deliver tool events into a reactive stream. This sink acts as a queue —
             // the listener pushes events in, the flux reads them out.
-            Sinks.Many<StreamEvent> toolCallSink = Sinks.many().unicast().onBackpressureBuffer();
+            Sinks.Many<EventStreamValueHolder> toolCallSink = Sinks.many().unicast().onBackpressureBuffer();
             long startTime = System.currentTimeMillis();
             AtomicInteger promptTokensRef = new AtomicInteger();
             AtomicInteger completionTokensRef = new AtomicInteger();
             // -- Blocking setup: loads config from DB, creates OpenAI client, resolves tools --
-            ToolEventListener listener = createStreamingListener(toolCallSink);
+            String cid = conversationId != null ? conversationId : "";
+
+            // Pushes tool lifecycle events into the sink.
+            // MDC "cid" is set from onToolCallStart to onToolCallEnd
+            // so any logging during tool execution (e.g. Reranker) includes conversation id.
+            ToolEventListener listener = createStreamingListener(toolCallSink, cid);
             ChatRequestContext ctx = prepareRequest(
                     userPrompt, parametersYaml, conversationId, listener);
 
@@ -238,7 +247,7 @@ public class ChatImpl implements Chat {
             var toolEvents = toolCallSink.asFlux();
 
             // Request metadata — model config and user prompt
-            var requestInfo = emit(new StreamEvent.RequestInfo(
+            var requestInfo = emit(new EventStreamValueHolder.RequestInfo(
                     ctx.chatModel().getDefaultOptions().toString(), userPrompt));
 
             // Stream content tokens from OpenAI. Each chunk is a ChatResponse object —
@@ -246,28 +255,28 @@ public class ChatImpl implements Chat {
             // IMPORTANT: doOnComplete closes the tool sink. Without this, mergeWith
             // below would wait for more tool events forever and the stream would hang.
             var content = ctx.request().stream().chatResponse()
-                    .<StreamEvent>concatMap(chunk -> {
+                    .<EventStreamValueHolder>concatMap(chunk -> {
                         captureTokenUsage(chunk, promptTokensRef, completionTokensRef);
                         String text = getContentFromChatResponse(chunk);
                         return (text != null && !text.isEmpty())
-                                ? Flux.just(new StreamEvent.Content(text))
+                                ? Flux.just(new EventStreamValueHolder.Content(text))
                                 : Flux.empty();
                     })
                     .doOnComplete(toolCallSink::tryEmitComplete);
 
             // Source URLs — Flux.defer because the document list is empty right now,
             // it gets filled during tool execution (which happens during content streaming).
-            Flux<StreamEvent> sources = Flux.defer(() -> {
+            Flux<EventStreamValueHolder> sources = Flux.defer(() -> {
                 List<String> urls = extractSourceUrls(ctx.retrievedDocuments());
                 if (urls.isEmpty()) return Flux.empty();
-                return emit(new StreamEvent.SourcesStart())
-                        .concatWith(Flux.fromIterable(urls).map(StreamEvent.Metadata::new));
+                return emit(new EventStreamValueHolder.SourcesStart())
+                        .concatWith(Flux.fromIterable(urls).map(EventStreamValueHolder.Metadata::new));
             });
 
             // Final summary — Flux.defer because token counts and duration
             // are only known after all content has been streamed.
-            Flux<StreamEvent> summary = Flux.defer(() -> emit(
-                    new StreamEvent.RequestEnd(promptTokensRef.get(), completionTokensRef.get(),
+            Flux<EventStreamValueHolder> summary = Flux.defer(() -> emit(
+                    new EventStreamValueHolder.RequestEnd(promptTokensRef.get(), completionTokensRef.get(),
                             System.currentTimeMillis() - startTime)));
 
             // -- Assembly --
@@ -278,9 +287,9 @@ public class ChatImpl implements Chat {
             // Tool events merge in alongside — they arrive during content streaming
             // but in practice all fire before the first content token.
             var mainSequence = requestInfo
-                    .concatWith(emit(new StreamEvent.TokensStart()))
+                    .concatWith(emit(new EventStreamValueHolder.TokensStart()))
                     .concatWith(content)
-                    .concatWith(emit(new StreamEvent.TokensEnd()))
+                    .concatWith(emit(new EventStreamValueHolder.TokensEnd()))
                     .concatWith(sources)
                     .concatWith(summary);
 
@@ -291,11 +300,11 @@ public class ChatImpl implements Chat {
         // Wrap each event with conversationId for logging/persistence,
         // then apply cross-cutting diagnostics (console log + ChatLog save).
         String cid = conversationId != null ? conversationId : "";
-        return withDiagnostics(stream.map(event -> new StreamEventConvHolder(cid, event)));
+        return withDiagnostics(stream.map(event -> StreamingEvent.of(cid, event)));
     }
 
     /** Wraps a single event as a Flux — DSL helper for readable stream assembly. */
-    private static Flux<StreamEvent> emit(StreamEvent e) {
+    private static Flux<EventStreamValueHolder> emit(EventStreamValueHolder e) {
         return Flux.just(e);
     }
 
@@ -325,8 +334,8 @@ public class ChatImpl implements Chat {
      *       dedicated thread pool, keeping Tomcat servlet threads free</li>
      * </ul>
      */
-    private Flux<StreamEventConvHolder> withDiagnostics(Flux<StreamEventConvHolder> stream) {
-        List<StreamEventConvHolder> eventLog = Collections.synchronizedList(new ArrayList<>());
+    private Flux<StreamingEvent> withDiagnostics(Flux<StreamingEvent> stream) {
+        List<StreamingEvent> eventLog = Collections.synchronizedList(new ArrayList<>());
         return stream
                 .doOnNext(holder -> {
                     eventLog.add(holder);
@@ -341,7 +350,7 @@ public class ChatImpl implements Chat {
      * All data (conversationId, sources, tokens, duration, log lines) is extracted
      * from the events — no external mutable state needed.
      */
-    private void persistChatLog(List<StreamEventConvHolder> holders) {
+    private void persistChatLog(List<StreamingEvent> holders) {
         if (holders.isEmpty()) return;
         String conversationId = holders.getFirst().conversationId();
         List<String> logLines = new ArrayList<>();
@@ -350,25 +359,26 @@ public class ChatImpl implements Chat {
         int completionTokens = 0;
         long totalDurationMs = 0;
 
-        for (StreamEventConvHolder holder : holders) {
-            switch (holder.event()) {
-                case StreamEvent.RequestInfo ri ->
-                    logLines.add("Model: %s, User prompt: %s".formatted(ri.model(), ri.userPrompt()));
-                case StreamEvent.ToolCallStart tc ->
-                        logLines.add("Using %s: %s".formatted(tc.tool(), tc.query()));
-                case StreamEvent.ToolRetrieved tr ->
-                        logLines.add("Found documents (%d): %s".formatted(tr.documents().size(), formatDocScores(tr.documents())));
-                case StreamEvent.ToolReranked tr ->
-                        logLines.add("Reranked documents (%d): %s".formatted(tr.documents().size(), formatDocScores(tr.documents())));
-                case StreamEvent.ToolCallEnd tc ->
-                        logLines.add("%s done in %d ms".formatted(tc.tool(), tc.totalDurationMs()));
-                case StreamEvent.Metadata m -> sourceUrls.add(m.source());
-                case StreamEvent.RequestEnd re -> {
+        for (StreamingEvent holder : holders) {
+            String ts = formatTimestamp(holder.timestamp());
+            switch (holder.value()) {
+                case EventStreamValueHolder.RequestInfo ri ->
+                    logLines.add("%s Model: %s, User prompt: %s".formatted(ts, ri.model(), ri.userPrompt()));
+                case EventStreamValueHolder.ToolCallStart tc ->
+                        logLines.add("%s >>> Using %s: %s".formatted(ts, tc.tool(), tc.query()));
+                case EventStreamValueHolder.ToolRetrieved tr ->
+                        logLines.add("%s Found documents (%d) in %d ms: %s".formatted(ts, tr.documents().size(), tr.durationMs(), formatDocScores(tr.documents())));
+                case EventStreamValueHolder.ToolReranked tr ->
+                        logLines.add("%s Reranked documents (%d) in %d ms: %s".formatted(ts, tr.documents().size(), tr.durationMs(), formatDocScores(tr.documents())));
+                case EventStreamValueHolder.ToolCallEnd tc ->
+                        logLines.add("%s %s done in %d ms".formatted(ts, tc.tool(), tc.totalDurationMs()));
+                case EventStreamValueHolder.Metadata m -> sourceUrls.add(m.source());
+                case EventStreamValueHolder.RequestEnd re -> {
                     promptTokens = re.promptTokens();
                     completionTokens = re.completionTokens();
                     totalDurationMs = re.totalDurationMs();
-                    logLines.add("Received response in %d ms [promptTokens: %d, completionTokens: %d]"
-                            .formatted(re.totalDurationMs(), re.promptTokens(), re.completionTokens()));
+                    logLines.add("%s Received response in %d ms [promptTokens: %d, completionTokens: %d]"
+                            .formatted(ts, re.totalDurationMs(), re.promptTokens(), re.completionTokens()));
                 }
                 default -> {}
             }
@@ -381,19 +391,19 @@ public class ChatImpl implements Chat {
 
     /** Logs significant stream events to console with conversation id. */
     /** Logs significant stream events to console. MDC "cid" is set by runWithConvId. */
-    private void logEventToConsole(StreamEventConvHolder holder) {
-        switch (holder.event()) {
-            case StreamEvent.RequestInfo ri ->
+    private void logEventToConsole(StreamingEvent holder) {
+        switch (holder.value()) {
+            case EventStreamValueHolder.RequestInfo ri ->
                     log.info("Model: {}, User prompt: {}", ri.model(), abbreviate(ri.userPrompt(), 200));
-            case StreamEvent.ToolCallStart tc ->
+            case EventStreamValueHolder.ToolCallStart tc ->
                     log.info(">>> Using {}: {}", tc.tool(), tc.query());
-            case StreamEvent.ToolRetrieved tr ->
+            case EventStreamValueHolder.ToolRetrieved tr ->
                     log.info("Found documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
-            case StreamEvent.ToolReranked tr ->
+            case EventStreamValueHolder.ToolReranked tr ->
                     log.info("Reranked documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
-            case StreamEvent.ToolCallEnd tc ->
+            case EventStreamValueHolder.ToolCallEnd tc ->
                     log.info("{} done in {} ms", tc.tool(), tc.totalDurationMs());
-            case StreamEvent.RequestEnd re ->
+            case EventStreamValueHolder.RequestEnd re ->
                     log.info("Received response in {} ms [promptTokens: {}, completionTokens: {}]",
                             re.totalDurationMs(), re.promptTokens(), re.completionTokens());
             default -> {}
@@ -408,15 +418,27 @@ public class ChatImpl implements Chat {
      * {@code [%X{cid}]} shows the conversation id in every log line.
      */
     private static void runWithConvId(String conversationId, Runnable action) {
+        String previous = MDC.get("cid");
         MDC.put("cid", conversationId);
         try {
             action.run();
         } finally {
-            MDC.remove("cid");
+            // Restore previous value instead of removing — tool execution may have
+            // set MDC via onToolCallStart, and we don't want to clear it mid-execution.
+            if (previous != null) {
+                MDC.put("cid", previous);
+            } else {
+                MDC.remove("cid");
+            }
         }
     }
 
-    private static String formatDocScores(List<StreamEvent.DocScore> docs) {
+    private static String formatTimestamp(Instant timestamp) {
+        return LocalTime.ofInstant(timestamp, ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+    }
+
+    private static String formatDocScores(List<EventStreamValueHolder.DocScore> docs) {
         return docs.stream()
                 .map(d -> "(%.3f) %s".formatted(d.score(), d.url()))
                 .toList().toString();
@@ -431,26 +453,29 @@ public class ChatImpl implements Chat {
                 .toList();
     }
 
-    private ToolEventListener createStreamingListener(Sinks.Many<StreamEvent> toolCallSink) {
+    private ToolEventListener createStreamingListener(Sinks.Many<EventStreamValueHolder> toolCallSink,
+                                                       String conversationId) {
         return new ToolEventListener() {
             @Override
             public void onToolCallStart(String tool, String query) {
-                toolCallSink.tryEmitNext(new StreamEvent.ToolCallStart(tool, query));
+                MDC.put("cid", conversationId);
+                toolCallSink.tryEmitNext(new EventStreamValueHolder.ToolCallStart(tool, query));
             }
 
             @Override
-            public void onToolRetrieved(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
-                toolCallSink.tryEmitNext(new StreamEvent.ToolRetrieved(tool, documents, durationMs));
+            public void onToolRetrieved(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
+                toolCallSink.tryEmitNext(new EventStreamValueHolder.ToolRetrieved(tool, documents, durationMs));
             }
 
             @Override
-            public void onToolReranked(String tool, List<StreamEvent.DocScore> documents, long durationMs) {
-                toolCallSink.tryEmitNext(new StreamEvent.ToolReranked(tool, documents, durationMs));
+            public void onToolReranked(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
+                toolCallSink.tryEmitNext(new EventStreamValueHolder.ToolReranked(tool, documents, durationMs));
             }
 
             @Override
             public void onToolCallEnd(String tool, long totalDurationMs) {
-                toolCallSink.tryEmitNext(new StreamEvent.ToolCallEnd(tool, totalDurationMs));
+                toolCallSink.tryEmitNext(new EventStreamValueHolder.ToolCallEnd(tool, totalDurationMs));
+                MDC.remove("cid");
             }
 
             @Override

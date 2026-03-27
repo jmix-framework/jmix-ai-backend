@@ -15,7 +15,7 @@ public interface Chat {
     StructuredResponse requestStructured(String userPrompt, String parametersYaml, @Nullable String conversationId,
                                          @Nullable Consumer<String> externalLogger);
 
-    default Flux<StreamEventConvHolder> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId) {
+    default Flux<StreamingEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId) {
         throw new UnsupportedOperationException("Streaming not supported");
     }
 

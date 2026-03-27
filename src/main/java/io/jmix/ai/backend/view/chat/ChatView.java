@@ -10,8 +10,8 @@ import com.vaadin.flow.component.messages.MessageListItem;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.chat.Chat;
-import io.jmix.ai.backend.chat.StreamEvent;
-import io.jmix.ai.backend.chat.StreamEventConvHolder;
+import io.jmix.ai.backend.chat.EventStreamValueHolder;
+import io.jmix.ai.backend.chat.StreamingEvent;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -109,28 +109,29 @@ public class ChatView extends StandardView {
                 .subscribe();
     }
 
-    private String renderStreamEvent(StreamEventConvHolder holder) {
-        return switch (holder.event()) {
-            case StreamEvent.RequestInfo ri ->
-                    "Conversation ID: %s  \nModel: %s  \nUser prompt: %s\n\n---\n".formatted(holder.conversationId(), ri.model(), ri.userPrompt());
-            case StreamEvent.ToolCallStart tc ->
-                    "\n\n**%s**: %s".formatted(tc.tool(), tc.query());
-            case StreamEvent.ToolRetrieved tr -> renderDocList("Retrieved", tr.documents(), tr.durationMs());
-            case StreamEvent.ToolReranked tr -> renderDocList("Reranked", tr.documents(), tr.durationMs());
-            case StreamEvent.ToolCallEnd tc ->
-                    "  \n_%s done in %s_\n\n---\n".formatted(tc.tool(), formatMs(tc.totalDurationMs()));
-            case StreamEvent.TokensStart ignored -> "";
-            case StreamEvent.Content c -> c.text();
-            case StreamEvent.TokensEnd ignored -> "";
-            case StreamEvent.SourcesStart ignored -> "\n\n---\n**Sources:**";
-            case StreamEvent.Metadata m -> "\n- [%s](%s)".formatted(m.source(), m.source());
-            case StreamEvent.RequestEnd re ->
-                    "\n\n---\nReceived response in %d ms \\[promptTokens: %d, completionTokens: %d\\]"
-                            .formatted(re.totalDurationMs(), re.promptTokens(), re.completionTokens());
+    private String renderStreamEvent(StreamingEvent holder) {
+        String ts = formatTimestamp(holder.timestamp());
+        return switch (holder.value()) {
+            case EventStreamValueHolder.RequestInfo ri ->
+                    "%s Conversation ID: %s  \nModel: %s  \nUser prompt: %s\n\n---\n".formatted(ts, holder.conversationId(), ri.model(), ri.userPrompt());
+            case EventStreamValueHolder.ToolCallStart tc ->
+                    "\n\n%s **%s**: %s".formatted(ts, tc.tool(), tc.query());
+            case EventStreamValueHolder.ToolRetrieved tr -> "\n%s ".formatted(ts) + renderDocList("Retrieved", tr.documents(), tr.durationMs());
+            case EventStreamValueHolder.ToolReranked tr -> "\n%s ".formatted(ts) + renderDocList("Reranked", tr.documents(), tr.durationMs());
+            case EventStreamValueHolder.ToolCallEnd tc ->
+                    "  \n%s _%s done in %s_\n\n---\n".formatted(ts, tc.tool(), formatMs(tc.totalDurationMs()));
+            case EventStreamValueHolder.TokensStart ignored -> "";
+            case EventStreamValueHolder.Content c -> c.text();
+            case EventStreamValueHolder.TokensEnd ignored -> "";
+            case EventStreamValueHolder.SourcesStart ignored -> "\n\n---\n**Sources:**";
+            case EventStreamValueHolder.Metadata m -> "\n- [%s](%s)".formatted(m.source(), m.source());
+            case EventStreamValueHolder.RequestEnd re ->
+                    "\n\n---\n%s Received response in %d ms \\[promptTokens: %d, completionTokens: %d\\]"
+                            .formatted(ts, re.totalDurationMs(), re.promptTokens(), re.completionTokens());
         };
     }
 
-    private static String renderDocList(String label, List<StreamEvent.DocScore> docs, long durationMs) {
+    private static String renderDocList(String label, List<EventStreamValueHolder.DocScore> docs, long durationMs) {
         if (docs.isEmpty()) return "  \n%s (0) - %s".formatted(label, formatMs(durationMs));
         var sb = new StringBuilder("  \n%s (%d) - %s: ".formatted(label, docs.size(), formatMs(durationMs)));
         var entries = docs.stream()
@@ -138,6 +139,11 @@ public class ChatView extends StandardView {
                 .toList();
         sb.append(String.join(", ", entries));
         return sb.toString();
+    }
+
+    private static String formatTimestamp(java.time.Instant timestamp) {
+        return java.time.LocalTime.ofInstant(timestamp, java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
     }
 
     private static String formatMs(long ms) {
