@@ -506,9 +506,14 @@ public class ChatImpl implements Chat {
         if (StringUtils.isBlank(openaiApiKey)) {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
         }
-        OpenAiApi openAiApi = OpenAiApi.builder()
-                .apiKey(openaiApiKey)
-                .build();
+        String openaiBaseUrl = System.getenv("OPENAI_BASE_URL");
+
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .apiKey(openaiApiKey);
+        if (StringUtils.isNotBlank(openaiBaseUrl)) {
+            apiBuilder.baseUrl(openaiBaseUrl);
+        }
+        OpenAiApi openAiApi = apiBuilder.build();
 
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .model(parametersReader.getString("model.name", "gpt-5"));
