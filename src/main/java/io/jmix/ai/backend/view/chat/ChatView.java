@@ -174,7 +174,7 @@ public class ChatView extends StandardView {
     private void scrollToBottom() {
         messageList.getElement().executeJs(
                 "setTimeout(() => { " +
-                "if (this.scrollHeight - this.scrollTop - this.clientHeight < 110) " +
+                "if (this.scrollHeight - this.scrollTop - this.clientHeight < 50) " +
                 "this.scrollTop = this.scrollHeight; }, 50)");
     }
 
