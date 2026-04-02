@@ -52,7 +52,7 @@ public class ChatView extends StandardView {
     private MessageInput messageInput;
     private final List<MessageListItem> items = new ArrayList<>();
     private String conversationId;
-    private Disposable activeStreamDisposable;
+    private transient Disposable activeStreamDisposable;
 
     @Subscribe
     public void onInit(final InitEvent event) {

@@ -1,5 +1,5 @@
 FROM eclipse-temurin:21-jre
-. КRUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY build/libs/jmix-ai-backend-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8081

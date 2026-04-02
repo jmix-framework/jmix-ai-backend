@@ -42,6 +42,7 @@ public abstract class AbstractRagTool {
     private final Reranker reranker;
     private final List<Document> retrievedDocuments;
     private final ToolEventListener listener;
+    private final ParametersReader parametersReader;
     protected final String type;
     protected String description;
     protected double similarityThreshold;
@@ -61,6 +62,7 @@ public abstract class AbstractRagTool {
         this.reranker = reranker;
         this.retrievedDocuments = retrievedDocuments;
         this.listener = listener;
+        this.parametersReader = parametersReader;
         this.type = type;
         init(parametersReader);
     }
@@ -133,7 +135,7 @@ public abstract class AbstractRagTool {
             List<Document> filteredDocuments;
 
             long rerankStart = System.currentTimeMillis();
-            List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
+            List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked, parametersReader);
             long rerankMs = System.currentTimeMillis() - rerankStart;
 
             if (rerankResults == null) {

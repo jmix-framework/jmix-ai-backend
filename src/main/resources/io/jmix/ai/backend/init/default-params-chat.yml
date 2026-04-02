@@ -3,6 +3,11 @@ description: openapi-compatible, Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
 model:
   name: /Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
 
+reranker:
+  model: gpt-5-nano
+  temperature: 1.0
+  maxDocumentChars: 10000
+
 tools:
   skipForTrivialPrompts: true
   documentation_retriever:

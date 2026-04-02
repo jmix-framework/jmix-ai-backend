@@ -5,7 +5,10 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
-    <changeSet id="2" author="merge">
+    <changeSet id="3" author="merge">
+        <preConditions onFail="MARK_RAN">
+            <not><columnExists tableName="CHECK_RUN" columnName="DURATION_MS"/></not>
+        </preConditions>
         <addColumn tableName="CHECK_RUN">
             <column name="DURATION_MS" type="bigint"/>
             <column name="MODEL_RESPONSE_TOTAL_MS" type="bigint"/>
