@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+    <changeSet id="1" author="jmix-ai-backend">
+        <createTable tableName="INGESTION_JOB">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_INGESTION_JOB"/>
+            </column>
+            <column name="VERSION" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CREATED_DATE" type="${offsetDateTime.type}"/>
+            <column name="CREATED_BY" type="VARCHAR(255)"/>
+            <column name="KNOWLEDGE_BASE_ID" type="UUID"/>
+            <column name="KNOWLEDGE_SOURCE_ID" type="UUID"/>
+            <column name="STATUS" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="STARTED_AT" type="${offsetDateTime.type}"/>
+            <column name="FINISHED_AT" type="${offsetDateTime.type}"/>
+            <column name="LOADED_SOURCES" type="INT"/>
+            <column name="ADDED_DOCUMENTS" type="INT"/>
+            <column name="ADDED_CHUNKS" type="INT"/>
+            <column name="MESSAGE_" type="VARCHAR(4000)"/>
+            <column name="ERROR_DETAILS" type="VARCHAR(4000)"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="2" author="jmix-ai-backend">
+        <createTable tableName="KNOWLEDGE_BASE">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_KNOWLEDGE_BASE"/>
+            </column>
+            <column name="VERSION" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CREATED_DATE" type="${offsetDateTime.type}"/>
+            <column name="CREATED_BY" type="VARCHAR(255)"/>
+            <column name="LAST_MODIFIED_DATE" type="${offsetDateTime.type}"/>
+            <column name="LAST_MODIFIED_BY" type="VARCHAR(255)"/>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CODE" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="DESCRIPTION_" type="VARCHAR(1000)"/>
+            <column name="ACTIVE" type="BOOLEAN"/>
+            <column name="DEFAULT_LANGUAGE" type="VARCHAR(50)"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="3" author="jmix-ai-backend">
+        <createTable tableName="KNOWLEDGE_SOURCE">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_KNOWLEDGE_SOURCE"/>
+            </column>
+            <column name="VERSION" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CREATED_DATE" type="${offsetDateTime.type}"/>
+            <column name="CREATED_BY" type="VARCHAR(255)"/>
+            <column name="LAST_MODIFIED_DATE" type="${offsetDateTime.type}"/>
+            <column name="LAST_MODIFIED_BY" type="VARCHAR(255)"/>
+            <column name="KNOWLEDGE_BASE_ID" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CODE" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SOURCE_TYPE" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LOCATION_" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LANGUAGE_" type="VARCHAR(50)"/>
+            <column name="ENABLED_" type="BOOLEAN"/>
+            <column name="UPDATE_MODE" type="VARCHAR(50)"/>
+            <column name="SETTINGS_JSON" type="CLOB"/>
+            <column name="LAST_SUCCESSFUL_INGESTION_AT" type="${offsetDateTime.type}"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="4" author="jmix-ai-backend">
+        <addUniqueConstraint columnNames="KNOWLEDGE_BASE_ID, CODE" constraintName="IDX_KNOWLEDGE_SOURCE_UNQ_KB_CODE"
+                             tableName="KNOWLEDGE_SOURCE"/>
+    </changeSet>
+    <changeSet id="5" author="jmix-ai-backend">
+        <createIndex indexName="IDX_INGESTION_JOB_KB" tableName="INGESTION_JOB">
+            <column name="KNOWLEDGE_BASE_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="KNOWLEDGE_BASE_ID" baseTableName="INGESTION_JOB"
+                                 constraintName="FK_INGESTION_JOB_ON_KNOWLEDGE_BASE" referencedColumnNames="ID"
+                                 referencedTableName="KNOWLEDGE_BASE"/>
+    </changeSet>
+    <changeSet id="6" author="jmix-ai-backend">
+        <createIndex indexName="IDX_INGESTION_JOB_SOURCE" tableName="INGESTION_JOB">
+            <column name="KNOWLEDGE_SOURCE_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="KNOWLEDGE_SOURCE_ID" baseTableName="INGESTION_JOB"
+                                 constraintName="FK_INGESTION_JOB_ON_KNOWLEDGE_SOURCE" referencedColumnNames="ID"
+                                 referencedTableName="KNOWLEDGE_SOURCE"/>
+    </changeSet>
+    <changeSet id="7" author="jmix-ai-backend">
+        <createIndex indexName="IDX_INGESTION_JOB_STATUS" tableName="INGESTION_JOB">
+            <column name="STATUS"/>
+        </createIndex>
+    </changeSet>
+    <changeSet id="8" author="jmix-ai-backend">
+        <createIndex indexName="IDX_KNOWLEDGE_BASE_CODE" tableName="KNOWLEDGE_BASE" unique="true">
+            <column name="CODE"/>
+        </createIndex>
+    </changeSet>
+    <changeSet id="9" author="jmix-ai-backend">
+        <createIndex indexName="IDX_KNOWLEDGE_SOURCE_CODE" tableName="KNOWLEDGE_SOURCE">
+            <column name="CODE"/>
+        </createIndex>
+    </changeSet>
+    <changeSet id="10" author="jmix-ai-backend">
+        <createIndex indexName="IDX_KNOWLEDGE_SOURCE_KB" tableName="KNOWLEDGE_SOURCE">
+            <column name="KNOWLEDGE_BASE_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="KNOWLEDGE_BASE_ID" baseTableName="KNOWLEDGE_SOURCE"
+                                 constraintName="FK_KNOWLEDGE_SOURCE_ON_KNOWLEDGE_BASE" referencedColumnNames="ID"
+                                 referencedTableName="KNOWLEDGE_BASE"/>
+    </changeSet>
+</databaseChangeLog>

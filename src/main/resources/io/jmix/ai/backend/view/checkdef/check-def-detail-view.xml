@@ -23,6 +23,7 @@
                 <responsiveStep minWidth="40em" columns="2"/>
             </responsiveSteps>
             <checkbox id="activeField" property="active"/>
+            <checkbox id="goldenField" property="golden"/>
             <textField id="categoryField" property="category"/>
             <textArea id="questionField" height="9.5em" property="question" colspan="2"/>
             <textArea id="answerField" height="9.5em" property="answer" colspan="2"/>

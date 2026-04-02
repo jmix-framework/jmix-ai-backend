@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore;
 
+import io.jmix.ai.backend.entity.IngestionJob;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.core.TimeSource;
 import org.junit.jupiter.api.Test;
@@ -29,10 +30,13 @@ class IngesterSpecificBehaviorTest {
     
     @Mock
     private VectorStoreRepository vectorStoreRepository;
+
+    @Mock
+    private KnowledgeSourceManager knowledgeSourceManager;
     
     @Test
     void shouldCheckContentAndSkipExistingUnchangedDocuments() {
-        TestIngester ingester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository));
+        TestIngester ingester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager));
         Document document = new Document("1", "content", Map.of("source", "test", "sourceHash", "hash1"));
         
         VectorStoreEntity entity = new VectorStoreEntity();
@@ -52,7 +56,7 @@ class IngesterSpecificBehaviorTest {
 
     @Test
     void shouldDeleteAndReplaceChangedDocuments() {
-        TestIngester ingester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository));
+        TestIngester ingester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager));
         Document document = new Document("1", "content", Map.of("source", "test", "sourceHash", "newHash"));
         
         UUID entityId = UUID.randomUUID();
@@ -75,8 +79,9 @@ class IngesterSpecificBehaviorTest {
     // Test implementation of AbstractIngester
     private static class TestIngester extends AbstractIngester {
         
-        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
-            super(vectorStore, timeSource, vectorStoreRepository);
+        public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository,
+                            KnowledgeSourceManager knowledgeSourceManager) {
+            super(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager, 128);
         }
 
         @Override

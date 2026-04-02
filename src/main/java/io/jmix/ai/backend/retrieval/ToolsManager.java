@@ -42,6 +42,9 @@ public class ToolsManager {
         if (parametersReader.getBoolean("tools.trainings_retriever.enabled", true)) {
             tools.add(new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener));
         }
+        if (parametersReader.getBoolean("tools.framework_retriever.enabled", true)) {
+            tools.add(new FrameworkTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener));
+        }
         return tools;
     }
 }

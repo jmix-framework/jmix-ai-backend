@@ -70,14 +70,14 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        for (String type : ingesterManager.getTypes()) {
-            updateButton.addItem(type, "Update " + type).addClickListener(clickEvent -> {
+        for (IngesterManager.ManagedSource source : ingesterManager.getSources()) {
+            updateButton.addItem(source.code(), "Update " + source.name()).addClickListener(clickEvent -> {
                 dialogs.createOptionDialog()
                         .withHeader("Confirm")
-                        .withText("Update all data of type '%s'?".formatted(type))
+                        .withText("Update source '%s'?".formatted(source.name()))
                         .withActions(
                                 new DialogAction(DialogAction.Type.YES).withHandler(e ->
-                                        updateInBackground(new UpdateByTypeTask(type))),
+                                        updateInBackground(new UpdateBySourceTask(source.code()))),
                                 new DialogAction(DialogAction.Type.NO)
                         )
                         .open();
@@ -223,17 +223,17 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         }
     }
 
-    private class UpdateByTypeTask extends UpdateTask {
+    private class UpdateBySourceTask extends UpdateTask {
 
-        private final String type;
+        private final String sourceCode;
 
-        private UpdateByTypeTask(String type) {
-            this.type = type;
+        private UpdateBySourceTask(String sourceCode) {
+            this.sourceCode = sourceCode;
         }
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return ingesterManager.updateByType(type);
+            return ingesterManager.updateBySourceCode(sourceCode);
         }
     }
 

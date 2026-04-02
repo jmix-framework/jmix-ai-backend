@@ -12,4 +12,14 @@ public class UiSamplesTool extends AbstractRagTool {
                          List<Document> retrievedDocuments, ToolEventListener listener) {
         super("uisamples_retriever", "uisamples", vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener);
     }
+
+    @Override
+    protected boolean shouldFallbackToTopReranked() {
+        return true;
+    }
+
+    @Override
+    protected int getRerankFallbackLimit() {
+        return 1;
+    }
 }

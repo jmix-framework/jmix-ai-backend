@@ -1,5 +1,8 @@
 package io.jmix.ai.backend.vectorstore;
 
+import io.jmix.ai.backend.entity.IngestionJob;
+import io.jmix.ai.backend.entity.KnowledgeBase;
+import io.jmix.ai.backend.entity.KnowledgeSource;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,14 +25,22 @@ class IngesterManagerTest {
     @Mock
     private Ingester anotherIngester;
 
+    @Mock
+    private KnowledgeSourceManager knowledgeSourceManager;
+
     private IngesterManager ingesterManager;
 
     @BeforeEach
     void setUp() {
         lenient().when(docsIngester.getType()).thenReturn("docs");
         lenient().when(anotherIngester.getType()).thenReturn("another");
+        lenient().when(knowledgeSourceManager.isEnabled("docs")).thenReturn(true);
+        lenient().when(knowledgeSourceManager.isEnabled("another")).thenReturn(true);
+        lenient().when(knowledgeSourceManager.resolve("docs")).thenReturn(context("kb-docs", "docs-source", "Docs Source"));
+        lenient().when(knowledgeSourceManager.resolve("another")).thenReturn(context("kb-another", "another-source", "Another Source"));
+        lenient().when(knowledgeSourceManager.startJob(any())).thenReturn(new IngestionJob());
 
-        ingesterManager = new IngesterManager(Arrays.asList(docsIngester, anotherIngester));
+        ingesterManager = new IngesterManager(Arrays.asList(docsIngester, anotherIngester), knowledgeSourceManager);
     }
 
     @Test
@@ -45,11 +56,14 @@ class IngesterManagerTest {
 
     @Test
     void shouldUpdateAll() {
+        when(docsIngester.updateAll()).thenReturn("docs result");
+        when(anotherIngester.updateAll()).thenReturn("another result");
+
         String result = ingesterManager.update();
         
         verify(docsIngester).updateAll();
         verify(anotherIngester).updateAll();
-        assertThat(result).contains(List.of("docs", "another"));
+        assertThat(result).contains("Docs Source", "Another Source");
     }
 
     @Test
@@ -59,7 +73,7 @@ class IngesterManagerTest {
         String result = ingesterManager.updateByType("docs");
         
         verify(docsIngester).updateAll();
-        verifyNoInteractions(anotherIngester);
+        verify(anotherIngester, never()).updateAll();
         assertThat(result).contains("docs result");
     }
 
@@ -68,7 +82,8 @@ class IngesterManagerTest {
         VectorStoreEntity entity = new VectorStoreEntity();
         entity.setMetadata("""
                 {
-                    "type": "docs"
+                    "type": "docs",
+                    "sourceCode": "docs-source"
                 }
                 """);
         
@@ -77,7 +92,19 @@ class IngesterManagerTest {
         String result = ingesterManager.updateByEntity(entity);
         
         verify(docsIngester).update(entity);
-        verifyNoInteractions(anotherIngester);
+        verify(anotherIngester, never()).update(any());
         assertThat(result).contains("docs entity result");
+    }
+
+    private KnowledgeSourceContext context(String kbCode, String sourceCode, String sourceName) {
+        KnowledgeBase knowledgeBase = new KnowledgeBase();
+        knowledgeBase.setCode(kbCode);
+
+        KnowledgeSource knowledgeSource = new KnowledgeSource();
+        knowledgeSource.setCode(sourceCode);
+        knowledgeSource.setName(sourceName);
+        knowledgeSource.setKnowledgeBase(knowledgeBase);
+
+        return new KnowledgeSourceContext(knowledgeBase, knowledgeSource);
     }
 }

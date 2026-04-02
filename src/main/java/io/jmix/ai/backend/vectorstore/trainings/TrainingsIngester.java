@@ -2,6 +2,8 @@ package io.jmix.ai.backend.vectorstore.trainings;
 
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
 import io.jmix.ai.backend.vectorstore.Chunker;
+import io.jmix.ai.backend.vectorstore.ChunkTextSplitter;
+import io.jmix.ai.backend.vectorstore.KnowledgeSourceManager;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.core.TimeSource;
 import org.apache.commons.lang3.stream.Streams;
@@ -26,29 +28,35 @@ public class TrainingsIngester extends AbstractIngester {
 
     private static final Logger log = LoggerFactory.getLogger(TrainingsIngester.class);
 
-//    private final String gitUrl;
     private final int limit;
     private final List<String> whitelist;
     private final List<String> blacklist;
     private final Path localPath;
+    private final String primaryLanguage;
     private final Chunker chunker;
+    private final ChunkTextSplitter chunkTextSplitter;
+    private final TrainingSourceLoader trainingSourceLoader;
 
     public TrainingsIngester(
-//            @Value("${trainings.git-url}") String gitUrl,
             @Value("${trainings.local-path}") String localPath,
             @Value("${trainings.limit}") int limit,
             @Value("${trainings.whitelist}") List<String> whitelist,
             @Value("${trainings.blacklist}") List<String> blacklist,
+            @Value("${trainings.primary-language:RU}") String primaryLanguage,
+            @Value("${vectorstore.add-batch-size:128}") int vectorStoreAddBatchSize,
             VectorStore vectorStore,
             TimeSource timeSource,
-            VectorStoreRepository vectorStoreRepository) {
-        super(vectorStore, timeSource, vectorStoreRepository);
-//        this.gitUrl = gitUrl;
+            VectorStoreRepository vectorStoreRepository,
+            KnowledgeSourceManager knowledgeSourceManager) {
+        super(vectorStore, timeSource, vectorStoreRepository, knowledgeSourceManager, vectorStoreAddBatchSize);
         this.limit = limit;
         this.whitelist = whitelist;
         this.localPath = Path.of(localPath);
         this.blacklist = blacklist;
+        this.primaryLanguage = primaryLanguage.toUpperCase();
         chunker = new TrainingsChunker(MAX_CHUNK_SIZE, 300);
+        chunkTextSplitter = new ChunkTextSplitter(MAX_CHUNK_SIZE, CHUNK_OVERLAP);
+        trainingSourceLoader = new TrainingSourceLoader();
     }
 
     @Override
@@ -56,42 +64,26 @@ public class TrainingsIngester extends AbstractIngester {
         return "trainings";
     }
 
-//    @Override
-//    protected void prepareUpdate() {
-//         updateLocalGitRepo();
-//    }
-//
-//    private void updateLocalGitRepo() {
-//        Path repoDir = localPath;
-//        try {
-//            if (!(Files.exists(repoDir)
-//                    && Files.isDirectory(repoDir)
-//                    && Files.exists(repoDir.resolve(".git")))) {
-//                log.info("Cloning repository from {}", gitUrl);
-//                executeCommand("git", "clone", gitUrl, localPath.toString());
-//            } else {
-//                log.info("Pulling updates for repository at {}", localPath);
-//                executeCommand("git", "-C", localPath.toString(), "pull");
-//            }
-//        } catch (IOException | InterruptedException e) {
-//            throw new RuntimeException("Failed to update local git repository", e);
-//        }
-//    }
-//
-//    private void executeCommand(String... command) throws IOException, InterruptedException {
-//        int exitCode = new ProcessBuilder(command)
-//                .inheritIO()
-//                .start()
-//                .waitFor();
-//        if (exitCode != 0) {
-//            throw new RuntimeException("Command failed with exit code: " + exitCode);
-//        }
-//    }
+    @Override
+    protected void prepareUpdate() {
+        super.prepareUpdate();
+        Path effectiveLocalPath = effectiveLocalPath();
+        if (!Files.isDirectory(effectiveLocalPath)) {
+            throw new IllegalStateException("Trainings repository not found: " + effectiveLocalPath);
+        }
+        List<String> missingRoots = whitelist.stream()
+                .filter(root -> Files.notExists(effectiveLocalPath.resolve(root)))
+                .toList();
+        if (!missingRoots.isEmpty()) {
+            throw new IllegalStateException("Trainings repository is incomplete at " + effectiveLocalPath
+                    + ". Missing roots: " + String.join(", ", missingRoots));
+        }
+    }
 
     @Override
     protected List<String> loadSources() {
         return loadListOfTrainingDocs().stream()
-                .map(path -> localPath.relativize(path).toString())
+                .map(path -> effectiveLocalPath().relativize(path).toString())
                 .toList();
     }
 
@@ -101,8 +93,9 @@ public class TrainingsIngester extends AbstractIngester {
     }
 
     private List<Path> loadListOfTrainingDocs() {
-        log.info("Loading list of trainings from {}", localPath);
-        try (Stream<Path> walk = Files.walk(localPath)) {
+        Path effectiveLocalPath = effectiveLocalPath();
+        log.info("Loading list of trainings from {}", effectiveLocalPath);
+        try (Stream<Path> walk = Files.walk(effectiveLocalPath)) {
             return walk.filter(Files::isRegularFile)
                     .filter(this::isValidTrainingFile)
                     .toList();
@@ -113,26 +106,29 @@ public class TrainingsIngester extends AbstractIngester {
 
     private boolean isValidTrainingFile(Path path) {
         String pathStr = path.toString();
+        String fileName = path.getFileName().toString();
         return pathStr.endsWith(".adoc") &&
-                (pathStr.contains("_EN") || pathStr.contains("-EN")) &&
+                (fileName.contains("_" + effectivePrimaryLanguage()) || fileName.contains("-" + effectivePrimaryLanguage())) &&
                 Streams.of(path).anyMatch(p -> whitelist.contains(p.toString())) &&
                 Streams.of(path).noneMatch(p -> blacklist.contains(p.toString()));
     }
 
     @Override
     protected Document loadDocument(String source) {
-        Path docPath = localPath.resolve(source);
+        Path docPath = effectiveLocalPath().resolve(source);
         log.debug("Loading training doc: {}", docPath);
 
         String textContent;
         try {
-            textContent = Files.readString(docPath);
-        } catch (IOException e) {
+            textContent = trainingSourceLoader.load(docPath);
+        } catch (IOException | IllegalStateException e) {
             log.warn("Failed to load training doc: {}", docPath);
             return null;
         }
 
         Map<String, Object> metadata = createMetadata(source, textContent);
+        metadata.put("language", effectivePrimaryLanguage().toLowerCase());
+        metadata.put("docPath", source);
         return createDocument(textContent, metadata);
     }
 
@@ -146,13 +142,16 @@ public class TrainingsIngester extends AbstractIngester {
             String url = (String) metadata.get("url");
 
             for (Chunker.Chunk chunk : chunks) {
-                Map<String, Object> metadataCopy = copyMetadata(metadata);
-                metadataCopy.put("size", chunk.text().length());
-                if (chunk.anchor() != null) {
-                    metadataCopy.put("url", url + chunk.anchor());
+                List<Chunker.Chunk> safeChunks = chunkTextSplitter.split(chunk);
+                for (Chunker.Chunk safeChunk : safeChunks) {
+                    Map<String, Object> metadataCopy = copyMetadata(metadata);
+                    metadataCopy.put("size", safeChunk.text().length());
+                    if (safeChunk.anchor() != null) {
+                        metadataCopy.put("url", url + safeChunk.anchor());
+                    }
+                    Document chunkDoc = createDocument(safeChunk.text(), metadataCopy);
+                    chunkDocs.add(chunkDoc);
                 }
-                Document chunkDoc = createDocument(chunk.text(), metadataCopy);
-                chunkDocs.add(chunkDoc);
             }
         }
         return chunkDocs;
@@ -163,5 +162,15 @@ public class TrainingsIngester extends AbstractIngester {
                 .stream()
                 .filter(e -> e.getKey() != null && e.getValue() != null)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private Path effectiveLocalPath() {
+        String location = getKnowledgeSourceLocation();
+        return location != null ? Path.of(location) : localPath;
+    }
+
+    private String effectivePrimaryLanguage() {
+        String language = getKnowledgeSourceLanguage();
+        return language != null ? language.toUpperCase() : primaryLanguage;
     }
 }

@@ -56,6 +56,9 @@ public class CheckDef {
     @Column(name = "CATEGORY")
     private String category;
 
+    @Column(name = "GOLDEN")
+    private Boolean golden;
+
     @Column(name = "QUESTION")
     @Lob
     private String question;
@@ -70,6 +73,14 @@ public class CheckDef {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public Boolean getGolden() {
+        return golden;
+    }
+
+    public void setGolden(Boolean golden) {
+        this.golden = golden;
     }
 
     public Boolean getActive() {

@@ -7,4 +7,11 @@ import java.util.function.Consumer;
 public interface ExternalEvaluator {
 
     double evaluateSemantic(String referenceAnswer, String actualAnswer, @Nullable Consumer<String> logger);
+
+    boolean isAvailable();
+
+    String getModelName();
+
+    @Nullable
+    String getEndpoint();
 }

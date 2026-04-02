@@ -65,8 +65,8 @@ class ExternalEvaluatorImplTest {
         when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("boom"));
         ExternalEvaluatorImpl evaluator = new ExternalEvaluatorImpl(chatModel);
 
-        double score = evaluator.evaluateSemantic("ref", "actual", null);
-
-        assertThat(score).isEqualTo(0.0);
+        assertThatThrownBy(() -> evaluator.evaluateSemantic("ref", "actual", null))
+                .isInstanceOf(ExternalEvaluatorException.class)
+                .hasMessageContaining("Semantic evaluator failed");
     }
 }

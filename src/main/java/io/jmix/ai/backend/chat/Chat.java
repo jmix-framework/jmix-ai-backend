@@ -6,6 +6,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public interface Chat {
@@ -17,6 +18,25 @@ public interface Chat {
 
     default Flux<StreamingEvent> requestStream(String userPrompt, String parametersYaml, @Nullable String conversationId) {
         throw new UnsupportedOperationException("Streaming not supported");
+    }
+
+    default StructuredResponse requestStructuredStreaming(String userPrompt, String parametersYaml,
+                                                          @Nullable String conversationId,
+                                                          @Nullable Consumer<String> chunkConsumer,
+                                                          @Nullable Consumer<String> externalLogger) {
+        return requestStructuredStreaming(userPrompt, parametersYaml, conversationId, null, chunkConsumer, externalLogger);
+    }
+
+    default StructuredResponse requestStructuredStreaming(String userPrompt, String parametersYaml,
+                                                          @Nullable String conversationId,
+                                                          @Nullable BooleanSupplier cancellationRequested,
+                                                          @Nullable Consumer<String> chunkConsumer,
+                                                          @Nullable Consumer<String> externalLogger) {
+        StructuredResponse response = requestStructured(userPrompt, parametersYaml, conversationId, externalLogger);
+        if (chunkConsumer != null && response.text() != null) {
+            chunkConsumer.accept(response.text());
+        }
+        return response;
     }
 
     record StructuredResponse(

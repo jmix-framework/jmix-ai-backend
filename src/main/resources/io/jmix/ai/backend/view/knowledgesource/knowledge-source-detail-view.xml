@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://knowledgeSourceDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="knowledgeSourceDc" class="io.jmix.ai.backend.entity.KnowledgeSource">
+            <fetchPlan extends="_base">
+                <property name="knowledgeBase" fetchPlan="_base"/>
+            </fetchPlan>
+            <loader id="knowledgeSourceDl"/>
+        </instance>
+        <collection id="knowledgeBasesDc" class="io.jmix.ai.backend.entity.KnowledgeBase">
+            <fetchPlan extends="_base"/>
+            <loader id="knowledgeBasesDl" readOnly="true">
+                <query><![CDATA[select e from KnowledgeBase e order by e.name]]></query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <actions>
+        <action id="saveAction" type="detail_saveClose"/>
+        <action id="closeAction" type="detail_close"/>
+    </actions>
+    <layout>
+        <formLayout id="form" dataContainer="knowledgeSourceDc">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+                <responsiveStep minWidth="40em" columns="2"/>
+            </responsiveSteps>
+            <entityComboBox id="knowledgeBaseField" property="knowledgeBase" itemsContainer="knowledgeBasesDc"/>
+            <textField id="nameField" property="name"/>
+            <textField id="codeField" property="code"/>
+            <comboBox id="sourceTypeField" property="sourceType"/>
+            <comboBox id="updateModeField" property="updateMode"/>
+            <textField id="languageField" property="language"/>
+            <checkbox id="enabledField" property="enabled"/>
+            <textField id="locationField" property="location" colspan="2"/>
+            <textArea id="settingsJsonField" property="settingsJson" colspan="2"/>
+            <dateTimePicker id="lastSuccessfulIngestionAtField"
+                            property="lastSuccessfulIngestionAt"
+                            readOnly="true"
+                            colspan="2"/>
+        </formLayout>
+        <hbox id="detailActions">
+            <button id="saveAndCloseButton" action="saveAction"/>
+            <button id="closeButton" action="closeAction"/>
+        </hbox>
+    </layout>
+</view>
