@@ -12,7 +12,6 @@ Guide for coding agents working in `jmix-ai-backend`.
 - Stack: Java 17, Jmix 2.7 (Spring Boot 3, Vaadin Flow UI), Spring AI.
 - Build tool: Gradle (`./gradlew`).
 - Main app: `src/main/java/io/jmix/ai/backend`.
-- Sidecar Python service `reranker/` (document reranking, FastAPI, port `8000`)
 - Default app port: `8081`.
 
 ## Key Functional Areas
@@ -40,15 +39,6 @@ docker-compose up -d
 Notes:
 - `dev` profile is active by default (`src/main/resources/application.properties`).
 - Dev datasource/pgvector ports are configured in `src/main/resources/application-dev.properties` (`15432`, `15433`).
-
-## Reranker Service
-```bash
-cd reranker
-python3.10 -m venv env
-source env/bin/activate
-pip install -r requirements.txt
-uvicorn reranker_service:app --host 0.0.0.0 --port 8000
-```
 
 ## Testing
 - Full test suite:

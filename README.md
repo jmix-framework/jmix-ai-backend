@@ -14,9 +14,7 @@ However, Jmix AI Backend provides its own UI for administrators.
 
 ![](docs/jmix-ai-backend-system.png)
 
-The system consists of two main components:
-- **Jmix AI Backend Application**: Jmix-based application with Spring AI integration
-- **Reranker Service**: Python service for improving search result relevance
+Jmix AI Backend application uses PgVector for vector storage and a PostgreSQL database for parameters, chat history and answer checks.
 
 ![](docs/jmix-ai-backend-containers.png)
 
@@ -38,9 +36,7 @@ The retrieved documents are filtered using a set of Groovy scripts that are appl
 
 ### Reranker
 
-Python service for improving search result relevance. It uses a cross-encoder model to calculate the similarity between the question and the document. The similarity is then used to rank the documents.
-
-The reranker source code is located in the `reranker` directory. The connection to the reranker service is specified in the `reranker.url` application property.
+The reranker uses an OpenAI chat model to score candidate documents and reorder them before they are passed to the answering model. It uses the same API key as the main chat LLM.
 
 ### Ingesters
 
@@ -55,7 +51,7 @@ All ingesters implement the `Ingester` interface and are invoked through the `In
 
 The chat parameters are stored in the database using the `Parameters` entity. They are used by the application through the `ParametersRepository` interface. 
 
-The `Parameters` instance includes the YAML configuration that specifies parameters for the LLM, tools and post-retrieval filtering. You can create multiple instances of the `Parameters` entity and use them for different chat sessions to test different configurations. One instance should be marked as active to be used in the API calls. 
+The `Parameters` instance includes the YAML configuration that specifies parameters for the LLM, reranker, tools and post-retrieval filtering. You can create multiple instances of the `Parameters` entity and use them for different chat sessions to test different configurations. One instance should be marked as active to be used in the API calls. 
 
 ### Answer checks
 
@@ -96,7 +92,7 @@ The admin UI is available at `http://localhost:8081` and provides the following 
 
 ### Fast setup
 
-You can run the main database, vector store and reranker using the `docker-compose.yml` file in the project root:
+You can run the main database and vector store using the `docker-compose.yml` file in the project root:
 
 ```bash
 docker-compose up
@@ -113,28 +109,9 @@ Running PgVector:
 docker run --name pgvector -p 15433:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres pgvector/pgvector:pg17
 ```
 
-Running reranker:
-```shell
-cd reranker
-python3.10 -m venv env
-source env/bin/activate
-pip install fastapi==0.115.0 uvicorn==0.30.6 torch==2.4.1 transformers==4.44.2 pydantic==2.9.2
-
-uvicorn reranker_service:app --host 0.0.0.0 --port 8000
-```
-
 ## Building images
 
 Build app image:
 ```shell
 ./gradlew bootBuildImage -Pvaadin.productionMode=true
-```
-
-Build reranker image:
-```shell
-cd reranker
-python3.10 -m venv env
-source env/bin/activate
-pip install fastapi==0.115.0 uvicorn==0.30.6 torch==2.4.1 transformers==4.44.2 pydantic==2.9.2
-docker build -t jmix-ai-reranker .
 ```

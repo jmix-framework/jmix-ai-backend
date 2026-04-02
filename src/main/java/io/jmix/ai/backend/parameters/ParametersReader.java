@@ -1,5 +1,7 @@
 package io.jmix.ai.backend.parameters;
 
+import org.springframework.lang.Nullable;
+
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +60,7 @@ public class ParametersReader {
      * @param key The dot notation key (e.g., "address.street")
      * @return The value, or null if the key path is invalid
      */
+    @Nullable
     public Object getValue(String key) {
         if (parametersMap == null || key == null || key.isEmpty()) {
             return null;
