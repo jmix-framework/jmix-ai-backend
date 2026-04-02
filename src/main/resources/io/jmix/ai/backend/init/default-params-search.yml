@@ -1,5 +1,10 @@
 description: Default search parameters, topReranked=2
 
+reranker:
+  model: gpt-5.4-nano
+  temperature: 1.0
+  maxDocumentChars: 10000
+
 tools:
   documentation_retriever:
     description: Searches and returns information from Jmix documentation. Provides code examples with explanations.

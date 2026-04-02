@@ -1,8 +1,13 @@
-description: gpt-5.1, low reasoning, 2026-03-26
+description: gpt-5.1, low reasoning, 2026-04-02
 
 model:
   name: gpt-5.1
   reasoningEffort: low
+
+reranker:
+  model: gpt-5.4-nano
+  temperature: 1.0
+  maxDocumentChars: 10000
 
 tools:
   documentation_retriever:

@@ -34,15 +34,6 @@ services:
       retries: 10
     restart: unless-stopped
 
-  reranker:
-    build:
-      context: ./reranker
-      dockerfile: Dockerfile
-    image: jmix-ai-reranker:latest
-    ports:
-      - "8000:8000"
-    restart: unless-stopped
-
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command:
