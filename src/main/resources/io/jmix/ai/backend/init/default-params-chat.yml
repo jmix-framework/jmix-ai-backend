@@ -1,10 +1,10 @@
-description: openapi-compatible, Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
+description: Qwen3-Coder-30B via Ollama + bge-reranker-v2-m3
 
 model:
-  name: /Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
+  name: qwen3-coder:30b
 
 reranker:
-  model: gpt-5-nano
+  model: bge-reranker-v2-m3
   temperature: 1.0
   maxDocumentChars: 10000
 
@@ -16,7 +16,7 @@ tools:
     topK: 10
     minScore: 0.5
     topReranked: 3
-    minRerankedScore: 0.2
+    minRerankedScore: 0.01
     noResultsMessage: No documentation found for the query. Try rephrasing your query or using another tool.
 
   framework_retriever:
@@ -25,7 +25,7 @@ tools:
     topK: 8
     minScore: 0.5
     topReranked: 3
-    minRerankedScore: 0.2
+    minRerankedScore: 0.01
     noResultsMessage: No relevant Jmix framework source code found for the query. Try rephrasing your query or using another tool.
 
   uisamples_retriever:
@@ -34,7 +34,7 @@ tools:
     topK: 5
     minScore: 0.5
     topReranked: 3
-    minRerankedScore: 0.5
+    minRerankedScore: 0.01
     noResultsMessage: No UI Samples found for the query. Try rephrasing your query or using another tool.
 
   trainings_retriever:
@@ -44,7 +44,7 @@ tools:
     topK: 3
     minScore: 0.5
     topReranked: 2
-    minRerankedScore: 0.5
+    minRerankedScore: 0.01
     noResultsMessage: No trainings information found for the query. Try rephrasing your query or using another tool.
 
 postRetrievalProcessor:
