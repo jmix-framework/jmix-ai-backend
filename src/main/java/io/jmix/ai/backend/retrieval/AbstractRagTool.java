@@ -135,7 +135,7 @@ public abstract class AbstractRagTool {
             List<Document> filteredDocuments;
 
             long rerankStart = System.currentTimeMillis();
-            List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked, parametersReader);
+            List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
             long rerankMs = System.currentTimeMillis() - rerankStart;
 
             if (rerankResults == null) {
