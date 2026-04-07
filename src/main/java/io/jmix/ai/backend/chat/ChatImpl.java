@@ -135,8 +135,13 @@ public class ChatImpl implements Chat {
                 ? toolsManager.getTools(parametersYaml, retrievedDocuments, listener)
                 : List.of();
 
+        String prefetchedContext = null;
+        if (enableTools) {
+            prefetchedContext = prefetchPrimaryRetrievalContext(userPrompt, tools, msg -> listener.onLog(msg));
+        }
+
         ChatClient.ChatClientRequestSpec request = chatClient.prompt(
-                buildPrompt(userPrompt, parametersReader.getString("systemMessage"), null));
+                buildPrompt(userPrompt, parametersReader.getString("systemMessage"), prefetchedContext));
         request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));
         if (!tools.isEmpty()) {
             request.toolCallbacks(tools.stream().map(AbstractRagTool::getToolCallback).toList());
@@ -260,10 +265,15 @@ public class ChatImpl implements Chat {
                 addLogMessage(log, logMessages, "Tool callbacks skipped for non-technical prompt");
             }
 
+            String prefetchedContext = null;
+            if (enableTools) {
+                prefetchedContext = prefetchPrimaryRetrievalContext(userPrompt, tools, internalLogger);
+            }
+
             ChatClient.ChatClientRequestSpec request;
 
             phaseStart = System.currentTimeMillis();
-            request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage"), null));
+            request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage"), prefetchedContext));
             request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));
             if (!tools.isEmpty()) {
                 request.toolCallbacks(tools.stream().map(AbstractRagTool::getToolCallback).toList());
