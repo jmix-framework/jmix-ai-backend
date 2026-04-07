@@ -708,7 +708,8 @@ public class ChatImpl implements Chat {
 
     private static Prompt buildPrompt(String userPrompt, String systemPrompt, @Nullable String prefetchedContext) {
         List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(systemPrompt));
+        // Disable thinking mode for MoE models (qwen3-coder etc.) that put all output in thinking block
+        messages.add(new SystemMessage("/no_think\n" + systemPrompt));
         if (StringUtils.isNotBlank(prefetchedContext)) {
             messages.add(new SystemMessage("""
                     Retrieved retrieval context:
