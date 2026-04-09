@@ -1,135 +1,141 @@
-import os
-import logging
-from fastapi import FastAPI, HTTPException
+"""
+BGE Reranker v2-m3 with OpenAI-compatible Chat Completions API.
+
+Pretends to be an OpenAI chat model. When Reranker.java sends a reranking prompt
+with query + candidate documents, this service:
+1. Parses the user message to extract query and documents
+2. Runs cross-encoder scoring (much better than LLM-as-reranker)
+3. Returns scores in the JSON format Reranker.java expects
+"""
+import json
+import re
+import time
+import uuid
+
+from fastapi import FastAPI
 from pydantic import BaseModel
+from sentence_transformers import CrossEncoder
 import torch
-import math
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from typing import List
+import uvicorn
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+app = FastAPI()
 
-try:
-    # Initialize FastAPI app
-    app = FastAPI(title="Cross-Encoder Reranker Service")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = CrossEncoder("BAAI/bge-reranker-v2-m3", max_length=8192, device=device)
+print(f"Reranker loaded on {device}")
 
-    # Load model and tokenizer
-    model_name = "cross-encoder/ms-marco-MiniLM-L-12-v2"
-    
-    cache_dir = os.getenv("MODEL_CACHE_DIR", "./model_cache")
-    # Create cache directory if it doesn't exist
-    os.makedirs(cache_dir, exist_ok=True)
 
-    logger.info(f"Loading tokenizer and model: {model_name}")
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name, 
-        use_fast=True,
-        cache_dir=cache_dir
-    )
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_name,
-        cache_dir=cache_dir
-    )
-    model.eval()  # Ensure evaluation mode
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    logger.info(f"Model loaded on device: {device}")
-    logger.info("Model and tokenizer loaded successfully")
-except Exception as e:
-    logger.error(f"Failed to load model or tokenizer: {str(e)}")
-    raise
+# ── OpenAI-compatible models ──
 
-# Define request model
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatCompletionRequest(BaseModel):
+    model: str = "bge-reranker-v2-m3"
+    messages: list[ChatMessage]
+    temperature: float = 0.0
+    response_format: dict | None = None
+
+@app.post("/v1/chat/completions")
+def chat_completions(req: ChatCompletionRequest):
+    """OpenAI-compatible endpoint. Parses rerank prompt, runs cross-encoder."""
+    user_msg = next((m.content for m in req.messages if m.role == "user"), "")
+
+    query, documents = _parse_rerank_prompt(user_msg)
+
+    if not query or not documents:
+        # Fallback: return empty results
+        result_json = json.dumps({"results": []})
+    else:
+        pairs = [[query, doc["content"]] for doc in documents]
+        scores = model.predict(pairs).tolist()
+        results = [{"index": doc["index"], "score": round(float(s), 3)} for doc, s in zip(documents, scores)]
+        result_json = json.dumps({"results": results})
+
+    return {
+        "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": req.model,
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": result_json},
+            "finish_reason": "stop"
+        }],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    }
+
+@app.get("/v1/models")
+def list_models():
+    """OpenAI-compatible models list."""
+    return {
+        "object": "list",
+        "data": [{
+            "id": "bge-reranker-v2-m3",
+            "object": "model",
+            "created": int(time.time()),
+            "owned_by": "local"
+        }]
+    }
+
+
+def _parse_rerank_prompt(user_msg: str) -> tuple:
+    """Extract query and candidate documents from Reranker.java prompt format.
+
+    Expected format:
+        Query:
+        <query text>
+
+        Candidate documents:
+        [{"index":0,"source":"...","content":"..."}, ...]
+    """
+    query = ""
+    documents = []
+
+    # Extract query
+    query_match = re.search(r"Query:\s*\n(.+?)(?:\n\s*\n|\nCandidate)", user_msg, re.DOTALL)
+    if query_match:
+        query = query_match.group(1).strip()
+
+    # Extract documents JSON array
+    docs_match = re.search(r"Candidate documents:\s*\n(\[.+\])", user_msg, re.DOTALL)
+    if docs_match:
+        try:
+            documents = json.loads(docs_match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    return query, documents
+
+
+# ── Direct rerank endpoint (like main branch) ──
+
 class RerankRequest(BaseModel):
     query: str
-    documents: List[str]
-    top_n: int
+    documents: list[str]
+    top_n: int = 3
 
-# Define response model
-class RerankResponse(BaseModel):
-    index: int
-    score: float
+@app.post("/rerank")
+def rerank(req: RerankRequest):
+    """Direct cross-encoder reranking. Returns [{index, score}] sorted by score desc."""
+    if not req.documents:
+        return []
 
-@app.post("/rerank", response_model=List[RerankResponse])
-async def rerank(request: RerankRequest):
-    try:
-        logger.info(f"Received rerank request: query='{request.query}', num_documents={len(request.documents)}, top_n={request.top_n}")
-        
-        # Validate input
-        if not request.query.strip():
-            raise HTTPException(status_code=400, detail="Query cannot be empty")
-        if not request.documents:
-            raise HTTPException(status_code=400, detail="Documents list cannot be empty")
-        if request.top_n <= 0:
-            raise HTTPException(status_code=400, detail="top_n must be positive")
-        
-        # Filter out empty or invalid documents and track original indices
-        valid_documents = []
-        original_indices = []
-        for i, doc in enumerate(request.documents):
-            if doc and doc.strip():
-                valid_documents.append(doc.strip().encode('utf-8').decode('utf-8'))
-                original_indices.append(i)
-        if not valid_documents:
-            raise HTTPException(status_code=400, detail="No valid documents provided")
-        
-        # logger.info(f"Valid documents: {valid_documents}")
-        
-        # Prepare query-document pairs
-        pairs = [[request.query.encode('utf-8').decode('utf-8'), doc] for doc in valid_documents]
-        
-        # Tokenize inputs
-        inputs = tokenizer(
-            pairs,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-            max_length=512
-        )
-        
-        # Move inputs to the same device as model
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        
-        # Log tokenized inputs
-        # logger.info(f"Input IDs shape: {inputs['input_ids'].shape}")
-        # logger.info(f"Input IDs: {inputs['input_ids'].tolist()}")
-        # logger.info(f"Attention mask: {inputs['attention_mask'].tolist()}")
-        
-        # Check for invalid tokenization
-        if not inputs['input_ids'].sum():
-            logger.warning("Invalid tokenization: all input IDs are zero")
-            results = [{"index": i, "score": 0.0} for i in original_indices]
-            return results[:min(request.top_n, len(results))]
-        
-        # Run inference
-        with torch.no_grad():
-            outputs = model(**inputs)
-            logits = outputs.logits
-            # logger.info(f"Raw logits: {logits.tolist()}")
-            # Check if all logits are NaN
-            if torch.isnan(logits).all():
-                logger.warning("All logits are NaN, returning zero scores")
-                scores = [0.0] * len(valid_documents)
-            else:
-                # Clamp logits for numerical stability
-                logits = torch.clamp(logits, min=-100, max=100)
-                scores = torch.sigmoid(logits).squeeze(-1).tolist()
-                scores = [0.0 if math.isnan(score) or math.isinf(score) else float(score) for score in scores]
-            logger.info(f"Processed scores: {scores}")
-        
-        # Create response with original indices
-        results = [{"index": original_indices[i], "score": score} for i, score in enumerate(scores)]
-        # Sort by score and limit to top_n
-        results = sorted(results, key=lambda x: x["score"], reverse=True)[:min(request.top_n, len(results))]
-        
-        logger.info(f"Reranking completed: returning {len(results)} results: {results}")
-        return results
-    except Exception as e:
-        logger.error(f"Error during reranking: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    pairs = [[req.query, doc] for doc in req.documents]
+    scores = model.predict(pairs).tolist()
+
+    results = [{"index": i, "score": round(float(s), 4)} for i, s in enumerate(scores)]
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:req.top_n]
+
+
+# ── Health check ──
 
 @app.get("/health")
-async def health():
-    return {"status": "healthy"}
+def health():
+    return {"status": "ok", "device": device}
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
