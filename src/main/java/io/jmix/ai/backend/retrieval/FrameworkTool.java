@@ -14,4 +14,14 @@ public class FrameworkTool extends AbstractRagTool {
         super("framework_retriever", "jmix-framework-code", vectorStore, postRetrievalProcessor, reranker,
                 parametersReader, retrievedDocuments, logger);
     }
+
+    @Override
+    protected boolean shouldFallbackToTopReranked() {
+        return true;
+    }
+
+    @Override
+    protected int getRerankFallbackLimit() {
+        return 2;
+    }
 }

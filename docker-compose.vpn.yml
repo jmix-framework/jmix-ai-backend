@@ -1,4 +1,4 @@
-упservices:
+services:
   postgres:
     image: postgres:16
     environment:

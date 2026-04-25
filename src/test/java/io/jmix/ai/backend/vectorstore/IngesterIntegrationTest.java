@@ -19,6 +19,6 @@ class IngesterIntegrationTest {
     @Test
     void shouldReturnAvailableIngesterTypes() {
         List<String> types = ingesterManager.getTypes();
-        assertThat(types).containsAll(List.of("docs", "uisamples", "trainings"));
+        assertThat(types).containsAll(List.of("docs", "uisamples", "trainings", "business-documents"));
     }
 }

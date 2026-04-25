@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://knowledgeDocumentPreviewView.title">
+    <layout>
+        <formLayout id="form">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+            </responsiveSteps>
+            <textField id="sourceField"
+                       label="msg://knowledgeDocumentPreviewView.source"
+                       width="100%"/>
+            <textField id="documentPathField"
+                       label="msg://knowledgeDocumentPreviewView.documentPath"
+                       width="100%"/>
+            <textArea id="contentField"
+                      label="msg://knowledgeDocumentPreviewView.content"
+                      width="100%"
+                      minHeight="36em"/>
+        </formLayout>
+    </layout>
+</view>

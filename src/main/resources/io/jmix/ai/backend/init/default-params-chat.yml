@@ -1,7 +1,10 @@
-description: openapi-compatible, Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
+description: classifier_rag | openai-compatible via ollama, qwen3-coder:30b
+
+chat:
+  mode: classifier_rag
 
 model:
-  name: /Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf
+  name: qwen3-coder:30b
 
 tools:
   skipForTrivialPrompts: true
@@ -41,6 +44,16 @@ tools:
     topReranked: 2
     minRerankedScore: 0.5
     noResultsMessage: No trainings information found for the query. Try rephrasing your query or using another tool.
+
+  business_documents_retriever:
+    enabled: false
+    description: Searches uploaded business documents for narrow enterprise/demo scenarios such as invoices, orders, summaries, and other domain-specific source files.
+    similarityThreshold: 0.0
+    topK: 5
+    minScore: 0.5
+    topReranked: 3
+    minRerankedScore: 0.3
+    noResultsMessage: No business documents found for the query. Try rephrasing your query or loading another business knowledge base.
 
 postRetrievalProcessor:
   rules:
@@ -95,6 +108,7 @@ systemMessage: |
   - framework_retriever for annotations, delegates, internals, lifecycle, source behavior, and exact API symbols
   - uisamples_retriever for screens, actions, dialogs, components, XML, and practical UI recipes
   - trainings_retriever only as secondary support when enabled
+  - business_documents_retriever for narrow business/demo document sets; keep it isolated from coding assistance profiles
 
   Answering style:
   - Answer in the user's language.

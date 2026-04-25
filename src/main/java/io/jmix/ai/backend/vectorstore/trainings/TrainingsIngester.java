@@ -129,6 +129,9 @@ public class TrainingsIngester extends AbstractIngester {
         Map<String, Object> metadata = createMetadata(source, textContent);
         metadata.put("language", effectivePrimaryLanguage().toLowerCase());
         metadata.put("docPath", source);
+        metadata.put("documentPath", source);
+        metadata.put("documentName", docPath.getFileName().toString());
+        metadata.put("documentKind", "training");
         return createDocument(textContent, metadata);
     }
 

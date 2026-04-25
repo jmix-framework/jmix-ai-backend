@@ -51,11 +51,21 @@ public class CheckDefListView extends StandardListView<CheckDef> {
     @Autowired
     private Notifications notifications;
 
-    @Subscribe(id = "toggleActiveButton", subject = "clickListener")
-    public void onToggleActiveButtonClick(final ClickEvent<JmixButton> event) {
+    @Subscribe("checkDefsDataGrid.toggleActiveAction")
+    public void onCheckDefsDataGridToggleActiveAction(final ActionPerformedEvent event) {
         Set<CheckDef> selectedItems = checkDefsDataGrid.getSelectedItems();
         for (CheckDef checkDef : selectedItems) {
             checkDef.setActive(!BooleanUtils.toBoolean(checkDef.getActive()));
+            CheckDef saved = dataManager.save(checkDef);
+            checkDefsDc.replaceItem(saved);
+        }
+    }
+
+    @Subscribe("checkDefsDataGrid.toggleGoldAction")
+    public void onCheckDefsDataGridToggleGoldAction(final ActionPerformedEvent event) {
+        Set<CheckDef> selectedItems = checkDefsDataGrid.getSelectedItems();
+        for (CheckDef checkDef : selectedItems) {
+            checkDef.setGolden(!BooleanUtils.toBoolean(checkDef.getGolden()));
             CheckDef saved = dataManager.save(checkDef);
             checkDefsDc.replaceItem(saved);
         }

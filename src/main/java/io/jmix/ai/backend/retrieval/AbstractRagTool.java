@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static io.jmix.ai.backend.retrieval.Utils.getDocSourcesAsString;
+import static io.jmix.ai.backend.retrieval.Utils.getDistinctDocumentsPreserveOrder;
 import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
 import static io.jmix.ai.backend.retrieval.Utils.getRerankResultsAsString;
 
@@ -40,8 +41,8 @@ public abstract class AbstractRagTool {
     protected final VectorStore vectorStore;
     private final PostRetrievalProcessor postRetrievalProcessor;
     private final Reranker reranker;
-    private final List<Document> retrievedDocuments;
-    private final Consumer<String> logger;
+    protected final List<Document> retrievedDocuments;
+    protected final Consumer<String> logger;
     protected final String type;
     protected String description;
     protected double similarityThreshold;
@@ -124,6 +125,8 @@ public abstract class AbstractRagTool {
             return getNoResultsMessage();
         }
 
+        documents = getDistinctDocumentsPreserveOrder(documents);
+
         List<Document> filteredDocuments;
 
         List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked);
@@ -159,6 +162,7 @@ public abstract class AbstractRagTool {
             return getNoResultsMessage();
         }
 
+        filteredDocuments = getDistinctDocumentsPreserveOrder(filteredDocuments);
         retrievedDocuments.addAll(filteredDocuments);
 
         return filteredDocuments.stream()

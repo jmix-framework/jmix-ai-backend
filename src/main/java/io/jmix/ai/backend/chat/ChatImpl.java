@@ -4,6 +4,7 @@ import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.retrieval.AbstractRagTool;
 import io.jmix.ai.backend.retrieval.ToolsManager;
+import io.jmix.ai.backend.OpenAiApiHttp11Configurer;
 import io.jmix.core.UuidProvider;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationHandler;
@@ -36,8 +37,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.Disposable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -59,6 +62,7 @@ public class ChatImpl implements Chat {
 
     private static final Logger log = LoggerFactory.getLogger(ChatImpl.class);
     private static final ChatQueryClassifier QUERY_CLASSIFIER = new ChatQueryClassifier();
+    private static final String BUSINESS_DOCUMENTS_RETRIEVER_TOOL_NAME = "business_documents_retriever";
     private static final Pattern EXACT_IDENTIFIER_PATTERN = Pattern.compile(
             "(?iu)(" +
                     "@[a-z_][a-z0-9_]*|" +
@@ -109,11 +113,15 @@ public class ChatImpl implements Chat {
             long phaseStart = start;
             ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
             long parametersReaderMs = elapsed(phaseStart);
+            String effectiveUserPrompt = QUERY_CLASSIFIER.normalizeSemanticPrompt(userPrompt);
 
             phaseStart = System.currentTimeMillis();
             ChatModel chatModel = buildChatModel(parametersReader);
             long chatModelMs = elapsed(phaseStart);
             addLogMessage(log, logMessages, "Model: %s, User prompt: %s".formatted(chatModel.getDefaultOptions(), abbreviate(userPrompt, 200)));
+            if (!StringUtils.equals(userPrompt, effectiveUserPrompt)) {
+                addLogMessage(log, logMessages, "Effective user prompt for retrieval/LLM: %s".formatted(abbreviate(effectiveUserPrompt, 200)));
+            }
 
             phaseStart = System.currentTimeMillis();
             ChatClient chatClient = buildClient(chatModel);
@@ -130,25 +138,46 @@ public class ChatImpl implements Chat {
             ChatClient.ChatClientRequestSpec request;
 
             phaseStart = System.currentTimeMillis();
-            boolean enableTools = shouldEnableTools(userPrompt, parametersReader);
+            ChatMode chatMode = getChatMode(parametersReader);
+            boolean enableTools = shouldEnableTools(userPrompt, parametersReader, chatMode);
             List<AbstractRagTool> tools = enableTools
-                    ? toolsManager.getTools(parametersYaml, retrievedDocuments, internalLogger)
+                    ? filterAllowedTools(toolsManager.getTools(parametersYaml, retrievedDocuments, internalLogger), parametersReader)
                     : List.of();
             long toolsMs = elapsed(phaseStart);
 
+            addLogMessage(log, logMessages, "Chat mode: %s".formatted(chatMode.getId()));
             if (enableTools) {
                 addLogMessage(log, logMessages, "Tool callbacks enabled: %d".formatted(tools.size()));
             } else {
-                addLogMessage(log, logMessages, "Tool callbacks skipped for non-technical prompt");
+                addLogMessage(log, logMessages, "Tool callbacks skipped for this prompt/profile");
             }
 
             String prefetchedContext = null;
-            if (enableTools) {
-                prefetchedContext = prefetchPrimaryRetrievalContext(userPrompt, tools, internalLogger);
+            if (shouldUseDeterministicBusinessTool(chatMode, tools)) {
+                String deterministicAnswer = executePrefetchTool(
+                        BUSINESS_DOCUMENTS_RETRIEVER_TOOL_NAME,
+                        effectiveUserPrompt,
+                        tools,
+                        internalLogger);
+                if (StringUtils.isNotBlank(deterministicAnswer)) {
+                    List<Document> distinctDocuments = getDistinctDocuments(retrievedDocuments);
+                    long responseTime = System.currentTimeMillis() - start;
+                    addLogMessage(log, logMessages,
+                            "Returning deterministic business-documents answer without LLM call. Total time [ms]: %d"
+                                    .formatted(responseTime));
+                    return new StructuredResponse(deterministicAnswer, logMessages, distinctDocuments, 0, 0, (int) responseTime);
+                }
+                addLogMessage(log, logMessages,
+                        "Deterministic business-documents tool returned no result, fallback to LLM without tool callbacks");
+                tools = List.of();
+            } else if (enableTools && chatMode.classifierPrefetch()) {
+                prefetchedContext = prefetchPrimaryRetrievalContext(effectiveUserPrompt, tools, internalLogger);
+            } else if (enableTools) {
+                addLogMessage(log, logMessages, "Prefetch skipped for chat mode: %s".formatted(chatMode.getId()));
             }
 
             phaseStart = System.currentTimeMillis();
-            request = chatClient.prompt(buildPrompt(userPrompt, parametersReader.getString("systemMessage"), prefetchedContext));
+            request = chatClient.prompt(buildPrompt(effectiveUserPrompt, parametersReader.getString("systemMessage"), prefetchedContext));
             request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));
             if (!tools.isEmpty()) {
                 request.toolCallbacks(tools.stream().map(AbstractRagTool::getToolCallback).toList());
@@ -275,7 +304,7 @@ public class ChatImpl implements Chat {
 
     private static Prompt buildPrompt(String userPrompt, String systemPrompt, @Nullable String prefetchedContext) {
         List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(systemPrompt));
+        messages.add(new SystemMessage(buildEffectiveSystemPrompt(userPrompt, systemPrompt)));
         if (StringUtils.isNotBlank(prefetchedContext)) {
             messages.add(new SystemMessage("""
                     Retrieved retrieval context:
@@ -286,14 +315,93 @@ public class ChatImpl implements Chat {
         return new Prompt(messages);
     }
 
+    private static String buildEffectiveSystemPrompt(String userPrompt, String systemPrompt) {
+        String answerGuidance = buildAnswerGuidance(userPrompt);
+        if (StringUtils.isBlank(answerGuidance)) {
+            return systemPrompt;
+        }
+        return systemPrompt + "\n\nAnswer format guidance for this question:\n" + answerGuidance;
+    }
+
+    @Nullable
+    private static String buildAnswerGuidance(@Nullable String userPrompt) {
+        if (StringUtils.isBlank(userPrompt)) {
+            return null;
+        }
+
+        List<String> instructions = new ArrayList<>();
+        boolean conceptualPrompt = QUERY_CLASSIFIER.isConceptualPrompt(userPrompt);
+        boolean scenarioPrompt = QUERY_CLASSIFIER.isScenarioPrompt(userPrompt);
+        boolean securityPrompt = QUERY_CLASSIFIER.isSecurityPrompt(userPrompt);
+        boolean studioWorkflowPrompt = QUERY_CLASSIFIER.isStudioWorkflowPrompt(userPrompt);
+        boolean programmaticPrompt = QUERY_CLASSIFIER.isProgrammaticPrompt(userPrompt);
+        boolean uiPrompt = QUERY_CLASSIFIER.isUiPrompt(userPrompt);
+        boolean examplePrompt = QUERY_CLASSIFIER.isExampleIntentPrompt(userPrompt);
+        boolean exactApiPrompt = QUERY_CLASSIFIER.isExactApiSymbolPrompt(userPrompt);
+        boolean dataAccessPrompt = QUERY_CLASSIFIER.isDataAccessPrompt(userPrompt);
+
+        if (conceptualPrompt) {
+            instructions.add("- Give the recommendation in the first sentence.");
+            instructions.add("- Then compare the main options in short bullets: when to use each one, and why.");
+            instructions.add("- Keep the contrast concrete and Jmix 1.7-specific; avoid generic framework overviews.");
+        }
+        if (scenarioPrompt || securityPrompt) {
+            instructions.add("- Start with the recommended approach for the described scenario, then list the implementation steps.");
+            instructions.add("- If access rules are involved, separate visibility, modification rights, and row filtering when relevant.");
+        }
+        if (studioWorkflowPrompt) {
+            instructions.add("- Answer as a short ordered step-by-step Jmix 1.7 Studio workflow.");
+            instructions.add("- Mention the concrete Studio path, generated artifacts, and the next expected step.");
+        }
+        if (programmaticPrompt || examplePrompt || uiPrompt || exactApiPrompt) {
+            instructions.add("- Provide one concrete Jmix 1.7 example or code pattern, not only a conceptual explanation.");
+            instructions.add("- Name the exact Jmix classes, annotations, XML elements, or config keys that implement the answer.");
+            instructions.add("- Prefer one primary approach instead of multiple alternatives.");
+        }
+        if (dataAccessPrompt && !conceptualPrompt) {
+            instructions.add("- For data-loading or aggregate-value questions, state where the logic should live and why.");
+        }
+        if (looksLikeDefinitionOrConfigurationPrompt(userPrompt)) {
+            instructions.add("- Put the exact answer in the first sentence.");
+            instructions.add("- If the answer depends on a specific property, annotation, screen API, or XML attribute, name it explicitly.");
+        }
+
+        if (instructions.isEmpty()) {
+            return null;
+        }
+        return String.join("\n", instructions);
+    }
+
+    private static boolean looksLikeDefinitionOrConfigurationPrompt(String userPrompt) {
+        String normalized = userPrompt.toLowerCase();
+        return normalized.startsWith("что такое")
+                || normalized.startsWith("как изменить")
+                || normalized.startsWith("как настроить")
+                || normalized.startsWith("как объявить")
+                || normalized.startsWith("как добавить")
+                || normalized.startsWith("какие основные")
+                || normalized.startsWith("есть ли")
+                || normalized.startsWith("объясни разницу")
+                || normalized.startsWith("what is")
+                || normalized.startsWith("how to configure")
+                || normalized.startsWith("how to change")
+                || normalized.startsWith("what are the main")
+                || normalized.startsWith("is there");
+    }
+
     @Nullable
     private String prefetchPrimaryRetrievalContext(String userPrompt, List<AbstractRagTool> tools, Consumer<String> internalLogger) {
         ChatQueryClassifier.RetrievalPlan retrievalPlan = QUERY_CLASSIFIER.buildRetrievalPlan(userPrompt);
         internalLogger.accept("Retrieval plan: %s".formatted(retrievalPlan.toolNames()));
+        List<String> prefetchToolNames = resolvePrefetchToolNames(userPrompt, tools);
+        internalLogger.accept("Prefetch tool set: %s".formatted(prefetchToolNames));
+        if (prefetchToolNames.isEmpty()) {
+            return null;
+        }
 
         List<String> exactIdentifiers = extractExactIdentifiers(userPrompt);
         List<String> contextSections = new ArrayList<>();
-        for (String toolName : retrievalPlan.toolNames()) {
+        for (String toolName : prefetchToolNames) {
             String context = executePrefetchTool(toolName, userPrompt, tools, internalLogger);
             if (StringUtils.isBlank(context)) {
                 continue;
@@ -380,6 +488,7 @@ public class ChatImpl implements Chat {
         }
         OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
                 .apiKey(openaiApiKey);
+        OpenAiApiHttp11Configurer.apply(apiBuilder);
         if (StringUtils.isNotBlank(openAiBaseUrl)) {
             apiBuilder.baseUrl(openAiBaseUrl);
         }
@@ -412,11 +521,39 @@ public class ChatImpl implements Chat {
                 .build();
     }
 
+    static ChatMode getChatMode(ParametersReader parametersReader) {
+        return ChatMode.fromId(parametersReader.getString("chat.mode", null));
+    }
+
     static boolean shouldEnableTools(String userPrompt, ParametersReader parametersReader) {
+        return shouldEnableTools(userPrompt, parametersReader, getChatMode(parametersReader));
+    }
+
+    static boolean shouldEnableTools(String userPrompt, ParametersReader parametersReader, ChatMode chatMode) {
+        if (chatMode.alwaysEnableTools()) {
+            return true;
+        }
         if (!parametersReader.getBoolean("tools.skipForTrivialPrompts", true)) {
             return true;
         }
-        return QUERY_CLASSIFIER.isTechnicalPrompt(userPrompt);
+        return QUERY_CLASSIFIER.hasExplicitToolRequest(userPrompt)
+                || QUERY_CLASSIFIER.isTechnicalPrompt(userPrompt);
+    }
+
+    static List<String> getAllowedToolNames(ParametersReader parametersReader) {
+        return parametersReader.getStringList("tools.allowed");
+    }
+
+    static List<AbstractRagTool> filterAllowedTools(List<AbstractRagTool> tools, ParametersReader parametersReader) {
+        List<String> allowedToolNames = getAllowedToolNames(parametersReader);
+        if (allowedToolNames.isEmpty()) {
+            return tools;
+        }
+
+        Set<String> allowed = new LinkedHashSet<>(allowedToolNames);
+        return tools.stream()
+                .filter(tool -> allowed.contains(tool.getToolName()))
+                .toList();
     }
 
     private static long elapsed(long phaseStart) {
@@ -439,12 +576,41 @@ public class ChatImpl implements Chat {
         return QUERY_CLASSIFIER.isFrameworkPrompt(userPrompt);
     }
 
+    private static boolean shouldUseDeterministicBusinessTool(ChatMode chatMode, List<AbstractRagTool> tools) {
+        return chatMode == ChatMode.NARROW_RAG
+                && tools.size() == 1
+                && BUSINESS_DOCUMENTS_RETRIEVER_TOOL_NAME.equals(tools.getFirst().getToolName());
+    }
+
+    static List<String> resolvePrefetchToolNames(@Nullable String userPrompt, List<AbstractRagTool> tools) {
+        if (tools.isEmpty()) {
+            return List.of();
+        }
+
+        Set<String> availableToolNames = tools.stream()
+                .map(AbstractRagTool::getToolName)
+                .collect(LinkedHashSet::new, LinkedHashSet::add, LinkedHashSet::addAll);
+
+        List<String> plannedToolNames = buildRetrievalPlan(userPrompt).toolNames();
+        List<String> matchedToolNames = plannedToolNames.stream()
+                .filter(availableToolNames::contains)
+                .toList();
+        if (!matchedToolNames.isEmpty()) {
+            return matchedToolNames;
+        }
+
+        return tools.stream()
+                .map(AbstractRagTool::getToolName)
+                .toList();
+    }
+
     private static String getContextSectionTitle(String toolName) {
         return switch (toolName) {
             case "documentation_retriever" -> "Documentation context";
             case "framework_retriever" -> "Framework source context";
             case "uisamples_retriever" -> "UI samples context";
             case "trainings_retriever" -> "Trainings context";
+            case "business_documents_retriever" -> "Business documents context";
             default -> "Retrieved context";
         };
     }

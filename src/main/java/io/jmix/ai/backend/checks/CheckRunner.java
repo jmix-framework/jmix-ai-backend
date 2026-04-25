@@ -37,17 +37,20 @@ public class CheckRunner {
     private final Chat chat;
     private final ExternalEvaluator externalEvaluator;
     private final int parallelism;
+    private final int fullRunParallelism;
     private final String datasetVersion;
 
     public CheckRunner(DataManager dataManager,
                        Chat chat,
                        ExternalEvaluator externalEvaluator,
                        @Value("${answer-checks.parallelism:4}") int parallelism,
+                       @Value("${answer-checks.full-parallelism:${answer-checks.parallelism:4}}") int fullRunParallelism,
                        @Value("${answer-checks.dataset-version:unknown}") String datasetVersion) {
         this.dataManager = dataManager;
         this.chat = chat;
         this.externalEvaluator = externalEvaluator;
         this.parallelism = Math.max(1, parallelism);
+        this.fullRunParallelism = Math.max(1, fullRunParallelism);
         this.datasetVersion = datasetVersion;
     }
 
@@ -68,8 +71,8 @@ public class CheckRunner {
             return;
         }
 
-        ExecutorService executorService = Executors.newFixedThreadPool(parallelism);
-        List<Check> checks = new ArrayList<>();
+        ExecutorService executorService = Executors.newFixedThreadPool(resolveParallelism(checkRun));
+        RunProgress progress = new RunProgress();
         String infrastructureFailure = null;
         try {
             List<Future<Check>> futures = checkDefs.stream()
@@ -83,15 +86,15 @@ public class CheckRunner {
             for (int i = 0; i < futures.size(); i++) {
                 CheckDef checkDef = checkDefs.get(i);
                 try {
-                    checks.add(futures.get(i).get());
+                    persistCheckResult(checkRun, futures.get(i).get(), progress);
                 } catch (InterruptedException e) {
                     if (infrastructureFailure == null) {
                         infrastructureFailure = "Check execution interrupted";
                     }
-                    checks.add(failedCheck(checkDef, "Check execution interrupted"));
+                    persistCheckResult(checkRun, failedCheck(checkDef, "Check execution interrupted"), progress);
                     for (int j = i + 1; j < futures.size(); j++) {
                         futures.get(j).cancel(true);
-                        checks.add(failedCheck(checkDefs.get(j), "Check execution interrupted"));
+                        persistCheckResult(checkRun, failedCheck(checkDefs.get(j), "Check execution interrupted"), progress);
                     }
                     Thread.currentThread().interrupt();
                     break;
@@ -101,14 +104,14 @@ public class CheckRunner {
                         if (infrastructureFailure == null) {
                             infrastructureFailure = infrastructureException.getMessage();
                         }
-                        checks.add(infrastructureException.failedCheck());
+                        persistCheckResult(checkRun, infrastructureException.failedCheck(), progress);
                     } else if (cause instanceof ExternalEvaluatorException || cause instanceof ChatInfrastructureException) {
                         if (infrastructureFailure == null) {
                             infrastructureFailure = cause.getMessage();
                         }
-                        checks.add(failedCheck(checkDef, "Check execution failed: " + cause.getMessage()));
+                        persistCheckResult(checkRun, failedCheck(checkDef, "Check execution failed: " + cause.getMessage()), progress);
                     } else {
-                        checks.add(failedCheck(checkDef, "Check execution failed: " + cause));
+                        persistCheckResult(checkRun, failedCheck(checkDef, "Check execution failed: " + cause), progress);
                     }
                 }
             }
@@ -116,31 +119,31 @@ public class CheckRunner {
             executorService.shutdown();
         }
 
-        double score = 0.0;
-        int count = 0;
-        long modelResponseTotalMs = 0;
-        boolean hasModelResponseTiming = false;
-        for (Check check : checks) {
-            check.setCheckRun(checkRun);
-            dataManager.save(check);
-            score += check.getScore();
-            if (check.getModelResponseTimeMs() != null) {
-                modelResponseTotalMs += check.getModelResponseTimeMs();
-                hasModelResponseTiming = true;
-            }
-            count++;
-        }
-        checkRun.setModelResponseTotalMs(hasModelResponseTiming ? modelResponseTotalMs : null);
-
         if (infrastructureFailure != null) {
             failRun(checkRun, infrastructureFailure);
             return;
         }
 
-        checkRun.setScore(score / count);
+        checkRun.setScore(progress.averageScore());
         checkRun.setStatus(CheckRunStatus.SUCCESS);
         checkRun.setFailureReason(null);
         markRunFinished(checkRun);
+        dataManager.save(checkRun);
+    }
+
+    private int resolveParallelism(CheckRun checkRun) {
+        if (Boolean.TRUE.equals(checkRun.getGoldenOnly())) {
+            return parallelism;
+        }
+        return fullRunParallelism;
+    }
+
+    private void persistCheckResult(CheckRun checkRun, Check check, RunProgress progress) {
+        check.setCheckRun(checkRun);
+        dataManager.save(check);
+        progress.accept(check);
+        checkRun.setScore(progress.averageScore());
+        checkRun.setModelResponseTotalMs(progress.hasModelResponseTiming ? progress.modelResponseTotalMs : null);
         dataManager.save(checkRun);
     }
 
@@ -239,15 +242,27 @@ public class CheckRunner {
             return explicitValue.asText();
         }
 
+        String chatMode = root.path("chat").path("mode").isTextual()
+                ? root.path("chat").path("mode").asText()
+                : null;
+
         JsonNode toolsNode = root.path("tools");
         if (!toolsNode.isObject()) {
-            return null;
+            return chatMode;
+        }
+        List<String> allowedTools = new ArrayList<>();
+        JsonNode allowedNode = toolsNode.path("allowed");
+        if (allowedNode.isArray()) {
+            StreamSupport.stream(allowedNode.spliterator(), false)
+                    .filter(JsonNode::isTextual)
+                    .map(JsonNode::asText)
+                    .forEach(allowedTools::add);
         }
         List<String> enabledTools = StreamSupport.stream(toolsNode.properties().spliterator(), false)
                 .map(entry -> {
                     String toolName = entry.getKey();
                     JsonNode toolNode = entry.getValue();
-                    if ("skipForTrivialPrompts".equals(toolName)) {
+                    if ("skipForTrivialPrompts".equals(toolName) || "allowed".equals(toolName)) {
                         return null;
                     }
                     if (toolNode.isObject() && toolNode.path("enabled").isBoolean() && !toolNode.path("enabled").asBoolean()) {
@@ -258,10 +273,19 @@ public class CheckRunner {
                 .filter(Objects::nonNull)
                 .sorted(Comparator.naturalOrder())
                 .toList();
-        if (enabledTools.isEmpty()) {
-            return null;
+        if (!allowedTools.isEmpty()) {
+            enabledTools = enabledTools.stream()
+                    .filter(allowedTools::contains)
+                    .toList();
         }
-        return String.join(", ", enabledTools);
+        if (enabledTools.isEmpty()) {
+            return chatMode;
+        }
+        String toolsProfile = String.join(", ", enabledTools);
+        if (chatMode == null || chatMode.isBlank()) {
+            return toolsProfile;
+        }
+        return chatMode + " [" + toolsProfile + "]";
     }
 
     private String extractPromptRevision(JsonNode root) {
@@ -365,6 +389,26 @@ public class CheckRunner {
 
         private Check failedCheck() {
             return failedCheck;
+        }
+    }
+
+    private static final class RunProgress {
+        private double score = 0.0;
+        private int count = 0;
+        private long modelResponseTotalMs = 0;
+        private boolean hasModelResponseTiming = false;
+
+        private void accept(Check check) {
+            score += check.getScore();
+            if (check.getModelResponseTimeMs() != null) {
+                modelResponseTotalMs += check.getModelResponseTimeMs();
+                hasModelResponseTiming = true;
+            }
+            count++;
+        }
+
+        private double averageScore() {
+            return count == 0 ? 0.0 : score / count;
         }
     }
 }

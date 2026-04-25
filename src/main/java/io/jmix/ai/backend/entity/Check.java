@@ -1,6 +1,8 @@
 package io.jmix.ai.backend.entity;
 
+import io.jmix.core.DeletePolicy;
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
+import io.jmix.core.entity.annotation.OnDeleteInverse;
 import io.jmix.core.metamodel.annotation.DependsOnProperties;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import io.jmix.core.metamodel.annotation.JmixProperty;
@@ -37,6 +39,7 @@ public class Check {
     private CheckDef checkDef;
 
     @JoinColumn(name = "CHECK_RUN_ID")
+    @OnDeleteInverse(DeletePolicy.CASCADE)
     @ManyToOne(fetch = FetchType.LAZY)
     private CheckRun checkRun;
 

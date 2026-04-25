@@ -102,6 +102,9 @@ public class DocsIngester extends AbstractIngester {
 
         Map<String, Object> metadata = createMetadata(source, htmlContent);
         metadata.put("docPath", docPath);
+        metadata.put("documentPath", source);
+        metadata.put("documentName", fileNameOf(source, docPath));
+        metadata.put("documentKind", "docs-page");
         metadata.put("url", url);
 
         return createDocument(htmlContent, metadata);
@@ -145,5 +148,13 @@ public class DocsIngester extends AbstractIngester {
         String location = getKnowledgeSourceLocation();
         String effective = location != null ? location : baseUrl;
         return effective.endsWith("/") ? effective : effective + "/";
+    }
+
+    private String fileNameOf(String source, String docPath) {
+        int slashIndex = source.lastIndexOf('/');
+        if (slashIndex >= 0 && slashIndex + 1 < source.length()) {
+            return source.substring(slashIndex + 1);
+        }
+        return docPath != null ? docPath : source;
     }
 }

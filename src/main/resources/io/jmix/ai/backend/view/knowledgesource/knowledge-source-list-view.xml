@@ -33,6 +33,12 @@
             <button id="editButton" action="knowledgeSourcesDataGrid.editAction"/>
             <button id="removeButton" action="knowledgeSourcesDataGrid.removeAction"/>
             <button id="runIngestionButton" text="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceListView.runIngestion"/>
+            <button id="browseDocumentsButton"
+                    text="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceDocumentsView.browse"/>
+            <fileUploadField id="uploadBusinessDocumentField"
+                             acceptedFileTypes=".txt, .md, .adoc, .csv, .json, .xml, .html, .htm, .log"
+                             uploadIcon="vaadin:upload"
+                             uploadText="msg://io.jmix.ai.backend.view.knowledgesource/uploadBusinessDocument.uploadText"/>
             <simplePagination id="pagination" dataLoader="knowledgeSourcesDl"/>
         </hbox>
         <dataGrid id="knowledgeSourcesDataGrid"

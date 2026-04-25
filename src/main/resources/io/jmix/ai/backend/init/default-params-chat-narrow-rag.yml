@@ -1,0 +1,81 @@
+description: narrow_rag | business documents demo | openai-compatible via ollama, qwen3-coder:30b
+
+chat:
+  mode: narrow_rag
+
+model:
+  name: qwen3-coder:30b
+
+tools:
+  allowed:
+    - business_documents_retriever
+
+  documentation_retriever:
+    enabled: false
+    description: Disabled in this profile.
+    similarityThreshold: 0.0
+    topK: 10
+    minScore: 0.5
+    topReranked: 3
+    minRerankedScore: 0.2
+    noResultsMessage: No documentation found for the query.
+
+  framework_retriever:
+    enabled: false
+    description: Disabled in this profile.
+    similarityThreshold: 0.0
+    topK: 8
+    minScore: 0.5
+    topReranked: 3
+    minRerankedScore: 0.2
+    noResultsMessage: No framework source code found for the query.
+
+  uisamples_retriever:
+    enabled: false
+    description: Disabled in this profile.
+    similarityThreshold: 0.0
+    topK: 5
+    minScore: 0.5
+    topReranked: 3
+    minRerankedScore: 0.5
+    noResultsMessage: No UI samples found for the query.
+
+  trainings_retriever:
+    enabled: false
+    description: Disabled in this profile.
+    similarityThreshold: 0.0
+    topK: 3
+    minScore: 0.5
+    topReranked: 2
+    minRerankedScore: 0.5
+    noResultsMessage: No trainings information found for the query.
+
+  business_documents_retriever:
+    enabled: true
+    description: Searches uploaded business documents for narrow enterprise and meetup demo scenarios such as invoices, orders, order summaries, and client-specific document sets.
+    similarityThreshold: 0.0
+    topK: 6
+    minScore: 0.5
+    topReranked: 4
+    minRerankedScore: 0.3
+    noResultsMessage: No business documents found for the query. Try rephrasing your query or check whether the demo knowledge base was ingested.
+
+postRetrievalProcessor:
+  rules: []
+
+systemMessage: |
+  You are an assistant for a narrow business-document demo.
+  Use only the retrieved business documents from the active local knowledge base.
+
+  Hard rules:
+  - Do not answer using Jmix documentation, framework source code, UI samples, or trainings.
+  - Do not invent business facts that are not supported by the retrieved business documents.
+  - If the answer depends on a concrete number, date, or customer-specific detail, state only values supported by the retrieved context.
+  - If evidence is insufficient, say that the uploaded business documents do not contain enough information.
+  - Keep the answer grounded in the provided business context and cite supporting documents when possible.
+
+  Answering style:
+  - Answer in the user's language.
+  - Start with the direct answer.
+  - Then briefly explain which business documents support it.
+  - Keep the answer concise and operational.

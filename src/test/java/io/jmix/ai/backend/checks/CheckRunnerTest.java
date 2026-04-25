@@ -6,6 +6,7 @@ import io.jmix.ai.backend.entity.CheckDef;
 import io.jmix.ai.backend.entity.CheckRun;
 import io.jmix.core.DataManager;
 import io.jmix.core.Id;
+import io.jmix.core.security.SystemAuthenticator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,9 @@ import test_support.AuthenticatedAsAdmin;
 import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -34,6 +37,8 @@ public class CheckRunnerTest {
     DataManager dataManager;
     @Autowired
     DataSource dataSource;
+    @Autowired
+    SystemAuthenticator systemAuthenticator;
 
     CheckDef checkDef1;
     CheckDef checkDef2;
@@ -71,7 +76,7 @@ public class CheckRunnerTest {
 
     @Test
     void test() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4, 4, "dataset-v1");
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("""
@@ -114,13 +119,18 @@ public class CheckRunnerTest {
 
     @Test
     void runChecks_whenMetadataNotSpecified_derivesPromptAndRetrievalContext() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4, 4, "dataset-v1");
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("""
+                chat:
+                  mode: classifier_rag
                 model:
                   name: derived-model
                 tools:
+                  allowed:
+                    - documentation_retriever
+                    - uisamples_retriever
                   documentation_retriever:
                     topK: 3
                   uisamples_retriever:
@@ -135,7 +145,7 @@ public class CheckRunnerTest {
 
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
         assertThat(updatedCheckRun.getAnswerModel()).isEqualTo("derived-model");
-        assertThat(updatedCheckRun.getRetrievalProfile()).isEqualTo("documentation_retriever, uisamples_retriever");
+        assertThat(updatedCheckRun.getRetrievalProfile()).isEqualTo("classifier_rag [documentation_retriever, uisamples_retriever]");
         assertThat(updatedCheckRun.getPromptRevision()).startsWith("sha256:");
         assertThat(updatedCheckRun.getKnowledgeSnapshot()).isNull();
     }
@@ -154,7 +164,7 @@ public class CheckRunnerTest {
         }
         dataManager.save(defs.toArray());
 
-        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4, 4, "dataset-v1");
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
         dataManager.save(checkRun);
@@ -189,7 +199,7 @@ public class CheckRunnerTest {
 
         dataManager.save(goldenDef, nonGoldenDef);
 
-        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 1, 4, "dataset-v1");
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
         checkRun.setGoldenOnly(true);
@@ -220,7 +230,7 @@ public class CheckRunnerTest {
 
         dataManager.save(successDef, failingDef);
 
-        CheckRunner checkRunner = new CheckRunner(dataManager, new FailingChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+        CheckRunner checkRunner = new CheckRunner(dataManager, new FailingChat(), new TestExternalEvaluator(), 4, 4, "dataset-v1");
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
         dataManager.save(checkRun);
@@ -245,7 +255,7 @@ public class CheckRunnerTest {
 
     @Test
     void runChecks_whenEvaluatorUnavailable_marksRunFailed() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new UnavailableExternalEvaluator(), 4, "dataset-v1");
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new UnavailableExternalEvaluator(), 4, 4, "dataset-v1");
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
@@ -261,7 +271,7 @@ public class CheckRunnerTest {
 
     @Test
     void runChecks_whenChatReturnsEmptyAnswer_marksRunFailed() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new EmptyChat(), new TestExternalEvaluator(), 4, "dataset-v1");
+        CheckRunner checkRunner = new CheckRunner(dataManager, new EmptyChat(), new TestExternalEvaluator(), 4, 4, "dataset-v1");
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
@@ -277,7 +287,7 @@ public class CheckRunnerTest {
 
     @Test
     void runChecks_whenInterrupted_marksRunFailed() throws Exception {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new SlowChat(), new TestExternalEvaluator(), 1, "dataset-v1");
+        CheckRunner checkRunner = new CheckRunner(dataManager, new SlowChat(), new TestExternalEvaluator(), 1, 1, "dataset-v1");
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
@@ -309,6 +319,94 @@ public class CheckRunnerTest {
         List<Check> checks = dataManager.load(Check.class).all().list();
         assertThat(checks).allMatch(check -> check.getScore() == 0.0);
         assertThat(checks).allMatch(check -> check.getLog().contains("interrupted"));
+    }
+
+    @Test
+    void runChecks_whenFullRun_usesFullParallelismOverride() {
+        clearTables();
+        List<CheckDef> defs = new ArrayList<>();
+        for (int i = 1; i <= 4; i++) {
+            CheckDef checkDef = dataManager.create(CheckDef.class);
+            checkDef.setCategory("batch");
+            checkDef.setQuestion("Question " + i);
+            checkDef.setAnswer("Answer " + i);
+            checkDef.setActive(true);
+            defs.add(checkDef);
+        }
+        dataManager.save(defs.toArray());
+
+        ParallelismTrackingChat chat = new ParallelismTrackingChat(4);
+        CheckRunner checkRunner = new CheckRunner(dataManager, chat, new TestExternalEvaluator(), 1, 4, "dataset-v1");
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        checkRun.setGoldenOnly(false);
+        dataManager.save(checkRun);
+
+        checkRunner.runChecks(Id.of(checkRun));
+
+        assertThat(chat.getMaxConcurrentCalls()).isGreaterThan(1);
+    }
+
+    @Test
+    void runChecks_persistsChecksIncrementally() throws Exception {
+        clearTables();
+
+        CheckDef firstDef = dataManager.create(CheckDef.class);
+        firstDef.setCategory("basic");
+        firstDef.setQuestion("first");
+        firstDef.setAnswer("first");
+        firstDef.setActive(true);
+
+        CheckDef secondDef = dataManager.create(CheckDef.class);
+        secondDef.setCategory("basic");
+        secondDef.setQuestion("second");
+        secondDef.setAnswer("second");
+        secondDef.setActive(true);
+
+        dataManager.save(firstDef, secondDef);
+
+        IncrementalChat chat = new IncrementalChat();
+        CheckRunner checkRunner = new CheckRunner(dataManager, chat, new TestExternalEvaluator(), 1, 1, "dataset-v1");
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        dataManager.save(checkRun);
+
+        CompletableFuture<Void> future = CompletableFuture.runAsync(() ->
+                systemAuthenticator.runWithUser("admin", () -> checkRunner.runChecks(Id.of(checkRun))));
+
+        List<Check> savedChecks = waitForSavedChecks(checkRun, 1);
+        assertThat(savedChecks).hasSize(1);
+        assertThat(savedChecks.getFirst().getQuestion()).isEqualTo("first");
+        assertThat(future).isNotDone();
+
+        CheckRun runningCheckRun = dataManager.load(Id.of(checkRun)).one();
+        assertThat(runningCheckRun.getStatus()).isEqualTo(io.jmix.ai.backend.entity.CheckRunStatus.RUNNING);
+        assertThat(runningCheckRun.getScore()).isEqualTo(1.0);
+        assertThat(runningCheckRun.getModelResponseTotalMs()).isEqualTo(10);
+
+        chat.releaseSecond();
+        future.get(2, TimeUnit.SECONDS);
+
+        List<Check> finalChecks = dataManager.load(Check.class)
+                .query("e.checkRun = ?1", checkRun)
+                .list();
+        assertThat(finalChecks).hasSize(2);
+    }
+
+    private List<Check> waitForSavedChecks(CheckRun checkRun, int expectedCount) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            List<Check> checks = dataManager.load(Check.class)
+                    .query("e.checkRun = ?1", checkRun)
+                    .list();
+            if (checks.size() >= expectedCount) {
+                return checks;
+            }
+            Thread.sleep(50);
+        }
+        return dataManager.load(Check.class)
+                .query("e.checkRun = ?1", checkRun)
+                .list();
     }
 
     private static class TestChat implements Chat {
@@ -415,6 +513,63 @@ public class CheckRunnerTest {
                 Thread.currentThread().interrupt();
             }
             return new StructuredResponse("ok", List.of(), null, 10, 10, 10);
+        }
+    }
+
+    private static class ParallelismTrackingChat implements Chat {
+
+        private final CountDownLatch allStarted;
+        private final CountDownLatch release = new CountDownLatch(1);
+        private final AtomicInteger activeCalls = new AtomicInteger();
+        private final AtomicInteger maxConcurrentCalls = new AtomicInteger();
+
+        private ParallelismTrackingChat(int expectedCalls) {
+            this.allStarted = new CountDownLatch(expectedCalls);
+        }
+
+        @Override
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+            int currentCalls = activeCalls.incrementAndGet();
+            maxConcurrentCalls.accumulateAndGet(currentCalls, Math::max);
+            allStarted.countDown();
+            try {
+                allStarted.await(1, TimeUnit.SECONDS);
+                release.await(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                activeCalls.decrementAndGet();
+                release.countDown();
+            }
+            String answer = userPrompt.replace("Question ", "Answer ");
+            return new StructuredResponse(answer, List.of(), null, 10, 10, 10);
+        }
+
+        private int getMaxConcurrentCalls() {
+            return maxConcurrentCalls.get();
+        }
+    }
+
+    private static class IncrementalChat implements Chat {
+
+        private final CountDownLatch releaseSecond = new CountDownLatch(1);
+        private final AtomicInteger callIndex = new AtomicInteger();
+
+        @Override
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+            int currentCall = callIndex.incrementAndGet();
+            if (currentCall == 2) {
+                try {
+                    releaseSecond.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return new StructuredResponse(userPrompt, List.of(), null, 10, 10, 10);
+        }
+
+        private void releaseSecond() {
+            releaseSecond.countDown();
         }
     }
 }

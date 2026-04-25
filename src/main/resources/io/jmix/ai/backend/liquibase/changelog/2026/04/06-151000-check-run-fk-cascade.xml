@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1" author="jmix-ai-backend">
+        <dropForeignKeyConstraint baseTableName="CHECK_" constraintName="FK_CHECK__ON_CHECK_RUN"/>
+
+        <addForeignKeyConstraint baseTableName="CHECK_"
+                                 baseColumnNames="CHECK_RUN_ID"
+                                 constraintName="FK_CHECK__ON_CHECK_RUN"
+                                 referencedTableName="CHECK_RUN"
+                                 referencedColumnNames="ID"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+</databaseChangeLog>

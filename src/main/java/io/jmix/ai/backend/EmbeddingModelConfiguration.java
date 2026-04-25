@@ -33,6 +33,7 @@ public class EmbeddingModelConfiguration {
 
         OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
                 .apiKey(apiKey);
+        OpenAiApiHttp11Configurer.apply(apiBuilder);
         if (StringUtils.isNotBlank(embeddingBaseUrl)) {
             apiBuilder.baseUrl(embeddingBaseUrl);
         }

@@ -1,0 +1,120 @@
+description: always_rag | openai-compatible via ollama, qwen3-coder:30b
+
+chat:
+  mode: always_rag
+
+model:
+  name: qwen3-coder:30b
+
+tools:
+  skipForTrivialPrompts: false
+  documentation_retriever:
+    description: Searches the local Jmix 1.7 documentation index and returns version-specific guidance with concise code examples. Use as the primary source for API usage, configuration, screen XML, and standard framework behavior.
+    similarityThreshold: 0.0
+    topK: 10
+    minScore: 0.5
+    topReranked: 3
+    minRerankedScore: 0.2
+    noResultsMessage: No documentation found for the query. Try rephrasing your query or using another tool.
+
+  framework_retriever:
+    description: Searches the local Jmix 1.7 framework source index and returns implementation-level evidence from core, data, ui, and security modules. Use for internals, edge cases, error causes, and behaviors that must be confirmed in source.
+    similarityThreshold: 0.0
+    topK: 8
+    minScore: 0.5
+    topReranked: 3
+    minRerankedScore: 0.2
+    noResultsMessage: No relevant Jmix framework source code found for the query. Try rephrasing your query or using another tool.
+
+  uisamples_retriever:
+    description: Searches the local Jmix UI samples knowledge base and returns practical XML and Java recipes for screens, components, actions, data binding, and common UI patterns in Jmix 1.7.
+    similarityThreshold: 0.0
+    topK: 5
+    minScore: 0.5
+    topReranked: 3
+    minRerankedScore: 0.5
+    noResultsMessage: No UI Samples found for the query. Try rephrasing your query or using another tool.
+
+  trainings_retriever:
+    enabled: false
+    description: Searches supplemental local training materials that may contain useful examples, but are lower-priority than official docs and framework source evidence.
+    similarityThreshold: 0.0
+    topK: 3
+    minScore: 0.5
+    topReranked: 2
+    minRerankedScore: 0.5
+    noResultsMessage: No trainings information found for the query. Try rephrasing your query or using another tool.
+
+  business_documents_retriever:
+    enabled: false
+    description: Searches uploaded business documents for narrow enterprise/demo scenarios such as invoices, orders, summaries, and other domain-specific source files.
+    similarityThreshold: 0.0
+    topK: 5
+    minScore: 0.5
+    topReranked: 3
+    minRerankedScore: 0.3
+    noResultsMessage: No business documents found for the query. Try rephrasing your query or loading another business knowledge base.
+
+postRetrievalProcessor:
+  rules:
+    - name: Tabbed Mode Add-on
+      script: |
+        !(
+          document.getText().startsWith('Path: Add-ons > Tabbed Application Mode') &&
+          !(userQuery =~ /(?i)tab/)
+        )
+    - name: BPM Add-on
+      script: |
+        !(
+          document.getText().startsWith('Path: Add-ons > BPM') &&
+          !(userQuery =~ /(?i)(bpm|business|process)/)
+        )
+    - name: Calendar Add-on
+      script: |
+        !(
+          document.getText().startsWith('Path: Add-ons > Calendar') &&
+          !(userQuery =~ /(?i)(calend)/)
+        )
+    - name: Auth Server Add-on
+      script: |
+        !(
+          document.getText().startsWith('Path: Add-ons > Authorization Server') &&
+          !(userQuery =~ /(?i)(auth)/)
+        )
+
+systemMessage: |
+  You are a senior assistant for local Jmix projects.
+  Scope: strictly Jmix 1.7.
+  Priority: correctness, version relevance, and practical usefulness.
+
+  Hard rules:
+  - Treat technical questions as Jmix 1.7 unless the user explicitly asks for another version.
+  - Do not output Jmix 2.x APIs, classes, annotations, view concepts, or terminology in normal answers.
+  - Do not output CUBA APIs, packages, or examples as the solution for Jmix 1.7 questions.
+  - Never silently fall back to `com.haulmont.cuba.*`, `ConfirmationDialog`, `View`, `ViewNavigators`, `DialogWindows`, `StandardDetailView`, or `StandardListView`.
+  - Use the retrieved local context as the main evidence. Do not invent APIs, methods, XML elements, config keys, or package names.
+  - Do not add optional alternatives, extra APIs, or fallback variants unless the user explicitly asks for alternatives.
+  - Do not make categorical platform claims such as "only", "always", "never supported", or "the only way" unless that exact restriction is supported by retrieved evidence.
+  - If evidence is weak, say so briefly. But if the retrieved context already contains a relevant Jmix 1.7 pattern, answer from that pattern instead of refusing.
+
+  Preferred Jmix 1.7 concepts:
+  - `Screen`, `Screens`, `ScreenBuilders`
+  - `StandardEditor`, `StandardLookup`
+  - legacy screen XML descriptors and controller patterns
+  - `Dialogs`, standard actions, `DataManager`, resource roles, row-level policies
+
+  Retrieval usage:
+  - In this profile, retrieval tools are always available to the model.
+  - Prefer `documentation_retriever` for normal API and usage questions.
+  - Prefer `framework_retriever` for annotations, delegates, internals, lifecycle, source behavior, and exact API symbols.
+  - Prefer `uisamples_retriever` for screens, actions, dialogs, components, XML, and practical UI recipes.
+  - Use `business_documents_retriever` only in narrow enterprise/demo scenarios, not for coding assistance.
+
+  Answering style:
+  - Answer in the user's language.
+  - Start with a short direct answer.
+  - Then give the Jmix 1.7 explanation or steps.
+  - Add a small code snippet only when it materially helps.
+  - Prefer one evidence-backed answer path. Do not append "also possible" variants without a strong reason.
+  - For short factual or UI recipe questions, keep the answer compact and concrete.
+  - Prefer the standard built-in Jmix 1.7 approach before custom workarounds.

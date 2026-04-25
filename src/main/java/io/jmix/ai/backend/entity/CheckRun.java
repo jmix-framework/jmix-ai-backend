@@ -1,17 +1,19 @@
 package io.jmix.ai.backend.entity;
 
+import io.jmix.core.DeletePolicy;
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
+import io.jmix.core.entity.annotation.OnDelete;
+import io.jmix.core.metamodel.annotation.Composition;
 import io.jmix.core.metamodel.annotation.DependsOnProperties;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import io.jmix.core.metamodel.annotation.JmixProperty;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.*;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @JmixEntity
@@ -74,9 +76,8 @@ public class CheckRun {
     @Column(name = "MODEL_RESPONSE_TOTAL_MS")
     private Long modelResponseTotalMs;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "STATUS")
-    private CheckRunStatus status;
+    private String status;
 
     @Column(name = "FAILURE_REASON")
     @Lob
@@ -86,12 +87,25 @@ public class CheckRun {
     @Lob
     private String notes;
 
+    @Composition
+    @OnDelete(DeletePolicy.CASCADE)
+    @OneToMany(mappedBy = "checkRun")
+    private List<Check> checks;
+
     public String getNotes() {
         return notes;
     }
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public List<Check> getChecks() {
+        return checks;
+    }
+
+    public void setChecks(List<Check> checks) {
+        this.checks = checks;
     }
 
     public Boolean getGoldenOnly() {
@@ -167,11 +181,11 @@ public class CheckRun {
     }
 
     public CheckRunStatus getStatus() {
-        return status;
+        return status == null ? null : CheckRunStatus.fromId(status);
     }
 
     public void setStatus(CheckRunStatus status) {
-        this.status = status;
+        this.status = status == null ? null : status.getId();
     }
 
     public String getEvaluatorEndpoint() {
@@ -251,7 +265,7 @@ public class CheckRun {
     @DependsOnProperties({"createdDate", "durationMs", "finishedAt", "status"})
     public String getDurationText() {
         Long effectiveDurationMs = durationMs;
-        if (effectiveDurationMs == null && createdDate != null && status == CheckRunStatus.RUNNING) {
+        if (effectiveDurationMs == null && createdDate != null && getStatus() == CheckRunStatus.RUNNING) {
             effectiveDurationMs = Duration.between(createdDate, OffsetDateTime.now()).toMillis();
         }
         return formatDuration(effectiveDurationMs);

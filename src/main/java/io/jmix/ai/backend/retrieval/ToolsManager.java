@@ -18,13 +18,15 @@ public class ToolsManager {
     private final ParametersRepository parametersRepository;
     private final VectorStore vectorStore;
     private final Reranker reranker;
+    private final BusinessMetricsService businessMetricsService;
 
     public ToolsManager(ApplicationContext applicationContext, ParametersRepository parametersRepository,
-                        VectorStore vectorStore, Reranker reranker) {
+                        VectorStore vectorStore, Reranker reranker, BusinessMetricsService businessMetricsService) {
         this.applicationContext = applicationContext;
         this.parametersRepository = parametersRepository;
         this.vectorStore = vectorStore;
         this.reranker = reranker;
+        this.businessMetricsService = businessMetricsService;
     }
 
     public List<AbstractRagTool> getTools(String parametersYaml, List<Document> retrievedDocuments, Consumer<String> internalLogger) {
@@ -47,6 +49,13 @@ public class ToolsManager {
         }
         if (parametersReader.getBoolean("tools.trainings_retriever.enabled", true)) {
             TrainingsTool tool = new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, internalLogger);
+            tools.add(tool);
+        }
+        if (parametersReader.getValue("tools.business_documents_retriever") != null
+                && parametersReader.getBoolean("tools.business_documents_retriever.enabled", false)) {
+            BusinessDocumentsTool tool = new BusinessDocumentsTool(vectorStore, postRetrievalProcessor, reranker,
+                    businessMetricsService,
+                    parametersReader, retrievedDocuments, internalLogger);
             tools.add(tool);
         }
         return tools;

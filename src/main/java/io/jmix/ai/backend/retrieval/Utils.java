@@ -1,11 +1,13 @@
 package io.jmix.ai.backend.retrieval;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.springframework.ai.document.Document;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -52,14 +54,53 @@ public final class Utils {
                     }
                 })
                 .filter(d -> {
-                            if (seen.contains(d.getId())) {
+                            Object key = getCanonicalDocumentKey(d);
+                            if (seen.contains(key)) {
                                 return false;
                             }
-                            seen.add(d.getId());
+                            seen.add(key);
                             return true;
                         }
                 )
                 .toList();
+    }
+
+    public static List<Document> getDistinctDocumentsPreserveOrder(List<Document> documents) {
+        Set<Object> seen = new LinkedHashSet<>();
+        return documents.stream()
+                .filter(document -> {
+                    Object key = getCanonicalDocumentKey(document);
+                    if (seen.contains(key)) {
+                        return false;
+                    }
+                    seen.add(key);
+                    return true;
+                })
+                .toList();
+    }
+
+    private static Object getCanonicalDocumentKey(Document document) {
+        String documentPath = StringUtils.trimToNull((String) document.getMetadata().get("documentPath"));
+        if (documentPath != null) {
+            return documentPath;
+        }
+
+        String url = StringUtils.trimToNull((String) document.getMetadata().get("url"));
+        if (url != null) {
+            return stripFragment(url);
+        }
+
+        String source = StringUtils.trimToNull((String) document.getMetadata().get("source"));
+        if (source != null) {
+            return stripFragment(source);
+        }
+
+        return document.getId();
+    }
+
+    private static String stripFragment(String value) {
+        int hashIndex = value.indexOf('#');
+        return hashIndex >= 0 ? value.substring(0, hashIndex) : value;
     }
 
     public static void addLogMessage(Logger log, List<String> logMessages, String message) {

@@ -2,6 +2,7 @@ package io.jmix.ai.backend.parameters;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class ParametersReader {
 
@@ -51,6 +52,18 @@ public class ParametersReader {
     public List<Map<String, Object>> getList(String key) {
         Object value = getValue(key);
         return value == null ? List.of() : (List<Map<String, Object>>) value;
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> getStringList(String key) {
+        Object value = getValue(key);
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .toList();
     }
 
     /**

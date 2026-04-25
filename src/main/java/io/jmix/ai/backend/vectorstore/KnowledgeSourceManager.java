@@ -23,6 +23,7 @@ public class KnowledgeSourceManager {
     private final String trainingsLocalPath;
     private final String uiSamplesLocalPath;
     private final String jmixFrameworkLocalPath;
+    private final String businessDocumentsLocalPath;
 
     public KnowledgeSourceManager(
             DataManager dataManager,
@@ -30,13 +31,15 @@ public class KnowledgeSourceManager {
             @Value("${docs.base-url}") String docsBaseUrl,
             @Value("${trainings.local-path}") String trainingsLocalPath,
             @Value("${uisamples.local-path}") String uiSamplesLocalPath,
-            @Value("${jmix-framework.local-path}") String jmixFrameworkLocalPath) {
+            @Value("${jmix-framework.local-path}") String jmixFrameworkLocalPath,
+            @Value("${business-documents.local-path}") String businessDocumentsLocalPath) {
         this.dataManager = dataManager;
         this.timeSource = timeSource;
         this.docsBaseUrl = docsBaseUrl;
         this.trainingsLocalPath = trainingsLocalPath;
         this.uiSamplesLocalPath = uiSamplesLocalPath;
         this.jmixFrameworkLocalPath = jmixFrameworkLocalPath;
+        this.businessDocumentsLocalPath = businessDocumentsLocalPath;
     }
 
     public KnowledgeSourceContext resolve(String ingesterType) {
@@ -218,6 +221,17 @@ public class KnowledgeSourceManager {
                     KnowledgeSourceType.LOCAL_DIRECTORY,
                     KnowledgeSourceUpdateMode.MANUAL,
                     jmixFrameworkLocalPath
+            );
+            case "business-documents" -> new DefaultKnowledgeConfig(
+                    "business-documents-demo",
+                    "Business Documents Demo",
+                    "Local business documents for narrow meetup and enterprise demo scenarios",
+                    "ru",
+                    "business-documents-local",
+                    "Local Business Documents Directory",
+                    KnowledgeSourceType.LOCAL_DIRECTORY,
+                    KnowledgeSourceUpdateMode.MANUAL,
+                    businessDocumentsLocalPath
             );
             default -> throw new IllegalArgumentException("Unknown ingester type: " + ingesterType);
         };

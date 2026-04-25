@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceDocumentsView.title">
+    <data>
+        <collection id="documentsDc" class="io.jmix.ai.backend.entity.KnowledgeDocumentItem">
+            <fetchPlan extends="_base"/>
+        </collection>
+    </data>
+    <layout>
+        <formLayout id="summaryForm">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+            </responsiveSteps>
+            <textField id="sourceField"
+                       label="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceDocumentsView.source"
+                       width="100%"/>
+            <textField id="documentsFilterField"
+                       width="100%"
+                       valueChangeMode="EAGER"
+                       placeholder="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceDocumentsView.filter.placeholder"/>
+        </formLayout>
+        <hbox id="actionsPanel" classNames="buttons-panel">
+            <button id="previewButton"
+                    text="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceDocumentsView.preview"/>
+            <button id="reingestButton"
+                    text="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceDocumentsView.reingest"/>
+            <button id="deleteButton"
+                    text="msg://io.jmix.ai.backend.view.knowledgesource/knowledgeSourceDocumentsView.delete"/>
+        </hbox>
+        <dataGrid id="documentsDataGrid"
+                  width="100%"
+                  minHeight="24em"
+                  dataContainer="documentsDc"
+                  columnReorderingAllowed="true">
+            <columns resizable="true">
+                <column property="documentPath"/>
+                <column property="documentName"/>
+                <column property="documentKind"/>
+                <column property="sourceType"/>
+                <column property="chunkCount"/>
+            </columns>
+        </dataGrid>
+    </layout>
+</view>

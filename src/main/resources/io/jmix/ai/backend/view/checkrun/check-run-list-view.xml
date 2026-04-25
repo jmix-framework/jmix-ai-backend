@@ -24,6 +24,10 @@
     </data>
     <facets>
         <dataLoadCoordinator auto="true"/>
+        <timer id="refreshTimer"
+               delay="1000"
+               repeating="true"
+               autostart="true"/>
         <urlQueryParameters>
             <genericFilter component="genericFilter"/>
             <pagination component="pagination"/>

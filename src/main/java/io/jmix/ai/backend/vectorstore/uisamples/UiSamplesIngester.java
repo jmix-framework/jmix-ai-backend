@@ -111,6 +111,11 @@ public class UiSamplesIngester extends AbstractIngester {
         metadata.put("url", sample.githubUrl());
         metadata.put("browserUrl", sample.browserUrl());
         metadata.put("docPath", sample.path());
+        metadata.put("documentPath", sample.files().isEmpty()
+                ? null
+                : effectiveLocalPath().relativize(sample.files().getFirst()).toString().replace('\\', '/'));
+        metadata.put("documentName", sample.title());
+        metadata.put("documentKind", "ui-sample");
         metadata.put("title", sample.title());
 
         return createDocument(textContent, metadata);

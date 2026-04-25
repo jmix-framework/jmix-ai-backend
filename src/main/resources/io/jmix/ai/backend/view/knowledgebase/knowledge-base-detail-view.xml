@@ -7,6 +7,20 @@
             <fetchPlan extends="_base"/>
             <loader id="knowledgeBaseDl"/>
         </instance>
+        <collection id="knowledgeSourcesDc" class="io.jmix.ai.backend.entity.KnowledgeSource">
+            <fetchPlan extends="_base"/>
+        </collection>
+        <collection id="documentsDc" class="io.jmix.ai.backend.entity.KnowledgeDocumentItem">
+            <fetchPlan extends="_base"/>
+        </collection>
+        <collection id="ingestionJobsDc" class="io.jmix.ai.backend.entity.IngestionJob">
+            <fetchPlan extends="_base">
+                <property name="knowledgeBase" fetchPlan="_base"/>
+                <property name="knowledgeSource" fetchPlan="_base">
+                    <property name="knowledgeBase" fetchPlan="_base"/>
+                </property>
+            </fetchPlan>
+        </collection>
     </data>
     <facets>
         <dataLoadCoordinator auto="true"/>
@@ -27,6 +41,87 @@
             <checkbox id="activeField" property="active"/>
             <textArea id="descriptionField" property="description" colspan="2"/>
         </formLayout>
+        <tabSheet id="workspaceTabs" width="100%">
+            <tab id="sourcesTab"
+                 label="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.sourcesSection">
+                <vbox width="100%" spacing="false">
+                    <textField id="sourcesFilterField"
+                               width="100%"
+                               valueChangeMode="EAGER"
+                               placeholder="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.sourcesFilter.placeholder"/>
+                    <hbox id="sourcesActions" classNames="buttons-panel">
+                        <button id="runSourceIngestionButton" text="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.runSourceIngestion"/>
+                        <button id="browseSourceDocumentsButton" text="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.browseSourceDocuments"/>
+                        <fileUploadField id="uploadBusinessDocumentField"
+                                         uploadText="msg://io.jmix.ai.backend.view.knowledgesource/uploadBusinessDocument.uploadText"
+                                         uploadIcon="vaadin:upload"/>
+                    </hbox>
+                    <dataGrid id="knowledgeSourcesDataGrid"
+                              width="100%"
+                              minHeight="16em"
+                              dataContainer="knowledgeSourcesDc"
+                              columnReorderingAllowed="true">
+                        <columns resizable="true">
+                            <column property="name"/>
+                            <column property="code"/>
+                            <column property="sourceType"/>
+                            <column property="language"/>
+                            <column property="enabled"/>
+                            <column property="lastSuccessfulIngestionAt"/>
+                        </columns>
+                    </dataGrid>
+                </vbox>
+            </tab>
+            <tab id="documentsTab"
+                 label="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.documentsSection">
+                <vbox width="100%" spacing="false">
+                    <textField id="documentsFilterField"
+                               width="100%"
+                               valueChangeMode="EAGER"
+                               placeholder="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.documentsFilter.placeholder"/>
+                    <hbox id="documentsActions" classNames="buttons-panel">
+                        <button id="previewDocumentButton" text="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.previewDocument"/>
+                        <button id="reingestDocumentButton" text="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.reingestDocument"/>
+                        <button id="deleteDocumentButton" text="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.deleteDocument"/>
+                    </hbox>
+                    <dataGrid id="documentsDataGrid"
+                              width="100%"
+                              minHeight="20em"
+                              dataContainer="documentsDc"
+                              columnReorderingAllowed="true">
+                        <columns resizable="true">
+                            <column property="sourceName"/>
+                            <column property="documentPath"/>
+                            <column property="documentName"/>
+                            <column property="documentKind"/>
+                            <column property="sourceType"/>
+                            <column property="chunkCount"/>
+                        </columns>
+                    </dataGrid>
+                </vbox>
+            </tab>
+            <tab id="jobsTab"
+                 label="msg://io.jmix.ai.backend.view.knowledgebase/knowledgeBaseDetailView.jobsSection">
+                <vbox width="100%" spacing="false">
+                    <dataGrid id="ingestionJobsDataGrid"
+                              width="100%"
+                              minHeight="16em"
+                              dataContainer="ingestionJobsDc"
+                              columnReorderingAllowed="true">
+                        <columns resizable="true">
+                            <column property="startedAt"/>
+                            <column property="finishedAt"/>
+                            <column property="status"/>
+                            <column property="knowledgeSource"/>
+                            <column property="loadedSources"/>
+                            <column property="addedDocuments"/>
+                            <column property="addedChunks"/>
+                            <column property="message"/>
+                        </columns>
+                    </dataGrid>
+                </vbox>
+            </tab>
+        </tabSheet>
         <hbox id="detailActions">
             <button id="saveAndCloseButton" action="saveAction"/>
             <button id="closeButton" action="closeAction"/>

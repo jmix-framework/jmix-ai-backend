@@ -2,6 +2,7 @@ package io.jmix.ai.backend.checks;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jmix.ai.backend.OpenAiApiHttp11Configurer;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +76,7 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
         }
 
         OpenAiApi.Builder apiBuilder = OpenAiApi.builder().apiKey(apiKey);
+        OpenAiApiHttp11Configurer.apply(apiBuilder);
         if (StringUtils.isNotBlank(configuredBaseUrl)) {
             apiBuilder.baseUrl(configuredBaseUrl);
         }

@@ -35,8 +35,9 @@
             <button id="createButton" action="checkDefsDataGrid.createAction"/>
             <button id="editButton" action="checkDefsDataGrid.editAction"/>
             <button id="removeButton" action="checkDefsDataGrid.removeAction"/>
-            <button id="toggleActiveButton" text="Toggle active"/>
-            <dropdownButton text="Export">
+            <button id="toggleActiveButton" action="checkDefsDataGrid.toggleActiveAction"/>
+            <button id="toggleGoldenButton" action="checkDefsDataGrid.toggleGoldAction"/>
+            <dropdownButton text="msg://io.jmix.ai.backend.view.checkdef/checkDefListView.export">
                 <items>
                     <actionItem id="excelExportAction" ref="checkDefsDataGrid.excelExportAction"/>
                     <actionItem id="jsonExportActionItem" ref="checkDefsDataGrid.jsonExportAction"/>
@@ -57,11 +58,14 @@
                 <action id="createAction" type="list_create"/>
                 <action id="editAction" type="list_edit"/>
                 <action id="removeAction" type="list_remove"/>
+                <action id="toggleActiveAction" type="list_itemTracking" text="msg://io.jmix.ai.backend.view.checkdef/checkDefListView.toggleActive"/>
+                <action id="toggleGoldAction" type="list_itemTracking" text="msg://io.jmix.ai.backend.view.checkdef/checkDefListView.toggleGolden"/>
                 <action id="excelExportAction" type="grdexp_excelExport"/>
                 <action id="jsonExportAction" text="JSON" icon="vaadin:curly-brackets"/>
             </actions>
             <columns resizable="true">
                 <column property="active"/>
+                <column property="golden"/>
                 <column property="category"/>
                 <column property="question"/>
                 <column property="answer"/>

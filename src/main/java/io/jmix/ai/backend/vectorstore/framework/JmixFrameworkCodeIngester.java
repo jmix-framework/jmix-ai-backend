@@ -144,6 +144,9 @@ public class JmixFrameworkCodeIngester extends AbstractIngester {
             String textContent = buildDocumentText(source, content);
             Map<String, Object> metadata = createMetadata(source, textContent);
             metadata.put("docPath", source);
+            metadata.put("documentPath", source);
+            metadata.put("documentName", file.getFileName().toString());
+            metadata.put("documentKind", "framework-file");
             metadata.put("module", topLevelSegment(source));
             metadata.put("fileType", extensionOf(source));
             metadata.put("url", toGithubUrl(source));

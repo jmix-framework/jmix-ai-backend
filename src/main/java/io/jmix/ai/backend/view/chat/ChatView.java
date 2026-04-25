@@ -16,10 +16,13 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinServletRequest;
+import com.vaadin.flow.server.VaadinSession;
 import io.jmix.ai.backend.chat.Chat;
+import io.jmix.ai.backend.chat.ChatHistoryService;
 import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
+import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.UuidProvider;
@@ -46,9 +49,14 @@ import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 @Route(value = "chat-view", layout = MainView.class)
@@ -56,8 +64,14 @@ import java.util.function.Consumer;
 @ViewDescriptor(path = "chat-view.xml")
 public class ChatView extends StandardView {
 
+    private static final String USER_MESSAGE_QUERY_PARAMETER = "userMessage";
+    private static final String CONVERSATION_ID_QUERY_PARAMETER = "conversationId";
+    private static final String SESSION_CONVERSATION_ID_ATTRIBUTE = ChatView.class.getName() + ".conversationId";
+
     @Autowired
     private Chat chat;
+    @Autowired
+    private ChatHistoryService chatHistoryService;
     @Autowired
     private Notifications notifications;
     @Autowired
@@ -87,20 +101,69 @@ public class ChatView extends StandardView {
     private String contextPath;
 
     private String conversationId;
+    private UrlBinder urlBinder;
 
     @Subscribe
     public void onInit(final InitEvent event) {
         parametersPicker.setValue(parametersRepository.loadActive(ParametersTargetType.CHAT));
 
-        urlQueryParameters.registerBinder(new UrlBinder());
+        urlBinder = new UrlBinder();
+        urlQueryParameters.registerBinder(urlBinder);
 
         contextPath = VaadinServletRequest.getCurrent().getContextPath();
 
-        updateConversationId();
+        setConversationId(resolveConversationId(null, getSessionConversationId()));
+    }
+
+    @Subscribe
+    public void onBeforeShow(final BeforeShowEvent event) {
+        restoreConversationHistory();
+        urlBinder.syncState();
     }
 
     private void updateConversationId() {
-        conversationId = UuidProvider.createUuidV7().toString();
+        setConversationId(UuidProvider.createUuidV7().toString());
+    }
+
+    private void setConversationId(String conversationId) {
+        this.conversationId = conversationId;
+        VaadinSession.getCurrent().setAttribute(SESSION_CONVERSATION_ID_ATTRIBUTE, conversationId);
+    }
+
+    private String getSessionConversationId() {
+        Object sessionConversationId = VaadinSession.getCurrent().getAttribute(SESSION_CONVERSATION_ID_ATTRIBUTE);
+        return sessionConversationId instanceof String value ? value : null;
+    }
+
+    static String resolveConversationId(@Nullable String requestedConversationId, @Nullable String sessionConversationId) {
+        String normalizedRequestedConversationId = StringUtils.trimToNull(requestedConversationId);
+        if (normalizedRequestedConversationId != null) {
+            return normalizedRequestedConversationId;
+        }
+        String normalizedSessionConversationId = StringUtils.trimToNull(sessionConversationId);
+        if (normalizedSessionConversationId != null) {
+            return normalizedSessionConversationId;
+        }
+        return UuidProvider.createUuidV7().toString();
+    }
+
+    private void restoreConversationHistory() {
+        responseBox.removeAll();
+        ChatHistoryService.ChatHistoryMessageType previousType = null;
+        for (ChatHistoryService.ChatHistoryMessage message : chatHistoryService.loadConversationHistory(conversationId)) {
+            if (message.type() == ChatHistoryService.ChatHistoryMessageType.USER) {
+                if (responseBox.getChildren().findAny().isPresent()) {
+                    responseBox.add(uiComponents.create(Hr.class));
+                }
+                responseBox.add(createUserMessageComponent(message.content()));
+            } else if (message.type() == ChatHistoryService.ChatHistoryMessageType.ASSISTANT) {
+                if (previousType == null && responseBox.getChildren().findAny().isPresent()) {
+                    responseBox.add(uiComponents.create(Hr.class));
+                }
+                responseBox.add(createAssistantMessageComponent(message.content()));
+            }
+            previousType = message.type();
+        }
     }
 
     @Subscribe(id = "sendButton", subject = "clickListener")
@@ -129,6 +192,7 @@ public class ChatView extends StandardView {
     public void onNewChatButtonClick(final ClickEvent<JmixButton> event) {
         responseBox.removeAll();
         updateConversationId();
+        urlBinder.syncState();
     }
 
     private void showResult(StreamingResponseUi streamingResponseUi, String requestConversationId, Chat.StructuredResponse result) {
@@ -142,9 +206,7 @@ public class ChatView extends StandardView {
             responseBox.add(uiComponents.create(Hr.class));
         }
 
-        Div requestDiv = uiComponents.create(Div.class);
-        requestDiv.setText(requestText);
-        requestDiv.getStyle().set("font-weight", "bold");
+        Div requestDiv = createUserMessageComponent(requestText);
         responseBox.add(requestDiv);
 
         JmixTextArea logField = uiComponents.create(JmixTextArea.class);
@@ -185,6 +247,19 @@ public class ChatView extends StandardView {
         return new StreamingResponseUi(logField, progressDetails, responseDiv, copyButton, stopButton);
     }
 
+    private Div createUserMessageComponent(String requestText) {
+        Div requestDiv = uiComponents.create(Div.class);
+        requestDiv.setText(requestText);
+        requestDiv.getStyle().set("font-weight", "bold");
+        return requestDiv;
+    }
+
+    private Div createAssistantMessageComponent(String markdown) {
+        Div responseDiv = uiComponents.create(Div.class);
+        renderMarkdown(responseDiv, markdown, "", false);
+        return responseDiv;
+    }
+
     private String addSourceLinks(@Nullable List<String> strings) {
         if (strings == null || strings.isEmpty()) {
             return "";
@@ -203,13 +278,41 @@ public class ChatView extends StandardView {
         }
         StringBuilder sb = new StringBuilder("<hr><p><strong>Retrieved documents:</strong></p><ul>");
         for (Document document : documents) {
-            sb.append("<li><a href=\"").append(getDocLinkUrl(document)).append("\" target=\"_blank\">").append(getDocLinkText(document)).append("</a></li>");
+            String docLinkUrl = getDocLinkUrl(document);
+            sb.append("<li>");
+            if (docLinkUrl != null) {
+                sb.append("<a href=\"").append(docLinkUrl).append("\" target=\"_blank\">")
+                        .append(getDocLinkText(document))
+                        .append("</a>");
+            } else {
+                sb.append(getDocLinkText(document));
+            }
+            sb.append("</li>");
         }
         sb.append("</ul>");
         return sb.toString();
     }
 
+    @Nullable
     private String getDocLinkUrl(Document document) {
+        if (isKnowledgeDocumentPreviewable(document)) {
+            String documentPath = Objects.toString(document.getMetadata().get("documentPath"), "");
+            String sourceId = Objects.toString(document.getMetadata().get("sourceId"), "");
+            String sourceCode = Objects.toString(document.getMetadata().get("sourceCode"), "");
+            String kbCode = Objects.toString(document.getMetadata().get("kb"), "");
+            return contextPath + "/knowledge-document-preview?path="
+                    + URLEncoder.encode(documentPath, StandardCharsets.UTF_8)
+                    + "&sourceId=" + URLEncoder.encode(sourceId, StandardCharsets.UTF_8)
+                    + "&sourceCode=" + URLEncoder.encode(sourceCode, StandardCharsets.UTF_8)
+                    + "&kb=" + URLEncoder.encode(kbCode, StandardCharsets.UTF_8);
+        }
+        Object url = document.getMetadata().get("url");
+        if (url != null) {
+            return url.toString();
+        }
+        if (!isVectorStoreDocumentLinkable(document)) {
+            return null;
+        }
         return contextPath + "/vector-store/" + document.getId();
     }
 
@@ -217,12 +320,52 @@ public class ChatView extends StandardView {
         Object type = document.getMetadata().get("type");
         Double score = document.getScore();
         Double rerankScore = (Double) document.getMetadata().get("rerankScore");
-        String text = StringUtils.abbreviate(Objects.toString(document.getText(), ""), 80);
+        String text = getDocumentPreviewText(document);
         return "[" + type + "] " +
                 getScoreString(score, rerankScore) + " " +
-                text.replaceAll("\n", " ").replaceAll("<", "&lt;")
-                        .replaceAll(">", "&gt;").replaceAll("\"", "&quot;")
-                        .replaceAll("'", "&#39;");
+                escapeHtml(text);
+    }
+
+    static boolean isVectorStoreDocumentLinkable(Document document) {
+        Object id = document.getId();
+        if (id == null) {
+            return false;
+        }
+        try {
+            UUID.fromString(id.toString());
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    static boolean isKnowledgeDocumentPreviewable(Document document) {
+        Object sourceId = document.getMetadata().get("sourceId");
+        Object sourceCode = document.getMetadata().get("sourceCode");
+        Object kbCode = document.getMetadata().get("kb");
+        if (sourceId == null && (sourceCode == null || kbCode == null)) {
+            return false;
+        }
+        return StringUtils.isNotBlank(Objects.toString(document.getMetadata().get("documentPath"), null));
+    }
+
+    static String getDocumentPreviewText(Document document) {
+        Object source = document.getMetadata().get("documentPath");
+        if (StringUtils.isBlank(Objects.toString(source, null))) {
+            source = document.getMetadata().get("source");
+        }
+        String preview = StringUtils.abbreviate(Objects.toString(source, ""), 80);
+        if (StringUtils.isNotBlank(preview)) {
+            return preview.replace('\n', ' ');
+        }
+        return StringUtils.abbreviate(Objects.toString(document.getText(), ""), 80).replace('\n', ' ');
+    }
+
+    private static String escapeHtml(String value) {
+        return value.replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll("\"", "&quot;")
+                .replaceAll("'", "&#39;");
     }
 
     private static String getScoreString(Double score, Double rerankScore) {
@@ -252,21 +395,38 @@ public class ChatView extends StandardView {
     private class UrlBinder extends AbstractUrlQueryParametersBinder {
         public UrlBinder() {
             userMessageField.addValueChangeListener(valueChangeEvent -> {
-                String value = Strings.nullToEmpty(valueChangeEvent.getValue());
-                QueryParameters queryParameters = QueryParameters.of("userMessage", value);
-                fireQueryParametersChanged(new UrlQueryParametersFacet.UrlQueryParametersChangeEvent(this, queryParameters));
+                syncState();
             });
         }
 
         @Override
         public void updateState(QueryParameters queryParameters) {
-            Optional<String> userMessageOptional = queryParameters.getSingleParameter("userMessage");
+            Optional<String> userMessageOptional = queryParameters.getSingleParameter(USER_MESSAGE_QUERY_PARAMETER);
+            Optional<String> conversationIdOptional = queryParameters.getSingleParameter(CONVERSATION_ID_QUERY_PARAMETER);
             userMessageField.setValue(userMessageOptional.orElse(""));
+            String resolvedConversationId = resolveConversationId(conversationIdOptional.orElse(null), getSessionConversationId());
+            boolean conversationChanged = !StringUtils.equals(conversationId, resolvedConversationId);
+            setConversationId(resolvedConversationId);
+            if (conversationChanged) {
+                restoreConversationHistory();
+            }
         }
 
         @Override
         public Component getComponent() {
             return null;
+        }
+
+        private void syncState() {
+            fireQueryParametersChanged(new UrlQueryParametersFacet.UrlQueryParametersChangeEvent(this, buildQueryParameters()));
+        }
+
+        private QueryParameters buildQueryParameters() {
+            Map<String, List<String>> parameters = new LinkedHashMap<>();
+            parameters.put(CONVERSATION_ID_QUERY_PARAMETER, List.of(conversationId));
+            String value = Strings.nullToEmpty(userMessageField.getValue());
+            parameters.put(USER_MESSAGE_QUERY_PARAMETER, List.of(value));
+            return new QueryParameters(parameters);
         }
     }
 
@@ -333,8 +493,77 @@ public class ChatView extends StandardView {
 
         @Override
         public boolean handleException(Exception ex) {
+            String friendlyMessageKey = resolveFriendlyChatError(ex, parameters);
+            if (friendlyMessageKey != null) {
+                String friendlyMessage = formatFriendlyChatError(friendlyMessageKey);
+                chatLogManager.saveError(requestConversationId, friendlyMessage);
+                streamingResponseUi.finishError(friendlyMessage);
+                notifications.create(friendlyMessage)
+                        .withType(Notifications.Type.ERROR)
+                        .show();
+                return true;
+            }
             return defaultUiExceptionHandler.handle(ex);
         }
+    }
+
+    private String formatFriendlyChatError(String encodedMessage) {
+        if (!encodedMessage.startsWith("chatView.modelNotAvailable|")) {
+            return encodedMessage;
+        }
+        String modelName = encodedMessage.substring("chatView.modelNotAvailable|".length());
+        return messageBundle.formatMessage("chatView.modelNotAvailable", modelName);
+    }
+
+    static String resolveFriendlyChatError(Throwable throwable, Parameters parameters) {
+        if (!isMissingModelError(throwable)) {
+            return null;
+        }
+
+        String modelName = extractConfiguredModel(parameters);
+        if (StringUtils.isBlank(modelName)) {
+            return null;
+        }
+        return "chatView.modelNotAvailable|" + modelName;
+    }
+
+    private static boolean isMissingModelError(@Nullable Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = StringUtils.defaultString(current.getMessage());
+            if ((message.contains("404") || current.getClass().getName().contains("NotFound"))
+                    && StringUtils.containsIgnoreCase(message, "model")
+                    && StringUtils.containsIgnoreCase(message, "not found")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static String extractConfiguredModel(@Nullable Parameters parameters) {
+        if (parameters == null || StringUtils.isBlank(parameters.getContent())) {
+            return null;
+        }
+
+        try {
+            ParametersReader reader = new ParametersReader(new org.yaml.snakeyaml.Yaml().load(parameters.getContent()));
+            return firstNonBlank(
+                    reader.getString("spring.ai.openai.chat.options.model", null),
+                    reader.getString("model.name", null)
+            );
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (StringUtils.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private record ChatUpdate(ChatUpdateType type, String value) {
@@ -451,14 +680,43 @@ public class ChatView extends StandardView {
             }
         }
 
+        private void finishError(String errorMessage) {
+            appendLog(errorMessage);
+            renderMarkdown(markdownBuilder.toString(), "<p><strong>" + escapeHtml(errorMessage) + "</strong></p>");
+            if (copyButton != null) {
+                copyButton.setEnabled(markdownBuilder.length() > 0);
+            }
+            if (stopButton != null) {
+                stopButton.setEnabled(false);
+                stopButton.setText(messageBundle.getMessage("chatView.stopped"));
+            }
+            if (progressDetails != null) {
+                progressDetails.setOpened(true);
+            }
+        }
+
         private void renderMarkdown(String markdown, String extraHtml) {
             if (responseDiv == null) {
                 return;
             }
-            Parser parser = Parser.builder().build();
-            Node document = parser.parse(markdown);
-            HtmlRenderer renderer = HtmlRenderer.builder().escapeHtml(true).build();
-            responseDiv.getElement().setProperty("innerHTML", renderer.render(document) + extraHtml);
+            ChatView.this.renderMarkdown(responseDiv, markdown, extraHtml, true);
+        }
+
+        private String escapeHtml(String value) {
+            return value.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;")
+                    .replace("'", "&#39;");
+        }
+    }
+
+    private void renderMarkdown(Div target, String markdown, String extraHtml, boolean scrollToBottom) {
+        Parser parser = Parser.builder().build();
+        Node document = parser.parse(markdown);
+        HtmlRenderer renderer = HtmlRenderer.builder().escapeHtml(true).build();
+        target.getElement().setProperty("innerHTML", renderer.render(document) + extraHtml);
+        if (scrollToBottom) {
             scroller.scrollToBottom();
         }
     }
