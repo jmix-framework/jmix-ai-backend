@@ -1,140 +1,176 @@
 # Jmix AI Backend
 
-AI-powered backend service designed to answer questions about the Jmix framework using Retrieval Augmented Generation (RAG). It's built with Spring AI and Jmix itself. 
+Jmix + Spring AI backend for RAG-based assistant scenarios.
 
-The service provides a chat API and an admin UI for managing the knowledge base and LLM parameters. It integrates with OpenAI models, PgVector for vector storage, and includes custom reranking and answer validation logic.
+The application provides:
+- REST APIs for chat and semantic search,
+- an admin UI to manage knowledge bases, sources, parameters, and checks,
+- ingestion into pgvector,
+- reranking via a sidecar Python service,
+- answer quality checks,
+- business-documents mode for narrow deterministic use cases.
 
-![](docs/chat.png)
+For onboarding, start here: [`START_HERE.md`](START_HERE.md)
 
 ## Architecture
 
-The Jmix AI Backend system is designed to be used as a backend service for the Jmix AI Assistant, which provides web UI for users and an API for Jmix Studio.
-
-However, Jmix AI Backend provides its own UI for administrators. 
-
 ![](docs/jmix-ai-backend-system.png)
 
-The system consists of two main components:
-- **Jmix AI Backend Application**: Jmix-based application with Spring AI integration
-- **Reranker Service**: Python service for improving search result relevance
+Main runtime components:
+- `jmix-ai-backend` (Spring Boot + Jmix)
+- `postgres` (main store)
+- `pgvector` (vector store)
+- `reranker` (FastAPI service)
+- OpenAI-compatible model endpoint (LM Studio, Ollama-compatible gateway, etc.)
 
 ![](docs/jmix-ai-backend-containers.png)
 
-## Features
+## Key Capabilities
 
-### Chat
+### 1) Chat API and UI
 
-It answers questions about the Jmix framework using Retrieval Augmented Generation (RAG). The chat is available through the API and the admin UI. 
+- API: `POST /chat`
+- UI: `http://localhost:8081`
+- Active chat behavior is driven by `Parameters` (YAML content in DB).
 
-The main chat functionality is implemented in the `ChatImpl` Spring bean. It makes three tools available to the LLM: `DocsTool`, `UiSamplesTool` and `TrainingsTool`. Each tool retrieves information from the vector store according to the LLM's requests.
+### 2) Semantic Search API
 
-After retrieving documents from the vector store, each tool filters them using a post-retrieval filtering algorithm and applies a reranking algorithm to the remaining documents. The reranked documents are then passed to the LLM.
+- API: `POST /api/search`
+- Uses retrieval pipeline and vector store content.
 
-The OpenAI API key should be defined in the `OPENAI_API_KEY` environment variable or otherwise provided in the `spring.ai.openai.api-key` application property.
+### 3) Retrieval Tools
 
-### Post-retrieval filtering
+Depending on active profile, the system can use:
+- `documentation_retriever`
+- `framework_retriever`
+- `uisamples_retriever`
+- `trainings_retriever`
+- `business_documents_retriever`
 
-The retrieved documents are filtered using a set of Groovy scripts that are applied to each document. The filtering is performed using the `PostRetrievalProcessor` class.
+### 4) Chat Modes (profile-driven)
 
-### Reranker
+Seeded on startup from:
+- `io/jmix/ai/backend/init/default-params-chat.yml` (`classifier_rag`)
+- `io/jmix/ai/backend/init/default-params-chat-always-rag.yml` (`always_rag`)
+- `io/jmix/ai/backend/init/default-params-chat-narrow-rag.yml` (`narrow_rag`)
 
-Python service for improving search result relevance. It uses a cross-encoder model to calculate the similarity between the question and the document. The similarity is then used to rank the documents.
+`narrow_rag` is intended for business-document scenarios.
 
-The reranker source code is located in the `reranker` directory. The connection to the reranker service is specified in the `reranker.url` application property.
+### 5) Answer Checks
 
-### Ingesters
+UI flows for check definitions, runs, and run comparison are available under the **Answer Checks** menu.
 
-Ingesters are used to import documents into the vector store. The application includes the following ingesters:
-- `DocsIngester`: loads information from the Jmix documentation. This ingester is configured by the `docs.*` application properties.
-- `UiSamplesIngester`: loads information from the Jmix UI Samples online application. This ingester is configured by the `uisamples.*` application properties.
-- `TrainingsIngester`: loads information from the Jmix training courses. This ingester is configured by the `trainings.*` application properties. While the training courses content is not available to the public, you can provide your own set of AsciiDoc files.
+## Quick Start (Local)
 
-All ingesters implement the `Ingester` interface and are invoked through the `IngesterManager` Spring bean.  
+### Prerequisites
 
-### Chat parameters
+- Docker + Docker Compose
+- JDK 17+ (JDK 21 recommended)
+- running OpenAI-compatible endpoint at `http://localhost:6666`
 
-The chat parameters are stored in the database using the `Parameters` entity. They are used by the application through the `ParametersRepository` interface. 
+Detailed requirements: [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md)
 
-The `Parameters` instance includes the YAML configuration that specifies parameters for the LLM, tools and post-retrieval filtering. You can create multiple instances of the `Parameters` entity and use them for different chat sessions to test different configurations. One instance should be marked as active to be used in the API calls. 
+### 1) Start infrastructure
 
-### Answer checks
-
-This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses a separate LLM to calculate the semantic score for similarity between the question and the answer. The LLM is called through OpenAI API and configured by `answer-checks.model` and `answer-checks.temperature` application properties. It uses the same API key as the main chat LLM.
-
-## Chat API
-
-The chat API available at `http://localhost:8081/chat` URL is the main entry point to the application functionality. It is provided by the `ChatController` class which delegates to the `Chat` interface implemented by `ChatImpl` Spring bean.
-
-Example request:
+```bash
+docker-compose up -d
 ```
-POST /chat HTTP/1.1
-Host: localhost:8081
-Content-Type: application/json
 
+### 2) Start backend
+
+```bash
+./gradlew bootRun
+```
+
+### 3) Open UI
+
+- URL: `http://localhost:8081`
+- default dev credentials: `admin / admin`
+
+### 4) Run smoke request
+
+```bash
+curl -sS -X POST http://127.0.0.1:8081/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"conversation_id":"smoke-1","text":"What is DataManager in Jmix?"}'
+```
+
+Operational commands and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md)
+
+## Configuration
+
+Main files:
+- `src/main/resources/application.properties`
+- `src/main/resources/application-dev.properties`
+
+Default local ports:
+- `8081` app
+- `15432` main Postgres
+- `15433` pgvector
+- `8000` reranker
+- `6666` OpenAI-compatible endpoint for chat and embeddings
+
+## Admin UI Areas
+
+Menu highlights:
+- Chat + Chat Log
+- Knowledge: Knowledge Bases, Knowledge Sources, Ingestion Jobs
+- Config: Parameters, Vector Store, Entity Inspector
+- Answer Checks: Definitions, Runs, Comparison
+- Security: Users and roles
+
+## API Summary
+
+### `POST /chat`
+
+Request:
+```json
 {
-    "conversation_id": "test-988979",
-    "text": "How can I create a button that triggers a notification when clicked?",
-    "cache_enabled": true
+  "conversation_id": "test-1",
+  "text": "How to create a lookup screen in Jmix 1.7?",
+  "cache_enabled": true
 }
 ```
 
-The `cache_enabled` property is currently not used.
+Response contains:
+- `input`
+- `output`
+- `query_category`
+- `sources`
 
-## Admin UI
+### `POST /api/search`
 
-The admin UI is available at `http://localhost:8081` and provides the following features:
+Request:
+```json
+{
+  "query": "DataManager"
+}
+```
 
-- **Chat** view. It allows you to send messages and view responses using any set of preconfigured parameters. The chat view continues a conversation with the LLM until you click "New chat".
+Response is a list of search result documents.
 
-- **Parameters** management. You can create multiple records and mark one of them as active. The active record is used to generate responses in the chat API. When you create a new record, it is populated with the default parameters loaded from the `io/jmix/ai/backend/init/default-params.yml` resource.
-    
-- **Vector store** management. This view shows the vector store contents and allows you to find documents by metadata, add, remove and update documents. If you click the "Update" button, the current record will be updated from its source. If you click one of the "Update" dropdown items, all relevant documents will be updated.
+## Reranker Service
 
-- **Answer checks**. The **Check definitions** view allows you to define questions and reference answers for validating the chat responses. The **Check runs** view allows you to run the set of checks for a particular parameters record and view the results. 
-
-## Development
-
-### Fast setup
-
-You can run the main database, vector store and reranker using the `docker-compose.yml` file in the project root:
+Local standalone run (if not using Docker Compose):
 
 ```bash
-docker-compose up
-```
-
-By default, the application runs with the `dev` profile and uses the services running in the containers.
-
-### Running services separately
-
-Alternatively, you can run the services separately as follows.
-
-Running PgVector:
-```shell
-docker run --name pgvector -p 15433:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres pgvector/pgvector:pg17
-```
-
-Running reranker:
-```shell
 cd reranker
 python3.10 -m venv env
 source env/bin/activate
-pip install fastapi==0.115.0 uvicorn==0.30.6 torch==2.4.1 transformers==4.44.2 pydantic==2.9.2
-
+pip install -r requirements.txt
 uvicorn reranker_service:app --host 0.0.0.0 --port 8000
 ```
 
-## Building images
+## Build
 
 Build app image:
-```shell
+
+```bash
 ./gradlew bootBuildImage -Pvaadin.productionMode=true
 ```
 
 Build reranker image:
-```shell
-cd reranker
-python3.10 -m venv env
-source env/bin/activate
-pip install fastapi==0.115.0 uvicorn==0.30.6 torch==2.4.1 transformers==4.44.2 pydantic==2.9.2
-docker build -t jmix-ai-reranker .
+
+```bash
+docker build -t jmix-ai-reranker ./reranker
 ```

@@ -30,3 +30,15 @@ vite.generated.ts
 webpack.generated.js
 
 .DS_Store
+
+# Local agent/debug artifacts
+.codex
+.playwright-mcp/
+agent-context/
+tmp/
+db-dumps/
+db-dumps-*.zip
+check-def-home-before.png
+check-run-comparison-before.png
+check-run-comparison-after.png
+checkrun-login.png

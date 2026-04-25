@@ -7,6 +7,8 @@ Guide for coding agents working in `jmix-ai-backend`.
 - For detailed guidance on specific Jmix features, ALWAYS use the Skill tool and available Jmix skills.
 - If you don't have enough information, use Context7 MCP to search for Jmix documentation and code samples.
 - Use Jetbrains MCP to check file problems with `get_file_problems("path/to/file.ext", onlyErrors=false)`
+- Imported upstream Jmix AI docs snapshot is available at `agent-context/imported/jmix-ai-docs/`.
+- Project-local Jmix skill source is available at `agent-context/skills-src/jmix-backend/`.
 
 ## Project Snapshot
 - Stack: Java 17, Jmix 2.7 (Spring Boot 3, Vaadin Flow UI), Spring AI.
