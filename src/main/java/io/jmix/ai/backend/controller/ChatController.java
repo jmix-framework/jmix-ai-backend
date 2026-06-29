@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.dto.StreamEventDto;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -43,9 +44,13 @@ public class ChatController {
     public ResponseEntity<Response> chat(@RequestBody Request request) {
         validateRequest(request);
 
+        JmixVersion version = JmixVersion.fromId(request.jmixVersion());
+        if (version == null) {
+            version = JmixVersion.V2;
+        }
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
         Chat.StructuredResponse chatResponse = chat.requestStructured(
-                request.text(), parameters.getContent(), request.conversationId(), null);
+                request.text(), parameters.getContent(), request.conversationId(), version, null);
 
         chatLogManager.saveResponse(request.conversationId(), chatResponse);
 
@@ -61,8 +66,12 @@ public class ChatController {
     public Flux<StreamEventDto> chatStream(@RequestBody Request request) {
         validateRequest(request);
 
+        JmixVersion version = JmixVersion.fromId(request.jmixVersion());
+        if (version == null) {
+            version = JmixVersion.V2;
+        }
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
-        return chat.requestStream(request.text(), parameters.getContent(), request.conversationId())
+        return chat.requestStream(request.text(), parameters.getContent(), request.conversationId(), version)
                 .mapNotNull(holder -> StreamEventDto.fromModel(holder.value()));
     }
 
@@ -87,6 +96,7 @@ public class ChatController {
     public record Request(
             @JsonProperty("conversation_id") String conversationId,
             String text,
-            @JsonProperty("cache_enabled") Boolean cacheEnabled) {
+            @JsonProperty("cache_enabled") Boolean cacheEnabled,
+            @JsonProperty("jmix_version") String jmixVersion) {
     }
 }

@@ -76,7 +76,7 @@ class IngesterSpecificBehaviorTest {
     private static class TestIngester extends AbstractIngester {
         
         public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
-            super(vectorStore, timeSource, vectorStoreRepository);
+            super(vectorStore, timeSource, vectorStoreRepository, false);
         }
 
         @Override

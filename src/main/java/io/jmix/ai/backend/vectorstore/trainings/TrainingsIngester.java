@@ -42,7 +42,7 @@ public class TrainingsIngester extends AbstractIngester {
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository) {
-        super(vectorStore, timeSource, vectorStoreRepository);
+        super(vectorStore, timeSource, vectorStoreRepository, false);
 //        this.gitUrl = gitUrl;
         this.limit = limit;
         this.whitelist = whitelist;

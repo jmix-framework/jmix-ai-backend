@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.retrieval;
 
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.ToolCallback;
@@ -30,6 +31,8 @@ public abstract class AbstractRagTool {
     private final ToolEventListener listener;
     private final ParametersReader parametersReader;
     protected final String type;
+    protected final JmixVersion jmixVersion;
+    private final boolean versionScoped;
     protected String description;
     protected double similarityThreshold;
     protected int topK;
@@ -41,7 +44,7 @@ public abstract class AbstractRagTool {
     protected AbstractRagTool(String toolName, String type, VectorStore vectorStore,
                               PostRetrievalProcessor postRetrievalProcessor, Reranker reranker,
                               ParametersReader parametersReader, List<Document> retrievedDocuments,
-                              ToolEventListener listener) {
+                              ToolEventListener listener, JmixVersion jmixVersion, boolean versionScoped) {
         this.toolName = toolName;
         this.vectorStore = vectorStore;
         this.postRetrievalProcessor = postRetrievalProcessor;
@@ -50,6 +53,8 @@ public abstract class AbstractRagTool {
         this.listener = listener;
         this.parametersReader = parametersReader;
         this.type = type;
+        this.jmixVersion = Objects.requireNonNull(jmixVersion, "jmixVersion must not be null");
+        this.versionScoped = versionScoped;
         init(parametersReader);
     }
     protected String getToolRootKey() {
@@ -91,12 +96,19 @@ public abstract class AbstractRagTool {
 
         try {
             // Retrieval
-            SearchRequest searchRequest = SearchRequest.builder()
-                    .filterExpression(new FilterExpressionBuilder().eq("type", type).build())
+            SearchRequest.Builder requestBuilder = SearchRequest.builder()
                     .query(queryText)
                     .similarityThreshold(similarityThreshold)
-                    .topK(topK)
-                    .build();
+                    .topK(topK);
+
+            FilterExpressionBuilder fb = new FilterExpressionBuilder();
+            var typeFilter = fb.eq("type", type);
+            var filter = versionScoped
+                    ? fb.and(typeFilter, fb.eq("jmixVersion", jmixVersion.getId())).build()
+                    : typeFilter.build();
+            requestBuilder.filterExpression(filter);
+
+            SearchRequest searchRequest = requestBuilder.build();
 
             long retrievalStart = System.currentTimeMillis();
             List<Document> documents = vectorStore.similaritySearch(searchRequest);

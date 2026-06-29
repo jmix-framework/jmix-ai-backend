@@ -4,6 +4,7 @@ import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.entity.Check;
 import io.jmix.ai.backend.entity.CheckDef;
 import io.jmix.ai.backend.entity.CheckRun;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.DataManager;
 import io.jmix.core.Id;
 import org.springframework.beans.factory.annotation.Value;
@@ -127,7 +128,7 @@ public class CheckRunner {
     }
 
     private String getAnswer(String question, String parameters, Consumer<String> logger) {
-        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, logger);
+        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, JmixVersion.V3, logger);
         return response.text();
     }
 }

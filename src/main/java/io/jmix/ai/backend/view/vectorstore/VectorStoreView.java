@@ -6,7 +6,9 @@ import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
+import io.jmix.ai.backend.vectorstore.Ingester;
 import io.jmix.ai.backend.vectorstore.IngesterManager;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.view.main.MainView;
@@ -31,6 +33,7 @@ import io.jmix.flowui.util.RemoveOperation;
 import io.jmix.flowui.view.*;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -70,32 +73,53 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        for (String type : ingesterManager.getTypes()) {
-            updateButton.addItem(type, "Update " + type).addClickListener(clickEvent -> {
+        buildUpdateMenuItems();
+        urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
+    }
+
+    private void buildUpdateMenuItems() {
+        for (Ingester ingester : ingesterManager.getIngesters()) {
+            List<JmixVersion> versions = ingester.getVersions();
+            if (versions.isEmpty()) {
+                addUpdateMenuItem(ingester.getType(), null);
+            } else {
+                for (JmixVersion version : versions) {
+                    addUpdateMenuItem(ingester.getType(), version);
+                }
+            }
+        }
+        updateButton.addItem("all", "Update all data").addClickListener(clickEvent -> confirmAll());
+    }
+
+    private void addUpdateMenuItem(String type, @Nullable JmixVersion version) {
+        String itemId = version == null ? type : type + "-" + version.getId();
+        String label = version == null
+                ? "Update " + type
+                : "Update " + type + " (" + version.getId() + ")";
+        updateButton.addItem(itemId, label).addClickListener(clickEvent ->
                 dialogs.createOptionDialog()
                         .withHeader("Confirm")
-                        .withText("Update all data of type '%s'?".formatted(type))
+                        .withText(version == null
+                                ? "Update all data of type '%s'?".formatted(type)
+                                : "Update %s (%s)?".formatted(type, version.getId()))
                         .withActions(
                                 new DialogAction(DialogAction.Type.YES).withHandler(e ->
-                                        updateInBackground(new UpdateByTypeTask(type))),
+                                        updateInBackground(new UpdateByTypeAndVersionTask(type, version))),
                                 new DialogAction(DialogAction.Type.NO)
                         )
-                        .open();
-            });
-        }
-        updateButton.addItem("all", "Update all data").addClickListener(clickEvent -> {
-            dialogs.createOptionDialog()
-                    .withHeader("Confirm")
-                    .withText("Update all data?")
-                    .withActions(
-                            new DialogAction(DialogAction.Type.YES).withHandler(e -> {
-                                updateInBackground(new UpdateTask());
-                            }),
-                            new DialogAction(DialogAction.Type.NO)
-                    )
-                    .open();
-        });
-        urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
+                        .open());
+    }
+
+    private void confirmAll() {
+        dialogs.createOptionDialog()
+                .withHeader("Confirm")
+                .withText("Update all data?")
+                .withActions(
+                        new DialogAction(DialogAction.Type.YES).withHandler(e ->
+                                updateInBackground(new UpdateTask())),
+                        new DialogAction(DialogAction.Type.NO)
+                )
+                .open();
     }
 
 
@@ -223,17 +247,19 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         }
     }
 
-    private class UpdateByTypeTask extends UpdateTask {
+    private class UpdateByTypeAndVersionTask extends UpdateTask {
 
         private final String type;
+        private final JmixVersion version;
 
-        private UpdateByTypeTask(String type) {
+        private UpdateByTypeAndVersionTask(String type, JmixVersion version) {
             this.type = type;
+            this.version = version;
         }
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return ingesterManager.updateByType(type);
+            return ingesterManager.updateByTypeAndVersion(type, version);
         }
     }
 

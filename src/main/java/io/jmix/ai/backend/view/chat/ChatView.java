@@ -1,9 +1,6 @@
 package io.jmix.ai.backend.view.chat;
 
-import com.vaadin.flow.component.ClickEvent;
-import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.DetachEvent;
-import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.messages.MessageInput;
 import com.vaadin.flow.component.messages.MessageList;
 import com.vaadin.flow.component.messages.MessageListItem;
@@ -12,14 +9,19 @@ import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
 import io.jmix.ai.backend.chat.StreamingEvent;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.UuidProvider;
 import io.jmix.flowui.Notifications;
+import io.jmix.flowui.component.select.JmixSelect;
 import io.jmix.flowui.component.valuepicker.EntityPicker;
+import io.jmix.flowui.facet.SettingsFacet;
 import io.jmix.flowui.facet.UrlQueryParametersFacet;
+import io.jmix.flowui.facet.ViewSettingsFacet;
+import io.jmix.flowui.facet.settings.ViewSettings;
 import io.jmix.flowui.facet.urlqueryparameters.AbstractUrlQueryParametersBinder;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.view.*;
@@ -27,6 +29,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.Disposable;
 
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,6 +49,8 @@ public class ChatView extends StandardView {
     private ParametersRepository parametersRepository;
 
     @ViewComponent
+    private JmixSelect<JmixVersion> jmixVersionField;
+    @ViewComponent
     private EntityPicker<Parameters> parametersPicker;
     @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
@@ -53,9 +60,12 @@ public class ChatView extends StandardView {
     private final List<MessageListItem> items = new ArrayList<>();
     private String conversationId;
     private Disposable activeStreamDisposable;
+    @ViewComponent
+    private ViewSettingsFacet settings;
 
     @Subscribe
     public void onInit(final InitEvent event) {
+        jmixVersionField.setValue(JmixVersion.V2);
         parametersPicker.setValue(parametersRepository.loadActive(ParametersTargetType.CHAT));
         urlQueryParameters.registerBinder(new UrlBinder());
         updateConversationId();
@@ -95,7 +105,7 @@ public class ChatView extends StandardView {
         // doOnComplete — append total elapsed time, re-enable input
         // subscribe()  — starts the stream (nothing happens until subscribe is called)
         disposeActiveStream();
-        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId)
+        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId, jmixVersionField.getValue())
                 .map(this::renderStreamEvent)
                 .doOnNext(md -> ui.access(() -> {
                     botMsg.appendText(md);
@@ -141,9 +151,9 @@ public class ChatView extends StandardView {
         return sb.toString();
     }
 
-    private static String formatTimestamp(java.time.Instant timestamp) {
-        return java.time.LocalTime.ofInstant(timestamp, java.time.ZoneId.systemDefault())
-                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+    private static String formatTimestamp(Instant timestamp) {
+        return LocalTime.ofInstant(timestamp, ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("HH:mm:ss"));
     }
 
     private static String formatMs(long ms) {
@@ -199,6 +209,19 @@ public class ChatView extends StandardView {
         items.clear();
         messageList.setItems(items);
         updateConversationId();
+    }
+
+    @Install(to = "settings", subject = "applySettingsDelegate")
+    private void settingsApplySettingsDelegate(final SettingsFacet.SettingsContext<ViewSettings> settingsContext) {
+        settings.applySettings();
+        settingsContext.getSettings().getString("jmixVersionField", "value").ifPresent(value ->
+                jmixVersionField.setValue(JmixVersion.fromId(value)));
+    }
+
+    @Install(to = "settings", subject = "saveSettingsDelegate")
+    private void settingsSaveSettingsDelegate(final SettingsFacet.SettingsContext<ViewSettings> settingsContext) {
+        settingsContext.getSettings().put("jmixVersionField", "value", jmixVersionField.getValue().getId());
+        settings.saveSettings();
     }
 
     private class UrlBinder extends AbstractUrlQueryParametersBinder {
