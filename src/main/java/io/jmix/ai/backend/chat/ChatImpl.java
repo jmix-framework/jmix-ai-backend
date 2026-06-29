@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.chat;
 
 import io.jmix.ai.backend.chatlog.ChatLogManager;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.retrieval.AbstractRagTool;
@@ -64,15 +65,18 @@ public class ChatImpl implements Chat {
     private final ToolsManager toolsManager;
     private final ChatLogManager chatLogManager;
     private final Scheduler streamingScheduler;
+    private final SystemPromptResolver systemPromptResolver;
 
     public ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
                     ParametersRepository parametersRepository,
                     @Qualifier("streamingScheduler") Scheduler streamingScheduler,
                     ToolsManager toolsManager,
-                    ChatLogManager chatLogManager) {
+                    ChatLogManager chatLogManager,
+                    SystemPromptResolver systemPromptResolver) {
         this.parametersRepository = parametersRepository;
         this.streamingScheduler = streamingScheduler;
         this.chatLogManager = chatLogManager;
+        this.systemPromptResolver = systemPromptResolver;
 
         chatMemory = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
@@ -94,6 +98,7 @@ public class ChatImpl implements Chat {
 
     private ChatRequestContext prepareRequest(String userPrompt, String parametersYaml,
                                               @Nullable String conversationId,
+                                              JmixVersion jmixVersion,
                                               ToolEventListener listener) {
         String nonNullConversationId = conversationId != null
                 ? conversationId : UuidProvider.createUuid().toString();
@@ -103,10 +108,12 @@ public class ChatImpl implements Chat {
         ChatClient chatClient = buildClient(chatModel);
 
         List<Document> retrievedDocuments = new ArrayList<>();
-        List<AbstractRagTool> tools = toolsManager.getTools(parametersYaml, retrievedDocuments, listener);
+        List<AbstractRagTool> tools = toolsManager.getTools(parametersYaml, retrievedDocuments, listener, jmixVersion);
 
-        ChatClient.ChatClientRequestSpec request = chatClient.prompt(
-                buildPrompt(userPrompt, parametersReader.getString("systemMessage")));
+        String systemMessageTemplate = parametersReader.getString("systemMessage");
+        String systemPrompt = systemPromptResolver.resolve(systemMessageTemplate, jmixVersion);
+
+        ChatClient.ChatClientRequestSpec request = chatClient.prompt(buildPrompt(userPrompt, systemPrompt));
         request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));
         request.toolCallbacks(tools.stream().map(AbstractRagTool::getToolCallback).toList());
 
@@ -115,9 +122,10 @@ public class ChatImpl implements Chat {
 
     @Override
     public StructuredResponse requestStructured(String userPrompt, String parametersYaml, @Nullable String conversationId,
-                                                @Nullable Consumer<String> externalLogger) {
+                                                @Nullable JmixVersion jmixVersion, @Nullable Consumer<String> externalLogger) {
         long start = System.currentTimeMillis();
         List<String> logMessages = new ArrayList<>();
+        JmixVersion version = jmixVersion != null ? jmixVersion : JmixVersion.V2;
 
         ToolEventListener listener = new ToolEventListener() {
             @Override
@@ -155,7 +163,7 @@ public class ChatImpl implements Chat {
             }
         };
 
-        ChatRequestContext ctx = prepareRequest(userPrompt, parametersYaml, conversationId, listener);
+        ChatRequestContext ctx = prepareRequest(userPrompt, parametersYaml, conversationId, version, listener);
         MDC.put("cid", ctx.conversationId());
         try {
             addLogMessage(log, logMessages, "Model: %s, User prompt: %s".formatted(
@@ -216,7 +224,8 @@ public class ChatImpl implements Chat {
     @Override
     public Flux<StreamingEvent> requestStream(String userPrompt,
                                                       String parametersYaml,
-                                                      @Nullable String conversationId) {
+                                                      @Nullable String conversationId,
+                                                      @Nullable JmixVersion jmixVersion) {
         // Flux.defer = "don't run this code now, run it when someone subscribes".
         // This is how we move the blocking DB/tool setup off the caller's thread
         // onto streamingScheduler (applied in withDiagnostics via subscribeOn).
@@ -234,13 +243,14 @@ public class ChatImpl implements Chat {
             AtomicInteger completionTokensRef = new AtomicInteger();
             // -- Blocking setup: loads config from DB, creates OpenAI client, resolves tools --
             String cid = conversationId != null ? conversationId : "";
+            JmixVersion version = jmixVersion != null ? jmixVersion : JmixVersion.V2;
 
             // Pushes tool lifecycle events into the sink.
             // MDC "cid" is set from onToolCallStart to onToolCallEnd
             // so any logging during tool execution (e.g. Reranker) includes conversation id.
             ToolEventListener listener = createStreamingListener(toolCallSink, cid);
             ChatRequestContext ctx = prepareRequest(
-                    userPrompt, parametersYaml, conversationId, listener);
+                    userPrompt, parametersYaml, conversationId, version, listener);
 
             // Tool events (ToolCallStart, ToolRetrieved, etc.) are pushed into the sink
             // by the listener during Spring AI's synchronous tool execution.

@@ -3,6 +3,7 @@
       title="msg://chatView.title">
     <facets>
         <urlQueryParameters id="urlQueryParameters"/>
+        <settings id="settings" auto="true"/>
     </facets>
     <layout spacing="true" padding="false">
         <hbox width="100%" alignItems="CENTER" padding="true" spacing="true">
@@ -22,6 +23,7 @@
                     </action>
                 </actions>
             </entityPicker>
+            <select id="jmixVersionField" itemsEnum="io.jmix.ai.backend.entity.JmixVersion" width="7em"/>
         </hbox>
     </layout>
 </view>

@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore.docs;
 
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.vectorstore.Chunker;
@@ -25,23 +26,34 @@ public class DocsIngester extends AbstractIngester {
 
     private static final Logger log = LoggerFactory.getLogger(DocsIngester.class);
 
-    private final String baseUrl;
+    private final Map<JmixVersion, String> baseUrls;
     private final String initialPage;
     private final int limit;
     private final Chunker chunker;
 
     public DocsIngester(
-            @Value("${docs.base-url}") String baseUrl,
+            @Value("${docs.v2.base-url}") String v2BaseUrl,
+            @Value("${docs.v3.base-url}") String v3BaseUrl,
             @Value("${docs.initial-page}") String initialPage,
             @Value("${docs.limit}") int limit,
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository) {
-        super(vectorStore, timeSource, vectorStoreRepository);
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+        super(vectorStore, timeSource, vectorStoreRepository, true);
+        this.baseUrls = Map.of(
+                JmixVersion.V2, ensureTrailingSlash(v2BaseUrl),
+                JmixVersion.V3, ensureTrailingSlash(v3BaseUrl));
         this.initialPage = initialPage;
         this.limit = limit;
         this.chunker = new DocsChunker(MAX_CHUNK_SIZE, 400, 300);
+    }
+
+    private static String ensureTrailingSlash(String url) {
+        return url.endsWith("/") ? url : url + "/";
+    }
+
+    private String baseUrl(JmixVersion version) {
+        return baseUrls.get(version);
     }
 
     @Override
@@ -50,8 +62,8 @@ public class DocsIngester extends AbstractIngester {
     }
 
     @Override
-    protected List<String> loadSources() {
-        String url = baseUrl + initialPage;
+    protected List<String> loadSources(JmixVersion version) {
+        String url = baseUrl(version) + initialPage;
         org.jsoup.nodes.Document doc;
         try {
             doc = Jsoup.connect(url).get();
@@ -70,8 +82,8 @@ public class DocsIngester extends AbstractIngester {
     }
 
     @Override
-    protected Document loadDocument(String source) {
-        String url = baseUrl + source;
+    protected Document loadDocument(String source, JmixVersion version) {
+        String url = baseUrl(version) + source;
         log.debug("Loading doc page: {}", url);
 
         org.jsoup.nodes.Document doc;
@@ -94,7 +106,7 @@ public class DocsIngester extends AbstractIngester {
                 .map(Element::text)
                 .collect(Collectors.joining(" > "));
 
-        Map<String, Object> metadata = createMetadata(source, htmlContent);
+        Map<String, Object> metadata = createMetadata(source, htmlContent, version);
         metadata.put("docPath", docPath);
         metadata.put("url", url);
 
