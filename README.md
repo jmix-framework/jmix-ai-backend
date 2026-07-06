@@ -78,6 +78,23 @@ Content-Type: application/json
 
 The `cache_enabled` property is currently not used.
 
+## Search API
+
+The `POST /api/search` endpoint runs the retrieval tools (without the answering LLM) and returns context7-like snippets, ordered by relevance across all tools:
+
+```
+POST /api/search HTTP/1.1
+Content-Type: application/json
+
+{
+    "query": "how to add a click handler to a button",
+    "jmix_version": "v2",
+    "tokens": 2000
+}
+```
+
+Each result contains `id`, `title`, `source` (URL) and `content` (the snippet text with a verbatim code block). The optional `tokens` field limits the total size of the returned snippets; omit it to get all retrieved documents. The endpoint is configured by the active search parameters record.
+
 ## Admin UI
 
 The admin UI is available at `http://localhost:8081` and provides the following features:

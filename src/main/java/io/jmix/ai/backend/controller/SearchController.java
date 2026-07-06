@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.controller;
 
 import io.jmix.ai.backend.entity.JmixVersion;
+import io.jmix.ai.backend.retrieval.SearchResultsFormatter;
 import io.jmix.ai.backend.retrieval.SearchService;
 import org.springframework.ai.document.Document;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -11,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/search")
@@ -31,24 +31,28 @@ public class SearchController {
         }
         List<Document> documents = searchService.search(request.query(), version);
 
+        documents = SearchResultsFormatter.sortByRelevance(documents);
+        documents = SearchResultsFormatter.applyTokenBudget(documents, request.tokens());
+
         return convertToSearchResults(documents);
     }
-
 
     private List<SearchResultDocument> convertToSearchResults(List<Document> documents) {
         return documents.stream()
                 .map(document -> new SearchResultDocument(
-                        UUID.randomUUID().toString(),
-                        document.getText(),
-                        document.getFormattedContent()))
+                        document.getId(),
+                        SearchResultsFormatter.extractTitle(document),
+                        SearchResultsFormatter.extractSource(document),
+                        document.getText()))
                 .toList();
     }
 
-    public record SearchResultDocument(String id, String title, String content) {
+    public record SearchResultDocument(String id, String title, String source, String content) {
     }
 
     public record SearchRequest(
             String query,
-            @JsonProperty("jmix_version") String jmixVersion) {
+            @JsonProperty("jmix_version") String jmixVersion,
+            Integer tokens) {
     }
 }
