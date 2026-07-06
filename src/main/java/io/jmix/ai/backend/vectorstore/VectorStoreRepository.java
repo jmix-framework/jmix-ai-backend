@@ -71,6 +71,18 @@ public class VectorStoreRepository {
                 getVsEntityRowMapper());
     }
 
+    /**
+     * Counts documents grouped by the {@code type} and {@code jmixVersion} metadata attributes.
+     * Returns rows of [type, jmixVersion (nullable), count].
+     */
+    public List<Object[]> countByTypeAndVersion() {
+        String sql = "SELECT metadata::jsonb ->> 'type' AS type, " +
+                "metadata::jsonb ->> 'jmixVersion' AS version, count(*) AS cnt " +
+                "FROM vector_store GROUP BY 1, 2 ORDER BY 1, 2";
+        return jdbcTemplate.query(sql, (rs, rowNum) ->
+                new Object[]{rs.getString("type"), rs.getString("version"), rs.getInt("cnt")});
+    }
+
     public int getCount(String filterString) {
         Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
 
