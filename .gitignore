@@ -33,3 +33,6 @@ webpack.generated.js
 
 .playwright-mcp/
 javaapi-grid.png
+analytics-*.png
+audit-*.json
+scripts/__pycache__/
