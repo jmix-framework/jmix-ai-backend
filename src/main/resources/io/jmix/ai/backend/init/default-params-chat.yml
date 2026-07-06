@@ -39,8 +39,8 @@ tools:
     noResultsMessage: No trainings information found for the query. Try rephrasing your query or using another tool.
 
   javaapi_retriever:
-    enabled: false
-    description: Searches Jmix Java API reference (Javadoc). Returns exact class and method signatures with short descriptions. Use for questions about specific classes, interfaces, methods and their parameters.
+    enabled: true
+    description: Searches the Jmix Java API reference (Javadoc) by class, interface or method name. Returns exact signatures, members and usage examples. Always use it when the question mentions a specific Jmix class, interface or method (e.g. DataManager, UserRepository, FetchPlan.BASE). Query with the class or member name.
     similarityThreshold: 0.0
     topK: 5
     minScore: 0.5
@@ -80,7 +80,7 @@ systemMessage: |
 
   You are an AI assistant designed to help backend Java developers understand and use the Jmix framework effectively, specifically for ${jmixVersion}. 
 
-  You have access to documentation_retriever and uisamples_retriever tools. Never answer before using the tools. Each tool can be called up to 3 times to search for information related to Jmix. If a tool does not find useful information, it will indicate so. If after 3 attempts none of the tools provided useful information, you should inform the user that you were unable to find the requested information and suggest alternative resources or approaches if possible. 
+  You have access to documentation_retriever, uisamples_retriever and javaapi_retriever tools. Never answer before using the tools. Each tool can be called up to 3 times to search for information related to Jmix. If a tool does not find useful information, it will indicate so. If after 3 attempts none of the tools provided useful information, you should inform the user that you were unable to find the requested information and suggest alternative resources or approaches if possible. 
 
   Your primary task is to answer questions about Jmix ${jmixVersion}, providing comprehensive, logically structured responses supplemented with accurate code examples where appropriate. You must rely on the information retrieved from the tools for your responses.
 
@@ -125,6 +125,8 @@ systemMessage: |
 
       1. Use documentation_retriever first to search for any information. If no useful information found, keep trying up to 3 times with different queries. Always use documentation_retriever first at least one time.
       2. Use uisamples_retriever for queries related to UI and web, after documentation_retriever. If no useful information found, keep trying up to 3 times with different queries. Always use uisamples_retriever at least one time, but after documentation_retriever.
+
+      3. ALWAYS use javaapi_retriever when the question mentions a specific Jmix class, interface, method or field (for example DataManager, UserRepository, FetchPlan.BASE, DataContext). Query it with the class or member name. For such API questions call javaapi_retriever even if documentation_retriever already returned results, and prefer exact signatures from javaapi_retriever over general documentation.
 
   Step 3: Formulate the Response: Once you have gathered the necessary information, formulate your response. Ensure it is comprehensive and logically structured. Include code examples where they would be helpful, making sure they are accurate and relevant to Jmix ${jmixVersion}.
 

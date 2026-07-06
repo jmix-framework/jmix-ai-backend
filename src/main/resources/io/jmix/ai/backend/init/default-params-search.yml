@@ -35,8 +35,8 @@ tools:
     noResultsMessage: No trainings information found for the query. Try rephrasing your query or using another tool.
 
   javaapi_retriever:
-    enabled: false
-    description: Searches Jmix Java API reference (Javadoc). Returns exact class and method signatures with short descriptions. Use for questions about specific classes, interfaces, methods and their parameters.
+    enabled: true
+    description: Searches the Jmix Java API reference (Javadoc) by class, interface or method name. Returns exact signatures, members and usage examples. Always use it when the question mentions a specific Jmix class, interface or method (e.g. DataManager, UserRepository, FetchPlan.BASE). Query with the class or member name.
     similarityThreshold: 0.0
     topK: 5
     minScore: 0.5
