@@ -42,11 +42,16 @@ public record JavadocClassDoc(
 
     /**
      * Simple class name derived from the page title, e.g. "Interface DataManager" -> "DataManager".
+     * Generics are stripped first: titles like "Class Foo&lt;H extends Component&gt;" contain
+     * spaces inside the type parameters.
      */
     public String className() {
-        String name = title.substring(title.lastIndexOf(' ') + 1);
+        String name = title;
         int genericsIdx = name.indexOf('<');
-        return genericsIdx > 0 ? name.substring(0, genericsIdx) : name;
+        if (genericsIdx > 0) {
+            name = name.substring(0, genericsIdx);
+        }
+        return name.substring(name.lastIndexOf(' ') + 1);
     }
 
     public String fullyQualifiedName() {

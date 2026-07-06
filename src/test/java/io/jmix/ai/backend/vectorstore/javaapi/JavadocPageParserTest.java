@@ -75,6 +75,19 @@ public class JavadocPageParserTest {
         });
     }
 
+    @Test
+    void testClassNameStripsGenericsWithSpaces() {
+        JavadocClassDoc classDoc = new JavadocClassDoc(
+                "io.jmix.flowui.action.binder",
+                "Class AbstractActionBindingImpl<H extends Component,A extends Action>",
+                "public class AbstractActionBindingImpl", "",
+                java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of());
+
+        assertThat(classDoc.className()).isEqualTo("AbstractActionBindingImpl");
+        assertThat(classDoc.fullyQualifiedName())
+                .isEqualTo("io.jmix.flowui.action.binder.AbstractActionBindingImpl");
+    }
+
     private String loadResource(String name) throws IOException {
         return IOUtils.toString(
                 Objects.requireNonNull(getClass().getResourceAsStream(name), "missing resource " + name),
