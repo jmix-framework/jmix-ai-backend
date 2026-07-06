@@ -43,6 +43,7 @@ public class JavaApiEnricher {
             2. "example": a short realistic Java snippet (5-15 lines) showing typical usage of this type. A compact fragment is preferred over a full class; imports and class scaffolding are not required.
             STRICT RULES:
             - Use ONLY the classes, methods, fields and constructors listed in the card. Never invent members that are not listed.
+            - In the example, call only methods listed in the card. Never guess member methods of OTHER types (e.g. of parameters or returned objects): if they are needed, keep them behind a placeholder comment like /* ... */ instead of inventing calls.
             - ALWAYS write an example when the card lists at least one method, constructor, field or enum constant. Return an empty string for "example" only for marker types with no listed members.
             - Do not mention Javadoc or the card itself.
             """;

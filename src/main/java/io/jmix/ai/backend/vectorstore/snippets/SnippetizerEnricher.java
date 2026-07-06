@@ -195,7 +195,9 @@ public class SnippetizerEnricher {
                             item.title().trim(),
                             item.description().replaceAll("\\s+", " ").trim(),
                             StringUtils.defaultIfBlank(item.language(), null),
-                            StringUtils.defaultIfBlank(item.code(), null),
+                            // markdown fences inside code would break the snippet's own code fence
+                            item.code() == null ? null
+                                    : StringUtils.defaultIfBlank(item.code().replace("```", ""), null),
                             url))
                     .toList();
             return snippets.isEmpty() ? null : snippets;
