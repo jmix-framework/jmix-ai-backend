@@ -2,6 +2,7 @@ package io.jmix.ai.backend.vectorstore.javaapi;
 
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
+import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.core.TimeSource;
@@ -39,6 +40,8 @@ public class JavaApiIngester extends AbstractIngester {
     private final RestTemplate restTemplate = new RestTemplate();
     private final JavadocPageParser parser = new JavadocPageParser();
     private final JavaApiCardRenderer renderer = new JavaApiCardRenderer();
+    private final JavaApiEnricher enricher;
+    private final EnrichmentCacheRepository enrichmentCacheRepository;
 
     public JavaApiIngester(
             @Value("${javaapi.v2.base-url:}") String v2BaseUrl,
@@ -48,8 +51,12 @@ public class JavaApiIngester extends AbstractIngester {
             @Value("${javaapi.limit}") int limit,
             VectorStore vectorStore,
             TimeSource timeSource,
-            VectorStoreRepository vectorStoreRepository) {
+            VectorStoreRepository vectorStoreRepository,
+            JavaApiEnricher enricher,
+            EnrichmentCacheRepository enrichmentCacheRepository) {
         super(vectorStore, timeSource, vectorStoreRepository, true);
+        this.enricher = enricher;
+        this.enrichmentCacheRepository = enrichmentCacheRepository;
         putBaseUrl(JmixVersion.V2, v2BaseUrl);
         putBaseUrl(JmixVersion.V3, v3BaseUrl);
         this.classListPage = classListPage;
@@ -135,13 +142,40 @@ public class JavaApiIngester extends AbstractIngester {
             return null;
         }
         Snippet card = renderer.render(classDoc, url);
-        String textContent = card.format();
+        String cardText = card.format();
+        String textContent = enrich(card, cardText, source, version);
 
-        Map<String, Object> metadata = createMetadata(source, textContent, version);
+        // sourceHash is computed over the deterministic card, not the LLM output,
+        // so incremental updates skip unchanged pages regardless of generation variance
+        Map<String, Object> metadata = createMetadata(source, cardText, version);
         metadata.put("url", url);
         metadata.put("className", classDoc.fullyQualifiedName());
+        if (!textContent.equals(cardText)) {
+            metadata.put("enriched", "true");
+        }
 
         return createDocument(textContent, metadata);
+    }
+
+    private String enrich(Snippet card, String cardText, String source, JmixVersion version) {
+        if (!enricher.isEnabled()) {
+            return cardText;
+        }
+        String contentHash = computeHash(cardText);
+        JavaApiEnricher.Enrichment enrichment = enrichmentCacheRepository
+                .find(getType(), source, version.getId(), enricher.getModelName())
+                .filter(cached -> contentHash.equals(cached.getContentHash()))
+                .map(cached -> new JavaApiEnricher.Enrichment(cached.getDescription(), cached.getExample()))
+                .orElseGet(() -> {
+                    log.debug("Generating enrichment for {}", source);
+                    JavaApiEnricher.Enrichment generated = enricher.enrich(cardText);
+                    if (generated != null) {
+                        enrichmentCacheRepository.save(getType(), source, version.getId(), enricher.getModelName(),
+                                contentHash, generated.description(), generated.example());
+                    }
+                    return generated;
+                });
+        return JavaApiEnricher.assembleCard(card, enrichment);
     }
 
     @Override
