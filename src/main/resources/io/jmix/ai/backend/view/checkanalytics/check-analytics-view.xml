@@ -3,6 +3,7 @@
       xmlns:charts="http://jmix.io/schema/charts/ui"
       title="msg://checkAnalyticsView.title">
     <layout>
+        <scroller width="100%" height="100%">
         <vbox id="rootBox" padding="true" spacing="true" width="100%">
 
             <charts:chart id="trendChart" width="100%" height="18em" minHeight="14em">
@@ -92,5 +93,6 @@
             </charts:chart>
 
         </vbox>
+        </scroller>
     </layout>
 </view>
