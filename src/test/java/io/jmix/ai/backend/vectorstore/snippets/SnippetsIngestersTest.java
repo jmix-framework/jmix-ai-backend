@@ -69,7 +69,7 @@ class SnippetsIngestersTest {
         List<Snippet> snippets = List.of(
                 new Snippet("Create a Button", "How to declare a button.", "xml", "<button/>", "https://docs/v2/flow-ui/button.html"),
                 new Snippet("Button click handler", "Subscribe to click.", "java", "@Subscribe void onClick() {}", "https://docs/v2/flow-ui/button.html"));
-        when(snippetizer.resolveAll(eq("docs-snippets"), anyList()))
+        when(snippetizer.resolveAll(eq("docs-snippets"), anyList(), any()))
                 .thenReturn(Map.of("doc-1", snippets));
 
         List<Document> chunks = docsIngester.splitToChunks(List.of(page));
@@ -86,7 +86,7 @@ class SnippetsIngestersTest {
 
     @Test
     void docsSnippets_FallsBackToRegularChunkingOnFailure() {
-        when(snippetizer.resolveAll(any(), anyList())).thenReturn(Map.of());
+        when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of());
 
         List<Document> chunks = docsIngester.splitToChunks(List.of(docsPage()));
 
@@ -97,7 +97,7 @@ class SnippetsIngestersTest {
     @Test
     void uiSamplesSnippets_ProducesSnippetDocuments() {
         Document page = samplePage();
-        when(snippetizer.resolveAll(eq("uisamples-snippets"), anyList()))
+        when(snippetizer.resolveAll(eq("uisamples-snippets"), anyList(), any()))
                 .thenReturn(Map.of("sample-1", List.of(
                         new Snippet("Button sample", "Basic button usage.", "xml", "<button/>", "https://us/v2/sample/button-sample"))));
 
@@ -111,7 +111,7 @@ class SnippetsIngestersTest {
     @Test
     void uiSamplesSnippets_FallsBackToWholeDocumentOnFailure() {
         Document page = samplePage();
-        when(snippetizer.resolveAll(any(), anyList())).thenReturn(Map.of());
+        when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of());
 
         List<Document> chunks = uiSamplesIngester.splitToChunks(List.of(page));
 

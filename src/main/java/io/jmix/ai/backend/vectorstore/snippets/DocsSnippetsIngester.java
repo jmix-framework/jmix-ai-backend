@@ -49,7 +49,8 @@ public class DocsSnippetsIngester extends DocsIngester {
 
     @Override
     protected List<Document> splitToChunks(List<Document> documents) {
-        Map<String, List<Snippet>> snippetsByDoc = snippetizer.resolveAll(getType(), documents);
+        Map<String, List<Snippet>> snippetsByDoc = snippetizer.resolveAll(getType(), documents,
+                document -> DocsHtmlConverter.toPlainText(document.getText()));
 
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : documents) {

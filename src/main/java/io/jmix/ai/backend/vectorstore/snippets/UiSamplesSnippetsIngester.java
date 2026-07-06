@@ -49,7 +49,7 @@ public class UiSamplesSnippetsIngester extends UiSamplesIngester {
 
     @Override
     protected List<Document> splitToChunks(List<Document> documents) {
-        Map<String, List<Snippet>> snippetsByDoc = snippetizer.resolveAll(getType(), documents);
+        Map<String, List<Snippet>> snippetsByDoc = snippetizer.resolveAll(getType(), documents, Document::getText);
 
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : documents) {

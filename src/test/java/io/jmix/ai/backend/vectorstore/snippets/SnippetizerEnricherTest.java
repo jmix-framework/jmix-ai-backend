@@ -59,7 +59,7 @@ class SnippetizerEnricherTest {
                 """));
         TestSnippetizer snippetizer = new TestSnippetizer(chatModel);
 
-        List<Snippet> snippets = snippetizer.snippetize(PAGE);
+        List<Snippet> snippets = snippetizer.snippetize(PAGE, PAGE.getText());
 
         assertThat(snippets).hasSize(2);
         assertThat(snippets.get(0).title()).isEqualTo("Create a Button");
@@ -78,7 +78,7 @@ class SnippetizerEnricherTest {
         ChatModel chatModel = mock(ChatModel.class);
         when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("boom"));
 
-        assertThat(new TestSnippetizer(chatModel).snippetize(PAGE)).isNull();
+        assertThat(new TestSnippetizer(chatModel).snippetize(PAGE, PAGE.getText())).isNull();
     }
 
     @Test
@@ -86,7 +86,7 @@ class SnippetizerEnricherTest {
         ChatModel chatModel = mock(ChatModel.class);
         when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("{\"snippets\": []}"));
 
-        assertThat(new TestSnippetizer(chatModel).snippetize(PAGE)).isNull();
+        assertThat(new TestSnippetizer(chatModel).snippetize(PAGE, PAGE.getText())).isNull();
     }
 
     @Test

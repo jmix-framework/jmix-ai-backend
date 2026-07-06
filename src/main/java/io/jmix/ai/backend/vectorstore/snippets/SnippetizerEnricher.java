@@ -111,8 +111,11 @@ public class SnippetizerEnricher {
      * Returns a map keyed by document id; a missing key means generation failed for that
      * document and the caller should fall back to non-snippetized chunking.
      * Cache lookups and saves stay on the caller thread (Jmix security context).
+     *
+     * @param contentExtractor produces the LLM input from a document (e.g. HTML-to-text conversion)
      */
-    public Map<String, List<Snippet>> resolveAll(String type, List<Document> documents) {
+    public Map<String, List<Snippet>> resolveAll(String type, List<Document> documents,
+                                                 java.util.function.Function<Document, String> contentExtractor) {
         Map<String, List<Snippet>> result = new HashMap<>();
         List<Document> pending = new ArrayList<>();
 
@@ -138,7 +141,7 @@ public class SnippetizerEnricher {
         try {
             List<Future<List<Snippet>>> futures = new ArrayList<>(pending.size());
             for (Document document : pending) {
-                futures.add(executor.submit(() -> snippetize(document)));
+                futures.add(executor.submit(() -> snippetize(document, contentExtractor.apply(document))));
             }
             for (int i = 0; i < pending.size(); i++) {
                 Document document = pending.get(i);
@@ -162,10 +165,9 @@ public class SnippetizerEnricher {
      * Generates snippets for one page, or null on failure.
      */
     @Nullable
-    public List<Snippet> snippetize(Document document) {
+    public List<Snippet> snippetize(Document document, @Nullable String content) {
         String url = Objects.toString(document.getMetadata().get("url"), source(document));
         String topic = Objects.toString(document.getMetadata().get("docPath"), "");
-        String content = document.getText();
         if (content == null || content.isBlank()) {
             return null;
         }
