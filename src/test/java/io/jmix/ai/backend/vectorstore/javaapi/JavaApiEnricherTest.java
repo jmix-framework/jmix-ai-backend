@@ -29,7 +29,7 @@ class JavaApiEnricherTest {
         Prompt capturedPrompt;
 
         TestEnricher(ChatModel chatModel) {
-            super(false, "test-model", 1.0, "test-key");
+            super(false, "test-model", 1.0, "low", "test-key");
             this.chatModel = chatModel;
         }
 

@@ -40,10 +40,10 @@ public class JavaApiEnricher {
             You are given a reference card for one Java type. The card contains signatures extracted verbatim from Javadoc.
             Write:
             1. "description": 2-4 sentences describing the purpose of this type, when a Jmix developer needs it, and how it relates to the types mentioned in the card. Mention key terms and use cases explicitly so the text is easy to find by search.
-            2. "example": a short realistic Java snippet (5-15 lines) showing typical usage of this type.
+            2. "example": a short realistic Java snippet (5-15 lines) showing typical usage of this type. A compact fragment is preferred over a full class; imports and class scaffolding are not required.
             STRICT RULES:
             - Use ONLY the classes, methods, fields and constructors listed in the card. Never invent members that are not listed.
-            - If the card does not contain enough usable members for a meaningful example, return an empty string for "example".
+            - ALWAYS write an example when the card lists at least one method, constructor, field or enum constant. Return an empty string for "example" only for marker types with no listed members.
             - Do not mention Javadoc or the card itself.
             """;
 
@@ -58,16 +58,19 @@ public class JavaApiEnricher {
     private final boolean enabled;
     private final String modelName;
     private final double temperature;
+    private final String reasoningEffort;
     private final OpenAiApi openAiApi;
 
     public JavaApiEnricher(
             @Value("${javaapi.enrichment.enabled}") boolean enabled,
             @Value("${javaapi.enrichment.model}") String modelName,
             @Value("${javaapi.enrichment.temperature}") double temperature,
+            @Value("${javaapi.enrichment.reasoning-effort:}") String reasoningEffort,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey) {
         this.enabled = enabled;
         this.modelName = modelName;
         this.temperature = temperature;
+        this.reasoningEffort = reasoningEffort;
         String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
         if (enabled && StringUtils.isBlank(apiKey)) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
@@ -79,8 +82,11 @@ public class JavaApiEnricher {
         return enabled;
     }
 
-    public String getModelName() {
-        return modelName;
+    /**
+     * Cache key for generated enrichments: model plus reasoning effort, since both affect the output.
+     */
+    public String getModelKey() {
+        return StringUtils.isBlank(reasoningEffort) ? modelName : modelName + ":" + reasoningEffort;
     }
 
     /**
@@ -132,11 +138,14 @@ public class JavaApiEnricher {
         if (openAiApi == null) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
         }
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .model(modelName)
                 .temperature(temperature)
-                .responseFormat(new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, OUTPUT_CONVERTER.getJsonSchema()))
-                .build();
+                .responseFormat(new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, OUTPUT_CONVERTER.getJsonSchema()));
+        if (!StringUtils.isBlank(reasoningEffort)) {
+            optionsBuilder.reasoningEffort(reasoningEffort);
+        }
+        OpenAiChatOptions options = optionsBuilder.build();
         return OpenAiChatModel.builder()
                 .openAiApi(openAiApi)
                 .defaultOptions(options)

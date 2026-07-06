@@ -75,7 +75,7 @@ class JavaApiIngesterTest {
     @Test
     void splitToChunks_UsesCachedEnrichmentWithMatchingHash() {
         when(enricher.isEnabled()).thenReturn(true);
-        when(enricher.getModelName()).thenReturn("test-model");
+        when(enricher.getModelKey()).thenReturn("test-model");
         EnrichmentCache cached = new EnrichmentCache();
         cached.setContentHash("hash1");
         cached.setDescription("Cached description.");
@@ -97,7 +97,7 @@ class JavaApiIngesterTest {
     @Test
     void splitToChunks_GeneratesAndCachesWhenHashDiffers() {
         when(enricher.isEnabled()).thenReturn(true);
-        when(enricher.getModelName()).thenReturn("test-model");
+        when(enricher.getModelKey()).thenReturn("test-model");
         EnrichmentCache stale = new EnrichmentCache();
         stale.setContentHash("old-hash");
         when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.of(stale));
@@ -118,7 +118,7 @@ class JavaApiIngesterTest {
     @Test
     void splitToChunks_FallsBackToDeterministicCardOnGenerationFailure() {
         when(enricher.isEnabled()).thenReturn(true);
-        when(enricher.getModelName()).thenReturn("test-model");
+        when(enricher.getModelKey()).thenReturn("test-model");
         when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
         when(enricher.enrich(anyString())).thenReturn(null);
 
@@ -133,7 +133,7 @@ class JavaApiIngesterTest {
     @Test
     void splitToChunks_EnrichesAllDocumentsInParallel() {
         when(enricher.isEnabled()).thenReturn(true);
-        when(enricher.getModelName()).thenReturn("test-model");
+        when(enricher.getModelKey()).thenReturn("test-model");
         when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
         when(enricher.enrich(anyString()))
                 .thenAnswer(inv -> new JavaApiEnricher.Enrichment("Generated.", ""));

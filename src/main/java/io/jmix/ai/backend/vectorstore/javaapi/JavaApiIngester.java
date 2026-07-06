@@ -195,7 +195,7 @@ public class JavaApiIngester extends AbstractIngester {
         if (!enricher.isEnabled() || documents.isEmpty()) {
             return documents;
         }
-        String modelName = enricher.getModelName();
+        String modelName = enricher.getModelKey();
 
         List<Document> result = new ArrayList<>(documents.size());
         List<PendingEnrichment> pending = new ArrayList<>();
