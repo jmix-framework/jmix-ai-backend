@@ -30,7 +30,7 @@ public abstract class AbstractRagTool {
     private final List<Document> retrievedDocuments;
     private final ToolEventListener listener;
     private final ParametersReader parametersReader;
-    protected final String type;
+    protected String type;
     protected final JmixVersion jmixVersion;
     private final boolean versionScoped;
     protected String description;
@@ -62,6 +62,8 @@ public abstract class AbstractRagTool {
     }
 
     protected void init(ParametersReader parametersReader) {
+        // allows A/B testing an alternative corpus (e.g. docs-snippets) with the same tool
+        type = parametersReader.getString(getToolRootKey() + ".vectorType", type);
         description = parametersReader.getString(getToolRootKey() + ".description");
         similarityThreshold = parametersReader.getDouble(getToolRootKey() + ".similarityThreshold");
         topK = parametersReader.getInt(getToolRootKey() + ".topK");
