@@ -11,6 +11,7 @@ reranker:
 
 tools:
   documentation_retriever:
+    vectorType: docs-snippets
     description: Searches and returns information from Jmix documentation. Provides code examples with explanations.
     similarityThreshold: 0.0
     topK: 10
@@ -20,6 +21,7 @@ tools:
     noResultsMessage: No documentation found for the query. Try rephrasing your query or using another tool.
 
   uisamples_retriever:
+    vectorType: uisamples-snippets
     description: Searches and returns information about Jmix UI components like Button, ComboBox, DataGrid, etc. Contains collection of recipes for solving typical problems related to UI. Provides XML and Java code examples with explanations.
     similarityThreshold: 0.0
     topK: 5
