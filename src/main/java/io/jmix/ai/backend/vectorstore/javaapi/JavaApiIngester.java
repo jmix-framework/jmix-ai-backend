@@ -49,6 +49,7 @@ public class JavaApiIngester extends AbstractIngester {
     private final Map<JmixVersion, String> baseUrls = new EnumMap<>(JmixVersion.class);
     private final String classListPage;
     private final Set<String> moduleWhitelist;
+    private final List<String> pathBlacklist;
     private final int limit;
     private final int enrichmentParallelism;
 
@@ -63,6 +64,7 @@ public class JavaApiIngester extends AbstractIngester {
             @Value("${javaapi.v3.base-url:}") String v3BaseUrl,
             @Value("${javaapi.class-list-page}") String classListPage,
             @Value("${javaapi.whitelist}") String whitelist,
+            @Value("${javaapi.blacklist:}") String blacklist,
             @Value("${javaapi.limit}") int limit,
             @Value("${javaapi.enrichment.parallelism}") int enrichmentParallelism,
             VectorStore vectorStore,
@@ -78,6 +80,10 @@ public class JavaApiIngester extends AbstractIngester {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
+        this.pathBlacklist = Arrays.stream(blacklist.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
         this.limit = limit;
         this.enrichmentParallelism = Math.max(1, enrichmentParallelism);
         this.enricher = enricher;
@@ -123,12 +129,17 @@ public class JavaApiIngester extends AbstractIngester {
         return Jsoup.parse(html).select("a[href^=io/jmix/]").stream()
                 .map(a -> a.attr("href"))
                 .filter(href -> href.endsWith(".html"))
-                .filter(this::isWhitelisted)
+                .filter(this::isAllowedSource)
                 .distinct()
                 .toList();
     }
 
-    private boolean isWhitelisted(String source) {
+    boolean isAllowedSource(String source) {
+        for (String banned : pathBlacklist) {
+            if (source.contains(banned)) {
+                return false;
+            }
+        }
         if (moduleWhitelist.isEmpty()) {
             return true;
         }

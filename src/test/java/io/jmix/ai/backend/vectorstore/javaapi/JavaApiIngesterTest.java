@@ -48,7 +48,7 @@ class JavaApiIngesterTest {
     @BeforeEach
     void setUp() {
         ingester = new JavaApiIngester(
-                "https://docs.jmix.io/api/2.8", "", "allclasses-index.html", "core", 0, 4,
+                "https://docs.jmix.io/api/2.8", "", "allclasses-index.html", "core", "/impl/,/antlr2/", 0, 4,
                 vectorStore, timeSource, vectorStoreRepository, enricher, enrichmentCacheRepository);
     }
 
@@ -152,5 +152,13 @@ class JavaApiIngesterTest {
     @Test
     void getVersions_ReturnsOnlyConfiguredVersions() {
         assertThat(ingester.getVersions()).extracting(Enum::name).containsExactly("V2");
+    }
+
+    @Test
+    void blacklistExcludesInternalPackages() {
+        assertThat(ingester.isAllowedSource("io/jmix/core/DataManager.html")).isTrue();
+        assertThat(ingester.isAllowedSource("io/jmix/core/impl/DataManagerImpl.html")).isFalse();
+        assertThat(ingester.isAllowedSource("io/jmix/data/impl/jpql/antlr2/JPA2Parser.html")).isFalse();
+        assertThat(ingester.isAllowedSource("io/jmix/reports/ReportRunner.html")).isFalse();
     }
 }
