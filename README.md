@@ -44,6 +44,7 @@ Ingesters are used to import documents into the vector store. The application in
 - `DocsIngester`: loads information from the Jmix documentation. This ingester is configured by the `docs.*` application properties.
 - `UiSamplesIngester`: loads information from the Jmix UI Samples online application. This ingester is configured by the `uisamples.*` application properties.
 - `TrainingsIngester`: loads information from the Jmix training courses. This ingester is configured by the `trainings.*` application properties. While the training courses content is not available to the public, you can provide your own set of AsciiDoc files.
+- `JavaApiIngester`: loads Java API reference from the Jmix Javadoc site and renders each class page as a compact "API card" snippet with verbatim signatures. This ingester is configured by the `javaapi.*` application properties.
 
 All ingesters implement the `Ingester` interface and are invoked through the `IngesterManager` Spring bean.  
 
