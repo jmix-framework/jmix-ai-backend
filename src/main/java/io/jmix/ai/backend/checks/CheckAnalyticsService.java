@@ -58,6 +58,83 @@ public class CheckAnalyticsService {
     public record CorpusCoverage(String corpus, int v2, int v3) {
     }
 
+    /** Averaged benchmark of one config on one Jmix version, over its latest runs. */
+    public record ConfigStat(String config, String version, double score, double accuracy, int runs) {
+    }
+
+    private static final int RUNS_PER_CONFIG = 3;
+
+    /**
+     * Config A/B benchmark: for each known config (main baseline / strict / neutral) and Jmix version,
+     * averages the mean score over its latest runs and computes a noise-resistant accuracy
+     * (per-question score averaged across those runs, then thresholded).
+     */
+    public List<ConfigStat> configComparison() {
+        List<CheckRun> runs = dataManager.load(CheckRun.class)
+                .query("e.score is not null order by e.createdDate desc")
+                .list();
+
+        Map<String, List<CheckRun>> groups = new LinkedHashMap<>();
+        for (CheckRun run : runs) {
+            String bucket = configBucket(run.getConfigLabel());
+            if (bucket == null) {
+                continue;
+            }
+            String version = run.getJmixVersion() != null ? run.getJmixVersion().getId() : "?";
+            groups.computeIfAbsent(bucket + "|" + version, k -> new ArrayList<>()).add(run);
+        }
+
+        List<ConfigStat> result = new ArrayList<>();
+        for (String bucket : List.of("main baseline", "strict", "neutral (live)")) {
+            for (String version : List.of("v2", "v3")) {
+                List<CheckRun> group = groups.get(bucket + "|" + version);
+                if (group == null || group.isEmpty()) {
+                    continue;
+                }
+                List<CheckRun> latest = group.subList(0, Math.min(RUNS_PER_CONFIG, group.size()));
+
+                double avgScore = latest.stream()
+                        .mapToDouble(r -> r.getScore() != null ? r.getScore() : 0.0)
+                        .average().orElse(0.0);
+
+                Map<String, double[]> perQuestion = new LinkedHashMap<>();
+                for (CheckRun run : latest) {
+                    for (Check check : loadChecks(run.getId().toString())) {
+                        String q = check.getQuestion() != null ? check.getQuestion() : "?";
+                        double[] agg = perQuestion.computeIfAbsent(q, k -> new double[2]);
+                        agg[0] += score(check);
+                        agg[1] += 1;
+                    }
+                }
+                long passed = perQuestion.values().stream()
+                        .filter(a -> a[1] > 0 && a[0] / a[1] >= passThreshold)
+                        .count();
+                double stableAccuracy = perQuestion.isEmpty() ? 0.0 : (double) passed / perQuestion.size();
+
+                result.add(new ConfigStat(bucket, version, round(avgScore), round(stableAccuracy), latest.size()));
+            }
+        }
+        return result;
+    }
+
+    @Nullable
+    private static String configBucket(@Nullable String label) {
+        if (label == null) {
+            return null;
+        }
+        String l = label.toUpperCase();
+        if (l.startsWith("MAIN")) {
+            return "main baseline";
+        }
+        if (l.startsWith("NEUTRAL")) {
+            return "neutral (live)";
+        }
+        if (l.contains("SNIPPET")) {
+            return "strict";
+        }
+        return null;
+    }
+
     /**
      * All finished runs ordered oldest-first, labelled with date, detected config and check count.
      */
