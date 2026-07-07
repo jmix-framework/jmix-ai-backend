@@ -72,7 +72,7 @@ public class CheckRunnerTest {
 
     @Test
     void test() {
-        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4);
+        CheckRunner checkRunner = new CheckRunner(dataManager, new TestChat(), new TestExternalEvaluator(), 4, 0.8);
 
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("some parameters");
@@ -111,7 +111,7 @@ public class CheckRunnerTest {
         }
         dataManager.save(defs.toArray());
 
-        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4);
+        CheckRunner checkRunner = new CheckRunner(dataManager, new EchoChat(), new TestExternalEvaluator(), 4, 0.8);
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
         dataManager.save(checkRun);
@@ -143,7 +143,7 @@ public class CheckRunnerTest {
 
         dataManager.save(successDef, failingDef);
 
-        CheckRunner checkRunner = new CheckRunner(dataManager, new FailingChat(), new TestExternalEvaluator(), 4);
+        CheckRunner checkRunner = new CheckRunner(dataManager, new FailingChat(), new TestExternalEvaluator(), 4, 0.8);
         CheckRun checkRun = dataManager.create(CheckRun.class);
         checkRun.setParameters("unused");
         dataManager.save(checkRun);

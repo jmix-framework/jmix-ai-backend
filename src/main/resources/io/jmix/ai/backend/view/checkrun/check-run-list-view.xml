@@ -65,6 +65,7 @@
                     <column property="createdBy"/>
                     <column property="parameters"/>
                     <column property="score"/>
+                    <column property="accuracy"/>
                 </columns>
             </dataGrid>
             <dataGrid id="checksDataGrid" dataContainer="checksDc" minWidth="100px" width="100%" minHeight="10em">

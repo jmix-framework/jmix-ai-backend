@@ -25,15 +25,18 @@ public class CheckRunner {
     private final Chat chat;
     private final ExternalEvaluator externalEvaluator;
     private final int parallelism;
+    private final double passThreshold;
 
     public CheckRunner(DataManager dataManager,
                        Chat chat,
                        ExternalEvaluator externalEvaluator,
-                       @Value("${answer-checks.parallelism:4}") int parallelism) {
+                       @Value("${answer-checks.parallelism:4}") int parallelism,
+                       @Value("${answer-checks.pass-threshold:0.8}") double passThreshold) {
         this.dataManager = dataManager;
         this.chat = chat;
         this.externalEvaluator = externalEvaluator;
         this.parallelism = Math.max(1, parallelism);
+        this.passThreshold = passThreshold;
     }
 
     public void runChecks(Id<CheckRun> checkRunId) {
@@ -73,13 +76,18 @@ public class CheckRunner {
 
         double score = 0.0;
         int count = 0;
+        int passed = 0;
         for (Check check : checks) {
             check.setCheckRun(checkRun);
             dataManager.save(check);
             score += check.getScore();
+            if (check.getScore() != null && check.getScore() >= passThreshold) {
+                passed++;
+            }
             count++;
         }
         checkRun.setScore(score / count);
+        checkRun.setAccuracy((double) passed / count);
         dataManager.save(checkRun);
     }
 

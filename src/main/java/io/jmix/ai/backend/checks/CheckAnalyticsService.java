@@ -25,13 +25,23 @@ public class CheckAnalyticsService {
 
     private final DataManager dataManager;
     private final VectorStoreRepository vectorStoreRepository;
+    private final double passThreshold;
 
-    public CheckAnalyticsService(DataManager dataManager, VectorStoreRepository vectorStoreRepository) {
+    public CheckAnalyticsService(DataManager dataManager, VectorStoreRepository vectorStoreRepository,
+                                 @org.springframework.beans.factory.annotation.Value("${answer-checks.pass-threshold:0.8}") double passThreshold) {
         this.dataManager = dataManager;
         this.vectorStoreRepository = vectorStoreRepository;
+        this.passThreshold = passThreshold;
     }
 
-    public record RunInfo(String id, String label, double score, int checkCount) {
+    public double getPassThreshold() {
+        return passThreshold;
+    }
+
+    public record RunInfo(String id, String label, double score, double accuracy, int passed, int checkCount) {
+    }
+
+    public record CategoryAccuracy(String category, double accuracy, int passed, int total) {
     }
 
     public record CategoryScore(String category, double base, double compare) {
@@ -52,13 +62,39 @@ public class CheckAnalyticsService {
                 .list();
         List<RunInfo> result = new ArrayList<>(runs.size());
         for (CheckRun run : runs) {
-            int count = loadChecks(run.getId().toString()).size();
+            List<Check> checks = loadChecks(run.getId().toString());
+            int count = checks.size();
+            int passed = (int) checks.stream()
+                    .filter(c -> c.getScore() != null && c.getScore() >= passThreshold)
+                    .count();
             result.add(new RunInfo(
                     run.getId().toString(),
                     buildLabel(run) + " · " + count,
                     run.getScore() != null ? run.getScore() : 0.0,
+                    count == 0 ? 0.0 : (double) passed / count,
+                    passed,
                     count));
         }
+        return result;
+    }
+
+    /**
+     * Accuracy (fraction of passed checks) per category for a run, ordered worst-first.
+     */
+    public List<CategoryAccuracy> categoryAccuracy(@Nullable String runId) {
+        Map<String, int[]> agg = new LinkedHashMap<>();
+        for (Check check : loadChecks(runId)) {
+            String category = check.getCategory() != null ? check.getCategory() : "?";
+            int[] pt = agg.computeIfAbsent(category, k -> new int[2]);
+            if (check.getScore() != null && check.getScore() >= passThreshold) {
+                pt[0]++;
+            }
+            pt[1]++;
+        }
+        List<CategoryAccuracy> result = new ArrayList<>();
+        agg.forEach((category, pt) ->
+                result.add(new CategoryAccuracy(category, pt[1] == 0 ? 0.0 : (double) pt[0] / pt[1], pt[0], pt[1])));
+        result.sort((a, b) -> Double.compare(a.accuracy(), b.accuracy()));
         return result;
     }
 

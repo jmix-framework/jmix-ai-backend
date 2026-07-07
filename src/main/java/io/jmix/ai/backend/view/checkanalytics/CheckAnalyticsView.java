@@ -7,6 +7,7 @@ import io.jmix.chartsflowui.component.Chart;
 import io.jmix.chartsflowui.data.item.MapDataItem;
 import io.jmix.chartsflowui.kit.component.model.DataSet;
 import io.jmix.chartsflowui.kit.data.chart.ListChartItems;
+import com.vaadin.flow.component.html.Span;
 import io.jmix.flowui.component.combobox.JmixComboBox;
 import io.jmix.flowui.view.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +33,10 @@ public class CheckAnalyticsView extends StandardView {
     private Chart deltaChart;
     @ViewComponent
     private Chart coverageChart;
+    @ViewComponent
+    private Chart accuracyChart;
+    @ViewComponent
+    private Span kpiLabel;
     @ViewComponent
     private JmixComboBox<CheckAnalyticsService.RunInfo> baseRunField;
     @ViewComponent
@@ -68,13 +73,14 @@ public class CheckAnalyticsView extends StandardView {
     private void buildTrend() {
         List<MapDataItem> items = new ArrayList<>();
         for (CheckAnalyticsService.RunInfo run : runs) {
-            items.add(new MapDataItem(java.util.Map.of("label", run.label(), "score", run.score())));
+            items.add(new MapDataItem(java.util.Map.of(
+                    "label", run.label(), "score", run.score(), "accuracy", run.accuracy())));
         }
         trendChart.setDataSet(new DataSet().withSource(
                 new DataSet.Source<MapDataItem>()
                         .withDataProvider(new ListChartItems<>(items))
                         .withCategoryField("label")
-                        .withValueField("score")));
+                        .withValueFields("score", "accuracy")));
     }
 
     private void buildCoverage() {
@@ -92,6 +98,20 @@ public class CheckAnalyticsView extends StandardView {
     private void refreshComparison() {
         String baseId = baseRunField.getValue() != null ? baseRunField.getValue().id() : null;
         String compareId = compareRunField.getValue() != null ? compareRunField.getValue().id() : null;
+
+        updateKpi();
+
+        List<MapDataItem> accuracyItems = new ArrayList<>();
+        for (CheckAnalyticsService.CategoryAccuracy ca : analyticsService.categoryAccuracy(compareId)) {
+            accuracyItems.add(new MapDataItem(java.util.Map.of(
+                    "category", ca.category() + " (" + ca.passed() + "/" + ca.total() + ")",
+                    "accuracy", ca.accuracy())));
+        }
+        accuracyChart.setDataSet(new DataSet().withSource(
+                new DataSet.Source<MapDataItem>()
+                        .withDataProvider(new ListChartItems<>(accuracyItems))
+                        .withCategoryField("category")
+                        .withValueField("accuracy")));
 
         List<MapDataItem> categoryItems = new ArrayList<>();
         for (CheckAnalyticsService.CategoryScore cs : analyticsService.categoryComparison(baseId, compareId)) {
@@ -117,6 +137,17 @@ public class CheckAnalyticsView extends StandardView {
                         .withDataProvider(new ListChartItems<>(deltaItems))
                         .withCategoryField("question")
                         .withValueFields("up", "down")));
+    }
+
+    private void updateKpi() {
+        CheckAnalyticsService.RunInfo run = compareRunField.getValue();
+        if (run == null) {
+            kpiLabel.setText("");
+            return;
+        }
+        int threshold = (int) Math.round(analyticsService.getPassThreshold() * 100);
+        kpiLabel.setText("Accuracy: %d/%d = %.0f%%  (score ≥ %d%%)   ·   avg score %.3f".formatted(
+                run.passed(), run.checkCount(), run.accuracy() * 100, threshold, run.score()));
     }
 
     private static String shorten(String text) {

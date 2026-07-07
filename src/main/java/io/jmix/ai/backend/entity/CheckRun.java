@@ -33,12 +33,23 @@ public class CheckRun {
     @Column(name = "SCORE")
     private Double score;
 
+    @Column(name = "ACCURACY")
+    private Double accuracy;
+
     public Double getScore() {
         return score;
     }
 
     public void setScore(Double score) {
         this.score = score;
+    }
+
+    public Double getAccuracy() {
+        return accuracy;
+    }
+
+    public void setAccuracy(Double accuracy) {
+        this.accuracy = accuracy;
     }
 
     public String getParameters() {
