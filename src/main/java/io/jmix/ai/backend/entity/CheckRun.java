@@ -39,6 +39,17 @@ public class CheckRun {
     @Column(name = "JMIX_VERSION")
     private String jmixVersion = JmixVersion.V3.getId();
 
+    @Column(name = "CONFIG_LABEL")
+    private String configLabel;
+
+    public String getConfigLabel() {
+        return configLabel;
+    }
+
+    public void setConfigLabel(String configLabel) {
+        this.configLabel = configLabel;
+    }
+
     public JmixVersion getJmixVersion() {
         return jmixVersion == null ? null : JmixVersion.fromId(jmixVersion);
     }

@@ -41,6 +41,9 @@ public class CheckRunner {
 
     public void runChecks(Id<CheckRun> checkRunId) {
         CheckRun checkRun = dataManager.load(checkRunId).one();
+        if (checkRun.getConfigLabel() == null) {
+            checkRun.setConfigLabel(extractConfigLabel(checkRun.getParameters()));
+        }
         List<CheckDef> checkDefs = dataManager.load(CheckDef.class).query("e.active = true").list();
         if (checkDefs.isEmpty()) {
             checkRun.setScore(0.0);
@@ -135,6 +138,23 @@ public class CheckRunner {
         check.setScore(score);
         check.setLog(log);
         return check;
+    }
+
+    /**
+     * Human-readable config label taken from the {@code description:} line of the parameters YAML.
+     */
+    static String extractConfigLabel(String parameters) {
+        if (parameters == null) {
+            return null;
+        }
+        for (String line : parameters.split("\n", 20)) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("description:")) {
+                String value = trimmed.substring("description:".length()).trim();
+                return value.length() > 200 ? value.substring(0, 200) : value;
+            }
+        }
+        return null;
     }
 
     private String getAnswer(String question, String parameters, JmixVersion jmixVersion, Consumer<String> logger) {

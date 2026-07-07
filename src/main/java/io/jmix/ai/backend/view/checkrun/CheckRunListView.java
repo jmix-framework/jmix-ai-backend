@@ -6,10 +6,19 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.data.renderer.Renderer;
 import com.vaadin.flow.router.Route;
+import io.jmix.ai.backend.checks.CheckAnalyticsService;
 import io.jmix.ai.backend.checks.CheckRunner;
 import io.jmix.ai.backend.entity.Check;
 import io.jmix.ai.backend.entity.CheckRun;
 import io.jmix.ai.backend.view.main.MainView;
+import io.jmix.chartsflowui.component.Chart;
+import io.jmix.chartsflowui.data.item.MapDataItem;
+import io.jmix.chartsflowui.kit.component.model.DataSet;
+import io.jmix.chartsflowui.kit.data.chart.ListChartItems;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import io.jmix.core.Id;
 import io.jmix.core.metamodel.datatype.DatatypeFormatter;
 import io.jmix.flowui.Dialogs;
@@ -38,12 +47,32 @@ public class CheckRunListView extends StandardListView<CheckRun> {
     private DatatypeFormatter datatypeFormatter;
     @Autowired
     private UiComponents uiComponents;
+    @Autowired
+    private CheckAnalyticsService analyticsService;
     @ViewComponent
     private DataGrid<CheckRun> checkRunsDataGrid;
     @ViewComponent
     private CollectionLoader<CheckRun> checkRunsDl;
+    @ViewComponent
+    private Chart trendChart;
     @Autowired
     private Dialogs dialogs;
+
+    @Subscribe
+    public void onInit(final InitEvent event) {
+        buildTrend();
+    }
+
+    private void buildTrend() {
+        List<MapDataItem> items = new ArrayList<>();
+        for (CheckAnalyticsService.RunInfo run : analyticsService.loadRuns()) {
+            items.add(new MapDataItem(Map.of(
+                    "label", run.label(), "score", run.score(), "accuracy", run.accuracy())));
+        }
+        trendChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
+                .withDataProvider(new ListChartItems<>(items))
+                .withCategoryField("label").withValueFields("score", "accuracy")));
+    }
 
     @Install(to = "checkRunsDataGrid.createAction", subject = "afterSaveHandler")
     private void checkRunsDataGridCreateActionAfterSaveHandler(final CheckRun checkRun) {

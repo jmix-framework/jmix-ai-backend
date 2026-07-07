@@ -12,6 +12,10 @@ import io.jmix.ai.backend.vectorstore.Ingester;
 import io.jmix.ai.backend.vectorstore.IngesterManager;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.view.main.MainView;
+import io.jmix.chartsflowui.component.Chart;
+import io.jmix.chartsflowui.data.item.MapDataItem;
+import io.jmix.chartsflowui.kit.component.model.DataSet;
+import io.jmix.chartsflowui.kit.data.chart.ListChartItems;
 import io.jmix.core.DataLoadContext;
 import io.jmix.core.LoadContext;
 import io.jmix.flowui.Dialogs;
@@ -70,11 +74,37 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private DataGrid<VectorStoreEntity> vectorStoreDataGrid;
     @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
+    @ViewComponent
+    private Chart coverageChart;
 
     @Subscribe
     public void onInit(final InitEvent event) {
         buildUpdateMenuItems();
+        buildCoverage();
         urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
+    }
+
+    private void buildCoverage() {
+        Map<String, int[]> byType = new java.util.LinkedHashMap<>();
+        for (Object[] row : vectorStoreRepository.countByTypeAndVersion()) {
+            String type = (String) row[0];
+            String version = (String) row[1];
+            int count = (int) row[2];
+            if (type == null) {
+                continue;
+            }
+            int[] vv = byType.computeIfAbsent(type, k -> new int[2]);
+            if ("v3".equalsIgnoreCase(version)) {
+                vv[1] += count;
+            } else {
+                vv[0] += count;
+            }
+        }
+        List<Map<String, Object>> rows = new java.util.ArrayList<>();
+        byType.forEach((type, vv) -> rows.add(Map.of("corpus", type, "v2", vv[0], "v3", vv[1])));
+        coverageChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
+                .withDataProvider(new ListChartItems<>(rows.stream().map(MapDataItem::new).toList()))
+                .withCategoryField("corpus").withValueFields("v2", "v3")));
     }
 
     private void buildUpdateMenuItems() {

@@ -36,3 +36,6 @@ javaapi-grid.png
 analytics-*.png
 audit-*.json
 scripts/__pycache__/
+*-screen.png
+coverage-vs.png
+exp-*.png

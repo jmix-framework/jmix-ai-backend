@@ -50,6 +50,11 @@ public class CheckAnalyticsService {
     public record CheckDelta(String question, String category, double base, double compare, double delta) {
     }
 
+    public record ComparisonSummary(int total, int improved, int regressed, int unchanged,
+                                    Double baseScore, Double candidateScore,
+                                    Double baseAccuracy, Double candidateAccuracy) {
+    }
+
     public record CorpusCoverage(String corpus, int v2, int v3) {
     }
 
@@ -101,7 +106,14 @@ public class CheckAnalyticsService {
     private String buildLabel(CheckRun run) {
         String date = run.getCreatedDate() != null ? run.getCreatedDate().format(LABEL_FORMAT) : "?";
         String version = run.getJmixVersion() != null ? run.getJmixVersion().getId() : "?";
-        return date + " " + version + " " + detectConfig(run.getParameters());
+        String config = run.getConfigLabel() != null && !run.getConfigLabel().isBlank()
+                ? shortConfig(run.getConfigLabel())
+                : detectConfig(run.getParameters());
+        return date + " " + version + " " + config;
+    }
+
+    private static String shortConfig(String label) {
+        return label.length() > 30 ? label.substring(0, 30) + "…" : label;
     }
 
     /**
@@ -189,6 +201,39 @@ public class CheckAnalyticsService {
         List<CorpusCoverage> result = new ArrayList<>();
         byType.forEach((type, vv) -> result.add(new CorpusCoverage(type, vv[0], vv[1])));
         return result;
+    }
+
+    /**
+     * Summary of a baseline vs candidate comparison: how many checks improved/regressed/unchanged
+     * and the score/accuracy of each run.
+     */
+    public ComparisonSummary summarize(@Nullable String baseId, @Nullable String candidateId,
+                                       List<CheckDelta> deltas) {
+        int improved = 0;
+        int regressed = 0;
+        int unchanged = 0;
+        for (CheckDelta d : deltas) {
+            if (d.delta() > 0.0001) {
+                improved++;
+            } else if (d.delta() < -0.0001) {
+                regressed++;
+            } else {
+                unchanged++;
+            }
+        }
+        RunInfo base = runById(baseId);
+        RunInfo cand = runById(candidateId);
+        return new ComparisonSummary(deltas.size(), improved, regressed, unchanged,
+                base != null ? base.score() : null, cand != null ? cand.score() : null,
+                base != null ? base.accuracy() : null, cand != null ? cand.accuracy() : null);
+    }
+
+    @Nullable
+    public RunInfo runById(@Nullable String id) {
+        if (id == null) {
+            return null;
+        }
+        return loadRuns().stream().filter(r -> r.id().equals(id)).findFirst().orElse(null);
     }
 
     private Map<String, Check> byQuestion(@Nullable String runId) {
