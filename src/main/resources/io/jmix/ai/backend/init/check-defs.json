@@ -214,5 +214,85 @@
     "category": "retrieval",
     "question": "How do I create a new entity instance inside a view so that it is tracked and saved together with the view?",
     "answer": "Create it through the view's DataContext: dataContext.create(EntityClass.class) returns a tracked instance. Add it to the collection container via getMutableItems().add(...) so it appears in the UI and is saved when the view is committed."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "1ba3b7ec-e10e-44d8-ab74-05724b2a397b",
+    "active": "true",
+    "category": "javaapi",
+    "question": "In Jmix, which single method does the DataManager interface itself declare (beyond those inherited from UnconstrainedDataManager), and what does it return?",
+    "answer": "DataManager declares unconstrained(), a convenience method returning an UnconstrainedDataManager that performs the same operations without applying registered access constraints (bypasses authorization)."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "63bca8aa-3bf4-479f-9b63-6cc45728dc6b",
+    "active": "true",
+    "category": "javaapi",
+    "question": "What does the FetchPlan.BASE constant include in Jmix?",
+    "answer": "FetchPlan.BASE includes all local properties plus the properties defined by @InstanceName - effectively INSTANCE_NAME + LOCAL."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "e9511d35-17e7-44d3-bdac-120911bd096e",
+    "active": "true",
+    "category": "javaapi",
+    "question": "Which methods of io.jmix.core.security.UserRepository return the built-in users and search users by a username substring?",
+    "answer": "getSystemUser() returns the built-in 'system' user, getAnonymousUser() returns the built-in 'anonymous' user, and getByUsernameLike(String substring) returns users whose username contains the substring. UserRepository also extends Spring Security UserDetailsService (loadUserByUsername)."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "195d227a-3ea8-426a-b690-446df3cc2c4e",
+    "active": "true",
+    "category": "javaapi",
+    "question": "In Jmix Flow UI, how do I check a DataContext for unsaved changes and get the modified and removed entities, then persist them?",
+    "answer": "DataContext.hasChanges() reports unsaved changes; getModified() returns the set of modified entities and getRemoved() the removed ones; save() persists changed and removed instances."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "0aa6945b-3c69-47e6-9cc4-81978044b488",
+    "active": "true",
+    "category": "javaapi",
+    "question": "Which method of UnconstrainedDataManager returns the number of entity instances matching a query in Jmix?",
+    "answer": "getCount(LoadContext) returns the number of instances for a load context; getCount(ValueLoadContext) does the same for a value/key-value query."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "20c2dc85-3b20-4916-9880-55ac63645410",
+    "active": "true",
+    "category": "javaapi",
+    "question": "Which io.jmix.core.EntityStates methods tell whether an entity instance is new, managed, detached or deleted?",
+    "answer": "EntityStates.isNew(Object), isManaged(Object), isDetached(Object) and isDeleted(Object) return the corresponding lifecycle state of the entity instance."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "11fa33c5-a750-425b-8388-5cb256084269",
+    "active": "true",
+    "category": "javaapi",
+    "question": "How do I check with EntityStates whether a specific attribute of an entity has been loaded from the data store in Jmix?",
+    "answer": "EntityStates.isLoaded(Object entity, String property) returns whether that property was loaded; checkLoaded(Object, String...) throws if given properties are not loaded, and isLoadedWithFetchPlan(entity, fetchPlan) checks all properties of a fetch plan."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "75bcd792-4918-44c3-ae04-7bafbe24a662",
+    "active": "true",
+    "category": "javaapi",
+    "question": "How do I perform a hard delete (bypassing soft deletion) via SaveContext and DataManager in Jmix?",
+    "answer": "Use dataManager.save(new SaveContext().removing(entity).setHint(PersistenceHints.SOFT_DELETION, false)). SaveContext.removing(Object...) registers entities to remove and setHint turns off soft deletion for that operation."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "52dd5598-4f93-45e6-bf3e-ef95730b5ec9",
+    "active": "true",
+    "category": "javaapi",
+    "question": "Which SaveContext method lets you skip returning saved instances for performance in Jmix, and how is it used?",
+    "answer": "SaveContext.setDiscardSaved(true) tells DataManager not to return reloaded saved instances; combine with saving(Object...) then dataManager.save(saveContext)."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "4f3bf219-aaa4-47d9-9013-a5707986bd93",
+    "active": "true",
+    "category": "javaapi",
+    "question": "What are the entry-point builder methods of io.jmix.flowui.DialogWindows for opening views in dialogs?",
+    "answer": "DialogWindows.detail(...) creates a DetailWindowBuilder (edit an entity, e.g. from a picker, list component or origin+entityClass); lookup(...) creates a LookupWindowBuilder (select an entity); view(origin, viewClass/viewId) creates a generic WindowBuilder."
   }
 ]
