@@ -62,6 +62,7 @@
                 </actions>
                 <columns resizable="true">
                     <column property="createdDate"/>
+                    <column property="jmixVersion"/>
                     <column property="createdBy"/>
                     <column property="parameters"/>
                     <column property="score"/>

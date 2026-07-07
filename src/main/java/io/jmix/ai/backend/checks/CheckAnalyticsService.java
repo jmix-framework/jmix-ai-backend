@@ -100,7 +100,8 @@ public class CheckAnalyticsService {
 
     private String buildLabel(CheckRun run) {
         String date = run.getCreatedDate() != null ? run.getCreatedDate().format(LABEL_FORMAT) : "?";
-        return date + " " + detectConfig(run.getParameters());
+        String version = run.getJmixVersion() != null ? run.getJmixVersion().getId() : "?";
+        return date + " " + version + " " + detectConfig(run.getParameters());
     }
 
     /**

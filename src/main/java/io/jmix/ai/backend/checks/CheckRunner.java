@@ -48,13 +48,15 @@ public class CheckRunner {
             return;
         }
 
+        JmixVersion jmixVersion = checkRun.getJmixVersion() != null ? checkRun.getJmixVersion() : JmixVersion.V3;
+
         ExecutorService executorService = Executors.newFixedThreadPool(parallelism);
         List<Check> checks = new ArrayList<>();
         try {
             List<Future<Check>> futures = checkDefs.stream()
                     .map(checkDef ->
                             executorService.submit(() ->
-                                    runCheck(checkDef, checkRun.getParameters())
+                                    runCheck(checkDef, checkRun.getParameters(), jmixVersion)
                             )
                     )
                     .toList();
@@ -91,13 +93,13 @@ public class CheckRunner {
         dataManager.save(checkRun);
     }
 
-    private Check runCheck(CheckDef checkDef, String parameters) {
+    private Check runCheck(CheckDef checkDef, String parameters, JmixVersion jmixVersion) {
         StringBuilder logStringBuilder = new StringBuilder();
         try {
             Consumer<String> logStringConsumer = str ->
                     logStringBuilder.append(str).append("\n");
 
-            String actualAnswer = getAnswer(checkDef.getQuestion(), parameters, logStringConsumer);
+            String actualAnswer = getAnswer(checkDef.getQuestion(), parameters, jmixVersion, logStringConsumer);
 
             if (!logStringBuilder.isEmpty())
                 logStringBuilder.append("\n\n");
@@ -135,8 +137,8 @@ public class CheckRunner {
         return check;
     }
 
-    private String getAnswer(String question, String parameters, Consumer<String> logger) {
-        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, JmixVersion.V3, logger);
+    private String getAnswer(String question, String parameters, JmixVersion jmixVersion, Consumer<String> logger) {
+        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, jmixVersion, logger);
         return response.text();
     }
 }

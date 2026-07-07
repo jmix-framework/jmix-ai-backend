@@ -36,6 +36,17 @@ public class CheckRun {
     @Column(name = "ACCURACY")
     private Double accuracy;
 
+    @Column(name = "JMIX_VERSION")
+    private String jmixVersion = JmixVersion.V3.getId();
+
+    public JmixVersion getJmixVersion() {
+        return jmixVersion == null ? null : JmixVersion.fromId(jmixVersion);
+    }
+
+    public void setJmixVersion(JmixVersion jmixVersion) {
+        this.jmixVersion = jmixVersion == null ? null : jmixVersion.getId();
+    }
+
     public Double getScore() {
         return score;
     }
