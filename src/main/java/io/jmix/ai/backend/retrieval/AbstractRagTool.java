@@ -4,6 +4,7 @@ import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.method.MethodToolCallback;
 import org.springframework.ai.util.json.schema.JsonSchemaGenerator;
@@ -22,6 +23,9 @@ import java.util.stream.Collectors;
 import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
 
 public abstract class AbstractRagTool {
+
+    /** Upper bound on how many snippets the model may request in a single tool call. */
+    private static final int MAX_RESULTS_CAP = 15;
 
     protected final String toolName;
     protected final VectorStore vectorStore;
@@ -74,7 +78,8 @@ public abstract class AbstractRagTool {
     }
 
     public ToolCallback getToolCallback() {
-        Method method = Objects.requireNonNull(ReflectionUtils.findMethod(getClass(), "execute", String.class));
+        Method method = Objects.requireNonNull(
+                ReflectionUtils.findMethod(getClass(), "execute", String.class, Integer.class));
 
         ToolCallback toolCallback = MethodToolCallback.builder()
                 .toolDefinition(ToolDefinition.builder()
@@ -88,11 +93,30 @@ public abstract class AbstractRagTool {
         return toolCallback;
     }
 
-    public String execute(String queryText) {
-        return executeSearch(queryText, similarityThreshold, topK);
+    /**
+     * Tool entry point. {@code maxResults} lets the model decide how many snippets it needs
+     * back for this call; omit it to use the configured default.
+     */
+    public String execute(
+            @ToolParam(description = "Search query in English. For API questions use the class or member name (e.g. DataManager, FetchPlan.BASE); otherwise a short natural-language query.")
+            String queryText,
+            @ToolParam(required = false, description = "Optional: how many snippets to return (1-" + MAX_RESULTS_CAP + "). Omit to use the default. Request more only when you need broader coverage — each snippet is not free (see the tool description for its typical token size).")
+            Integer maxResults) {
+        if (maxResults == null || maxResults <= 0) {
+            return executeSearch(queryText, similarityThreshold, topK, topReranked);
+        }
+        int wanted = Math.min(maxResults, MAX_RESULTS_CAP);
+        // widen the candidate pool so reranking still has room to choose the requested number
+        int effectiveTopK = Math.max(topK, wanted * 2);
+        return executeSearch(queryText, similarityThreshold, effectiveTopK, wanted);
     }
 
-    protected String executeSearch(String queryText, double similarityThreshold, int topK) {
+    /** Kept for direct programmatic callers (e.g. SearchService) that use the configured defaults. */
+    public String execute(String queryText) {
+        return executeSearch(queryText, similarityThreshold, topK, topReranked);
+    }
+
+    protected String executeSearch(String queryText, double similarityThreshold, int topK, int topReranked) {
         long startTime = System.currentTimeMillis();
         listener.onToolCallStart(toolName, queryText);
 
@@ -140,6 +164,7 @@ public abstract class AbstractRagTool {
                 filteredDocuments = documents.stream()
                         .filter(document ->
                                 minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
+                        .limit(topReranked)
                         .toList();
                 listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
             } else {
