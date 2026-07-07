@@ -83,6 +83,24 @@ public class VectorStoreRepository {
                 new Object[]{rs.getString("type"), rs.getString("version"), rs.getInt("cnt")});
     }
 
+    /**
+     * Counts documentation chunks grouped by topic (first URL path segment after the version)
+     * and Jmix version. Returns rows of [topic, jmixVersion, count]. Used for the topic-coverage heatmap.
+     */
+    public List<Object[]> countDocsTopicByVersion() {
+        String sql = """
+                SELECT regexp_replace(
+                         split_part(regexp_replace(metadata::jsonb->>'url','^https?://docs\\.jmix\\.io/([0-9]+\\.x/jmix/[0-9.]+/|jmix/)',''),'/',1),
+                         '\\.html.*$','') AS topic,
+                       metadata::jsonb->>'jmixVersion' AS version,
+                       count(*) AS cnt
+                FROM vector_store
+                WHERE metadata::jsonb->>'type' = 'docs'
+                GROUP BY 1, 2""";
+        return jdbcTemplate.query(sql, (rs, rowNum) ->
+                new Object[]{rs.getString("topic"), rs.getString("version"), rs.getInt("cnt")});
+    }
+
     public int getCount(String filterString) {
         Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
 

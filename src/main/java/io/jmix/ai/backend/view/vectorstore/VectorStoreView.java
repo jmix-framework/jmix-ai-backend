@@ -4,6 +4,8 @@ import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.entity.JmixVersion;
@@ -76,12 +78,89 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private UrlQueryParametersFacet urlQueryParameters;
     @ViewComponent
     private Chart coverageChart;
+    @ViewComponent
+    private VerticalLayout topicHeatmapBox;
 
     @Subscribe
     public void onInit(final InitEvent event) {
         buildUpdateMenuItems();
         buildCoverage();
+        buildTopicHeatmap();
         urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
+    }
+
+    private void buildTopicHeatmap() {
+        Map<String, int[]> byTopic = new java.util.LinkedHashMap<>();
+        for (Object[] row : vectorStoreRepository.countDocsTopicByVersion()) {
+            String topic = (String) row[0];
+            String version = (String) row[1];
+            int count = (int) row[2];
+            if (topic == null || topic.isBlank()) {
+                continue;
+            }
+            int[] vv = byTopic.computeIfAbsent(topic, k -> new int[2]);
+            if ("v3".equalsIgnoreCase(version)) {
+                vv[1] += count;
+            } else {
+                vv[0] += count;
+            }
+        }
+
+        List<Map.Entry<String, int[]>> top = byTopic.entrySet().stream()
+                .sorted((a, b) -> Integer.compare(total(b.getValue()), total(a.getValue())))
+                .limit(24)
+                .toList();
+        int max = top.stream()
+                .flatMapToInt(e -> java.util.stream.IntStream.of(e.getValue()[0], e.getValue()[1]))
+                .max().orElse(1);
+
+        Div grid = new Div();
+        grid.getStyle().set("display", "grid")
+                .set("grid-template-columns", "minmax(11em, 20em) 5em 5em")
+                .set("gap", "3px").set("max-width", "34em").set("align-items", "stretch");
+        grid.add(headerCell("Topic", "left"), headerCell("Jmix 2", "center"), headerCell("Jmix 3", "center"));
+        for (Map.Entry<String, int[]> e : top) {
+            grid.add(topicLabelCell(e.getKey()), heatCell(e.getValue()[0], max), heatCell(e.getValue()[1], max));
+        }
+
+        topicHeatmapBox.removeAll();
+        topicHeatmapBox.setPadding(false);
+        topicHeatmapBox.add(grid);
+    }
+
+    private static int total(int[] vv) {
+        return vv[0] + vv[1];
+    }
+
+    private Div headerCell(String text, String align) {
+        Div c = new Div();
+        c.setText(text);
+        c.getStyle().set("font-weight", "700").set("font-size", "0.85em")
+                .set("color", "var(--lumo-secondary-text-color)").set("text-align", align)
+                .set("padding", "0.2em 0.4em");
+        return c;
+    }
+
+    private Div topicLabelCell(String topic) {
+        Div c = new Div();
+        c.setText(topic);
+        c.getStyle().set("padding", "0.3em 0.4em").set("white-space", "nowrap")
+                .set("overflow", "hidden").set("text-overflow", "ellipsis").set("font-size", "0.9em");
+        c.setTitle(topic);
+        return c;
+    }
+
+    private Div heatCell(int count, int max) {
+        Div c = new Div();
+        c.setText(String.valueOf(count));
+        double intensity = max <= 0 ? 0.0 : (double) count / max;
+        double alpha = count == 0 ? 0.0 : 0.12 + 0.85 * intensity;
+        c.getStyle()
+                .set("background", "rgba(46, 125, 50, " + String.format(java.util.Locale.US, "%.2f", alpha) + ")")
+                .set("color", intensity > 0.55 ? "white" : "var(--lumo-body-text-color)")
+                .set("text-align", "center").set("padding", "0.3em").set("border-radius", "4px")
+                .set("font-variant-numeric", "tabular-nums");
+        return c;
     }
 
     private void buildCoverage() {
