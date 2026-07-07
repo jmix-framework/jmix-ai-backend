@@ -91,7 +91,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     private void buildTopicHeatmap() {
         Map<String, int[]> byTopic = new java.util.LinkedHashMap<>();
-        for (Object[] row : vectorStoreRepository.countDocsTopicByVersion()) {
+        for (Object[] row : vectorStoreRepository.countSnippetTopicByVersion()) {
             String topic = (String) row[0];
             String version = (String) row[1];
             int count = (int) row[2];
@@ -170,6 +170,10 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
             String version = (String) row[1];
             int count = (int) row[2];
             if (type == null) {
+                continue;
+            }
+            // show the searchable slop-snippet corpus, not the raw pre-snippet chunks
+            if ("docs".equals(type) || "uisamples".equals(type)) {
                 continue;
             }
             int[] vv = byType.computeIfAbsent(type, k -> new int[2]);

@@ -23,7 +23,7 @@
     </actions>
     <layout>
         <charts:chart id="coverageChart" width="100%" height="17em" minHeight="15em">
-            <charts:title text="Corpus coverage — chunks by type and Jmix version"/>
+            <charts:title text="Searchable corpus — snippet chunks by type and Jmix version"/>
             <charts:legend bottom="0"/>
             <charts:tooltip trigger="AXIS">
                 <charts:axisPointer type="SHADOW"/>
@@ -41,7 +41,7 @@
                 <charts:bar name="v3"/>
             </charts:series>
         </charts:chart>
-        <details id="topicDetails" summaryText="Documentation topic coverage (chunks per topic × version)"
+        <details id="topicDetails" summaryText="Documentation topic coverage — snippet chunks per topic × version"
                  opened="true" width="100%">
             <vbox id="topicHeatmapBox" width="100%"/>
         </details>
