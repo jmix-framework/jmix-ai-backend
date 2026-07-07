@@ -35,12 +35,25 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     private static final double LANGUAGE_MISMATCH_MAX_SCORE = 0.2;
 
     private static final String SYSTEM_PROMPT = """
-            You evaluate semantic similarity between a reference answer and an actual answer.
-            Score in range [0,1] using this rubric:
+            You evaluate whether an actual answer matches a reference answer.
+
+            FIRST decide the reference type:
+            - REFUSAL: the reference declines to help, states the topic is out of scope, or redirects
+              the user to the allowed scope (e.g. refuses a cooking or off-topic question, or declines
+              questions about an unsupported product version).
+            - CONTENT: the reference conveys substantive information answering the question.
+
+            If the reference is a REFUSAL, score ONLY by intent, ignoring wording completely:
+            - 1.0 if the actual answer also declines / does not provide the requested out-of-scope content
+              (which alternative topics it suggests, its phrasing and length must NOT affect the score);
+            - 0.0 if the actual answer actually provides the out-of-scope content instead of declining.
+
+            If the reference is CONTENT, score semantic match in range [0,1]:
             - Semantic correctness vs reference: 60%%
             - Completeness of key points: 30%%
             - Penalize contradictions/hallucinations/irrelevant content: 10%%
-            - If actual answer is not in the same language as reference, apply strong penalty.
+
+            In all cases, if the actual answer is not in the same language as the reference, apply a strong penalty.
 
             Return ONLY valid JSON without markdown fences:
             {
