@@ -102,6 +102,31 @@ public class VectorStoreRepository {
                 new Object[]{rs.getString("topic"), rs.getString("version"), rs.getInt("cnt")});
     }
 
+    /**
+     * Average snippet size in approx. tokens (content chars / 4) per documentation topic,
+     * over the docs-snippet corpus. Returns rows of [topic, avgTokens, count].
+     */
+    public List<Object[]> avgSnippetTokensByTopic() {
+        String sql = """
+                SELECT regexp_replace(
+                         split_part(regexp_replace(metadata::jsonb->>'url','^https?://docs\\.jmix\\.io/([0-9]+\\.x/jmix/[0-9.]+/|jmix/)',''),'/',1),
+                         '\\.html.*$','') AS topic,
+                       round(avg(length(content) / 4.0)) AS avg_tokens,
+                       count(*) AS cnt
+                FROM vector_store
+                WHERE metadata::jsonb->>'type' = 'docs-snippets'
+                GROUP BY 1""";
+        return jdbcTemplate.query(sql, (rs, rowNum) ->
+                new Object[]{rs.getString("topic"), rs.getInt("avg_tokens"), rs.getInt("cnt")});
+    }
+
+    /** Approx. token size (content chars / 4) of every docs-snippet chunk, for the size distribution. */
+    public List<Integer> snippetTokenSizes() {
+        String sql = "SELECT ceil(length(content) / 4.0)::int AS tok " +
+                "FROM vector_store WHERE metadata::jsonb->>'type' = 'docs-snippets'";
+        return jdbcTemplate.queryForList(sql, Integer.class);
+    }
+
     public int getCount(String filterString) {
         Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
 

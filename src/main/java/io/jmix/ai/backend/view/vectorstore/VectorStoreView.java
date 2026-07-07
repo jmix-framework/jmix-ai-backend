@@ -5,6 +5,8 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
@@ -80,13 +82,84 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private Chart coverageChart;
     @ViewComponent
     private VerticalLayout topicHeatmapBox;
+    @ViewComponent
+    private Chart tokenByTopicChart;
+    @ViewComponent
+    private Chart tokenHistogramChart;
+    @ViewComponent
+    private HorizontalLayout tokenStatsCards;
 
     @Subscribe
     public void onInit(final InitEvent event) {
         buildUpdateMenuItems();
         buildCoverage();
         buildTopicHeatmap();
+        buildTokenByTopic();
+        buildTokenDistribution();
         urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
+    }
+
+    private void buildTokenByTopic() {
+        List<MapDataItem> items = vectorStoreRepository.avgSnippetTokensByTopic().stream()
+                .filter(r -> r[0] != null && !((String) r[0]).isBlank())
+                .sorted((a, b) -> Integer.compare((int) b[1], (int) a[1]))
+                .limit(20)
+                .map(r -> new MapDataItem(Map.of("topic", r[0], "tokens", r[1])))
+                .toList();
+        tokenByTopicChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
+                .withDataProvider(new ListChartItems<>(items))
+                .withCategoryField("topic").withValueFields("tokens")));
+    }
+
+    private void buildTokenDistribution() {
+        List<Integer> sizes = vectorStoreRepository.snippetTokenSizes();
+        tokenStatsCards.removeAll();
+        if (sizes.isEmpty()) {
+            return;
+        }
+        List<Integer> sorted = sizes.stream().sorted().toList();
+        int n = sorted.size();
+        int min = sorted.get(0);
+        int max = sorted.get(n - 1);
+        double avg = sorted.stream().mapToInt(Integer::intValue).average().orElse(0);
+        double median = n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
+        double variance = sorted.stream().mapToDouble(s -> (s - avg) * (s - avg)).sum() / n;
+        double stddev = Math.sqrt(variance);
+
+        tokenStatsCards.add(
+                statCard("count", String.valueOf(n)),
+                statCard("min", String.valueOf(min)),
+                statCard("median", "%.0f".formatted(median)),
+                statCard("avg", "%.0f".formatted(avg)),
+                statCard("max", String.valueOf(max)),
+                statCard("std dev", "%.0f".formatted(stddev)),
+                statCard("variance", "%.0f".formatted(variance)));
+
+        // histogram: ~20 fixed-width buckets from min..max
+        int buckets = 20;
+        int range = Math.max(1, max - min);
+        int width = (int) Math.ceil(range / (double) buckets);
+        int[] counts = new int[buckets];
+        for (int s : sorted) {
+            int idx = Math.min(buckets - 1, (s - min) / width);
+            counts[idx]++;
+        }
+        List<MapDataItem> bars = new java.util.ArrayList<>();
+        for (int i = 0; i < buckets; i++) {
+            int start = min + i * width;
+            bars.add(new MapDataItem(Map.of("bucket", String.valueOf(start), "snippets", counts[i])));
+        }
+        tokenHistogramChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
+                .withDataProvider(new ListChartItems<>(bars))
+                .withCategoryField("bucket").withValueFields("snippets")));
+    }
+
+    private Span statCard(String title, String value) {
+        Span span = new Span(title + ": " + value);
+        span.getStyle().set("padding", "0.35em 0.7em").set("border-radius", "0.5em")
+                .set("background", "var(--lumo-contrast-5pct)").set("font-weight", "600")
+                .set("font-variant-numeric", "tabular-nums");
+        return span;
     }
 
     private void buildTopicHeatmap() {
