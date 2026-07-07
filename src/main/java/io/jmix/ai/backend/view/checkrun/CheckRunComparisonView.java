@@ -7,6 +7,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.checks.CheckAnalyticsService;
 import io.jmix.ai.backend.checks.CheckAnalyticsService.CheckDelta;
+import io.jmix.ai.backend.checks.CheckAnalyticsService.ConfigOption;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.chartsflowui.component.Chart;
 import io.jmix.chartsflowui.data.item.MapDataItem;
@@ -18,7 +19,6 @@ import io.jmix.flowui.view.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -33,9 +33,9 @@ public class CheckRunComparisonView extends StandardView {
     private CheckAnalyticsService analyticsService;
 
     @ViewComponent
-    private JmixComboBox<CheckAnalyticsService.RunInfo> baselineRunField;
+    private JmixComboBox<ConfigOption> baselineRunField;
     @ViewComponent
-    private JmixComboBox<CheckAnalyticsService.RunInfo> candidateRunField;
+    private JmixComboBox<ConfigOption> candidateRunField;
     @ViewComponent
     private JmixCheckbox regressionsOnlyField;
     @ViewComponent
@@ -51,19 +51,20 @@ public class CheckRunComparisonView extends StandardView {
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        List<CheckAnalyticsService.RunInfo> runs = new ArrayList<>(analyticsService.loadRuns());
-        Collections.reverse(runs); // newest first
-        baselineRunField.setItems(runs);
-        candidateRunField.setItems(runs);
-        baselineRunField.setItemLabelGenerator(CheckAnalyticsService.RunInfo::label);
-        candidateRunField.setItemLabelGenerator(CheckAnalyticsService.RunInfo::label);
-        if (!runs.isEmpty()) {
-            // default to newest baseline (main) vs newest candidate (non-baseline)
-            CheckAnalyticsService.RunInfo candidate = runs.stream()
-                    .filter(r -> !isBaseline(r)).findFirst().orElse(runs.get(0));
-            CheckAnalyticsService.RunInfo baseline = runs.stream()
-                    .filter(this::isBaseline).findFirst()
-                    .orElse(runs.size() > 1 ? runs.get(1) : runs.get(0));
+        List<ConfigOption> options = analyticsService.configOptions();
+        baselineRunField.setItems(options);
+        candidateRunField.setItems(options);
+        baselineRunField.setItemLabelGenerator(ConfigOption::label);
+        candidateRunField.setItemLabelGenerator(ConfigOption::label);
+        baselineRunField.setHelperText("Averaged over all runs of this config — run-to-run noise cancels out");
+        candidateRunField.setHelperText("Compared against the baseline, question by question");
+
+        if (!options.isEmpty()) {
+            ConfigOption baseline = pick(options, "main", null)
+                    .orElse(options.get(0));
+            ConfigOption candidate = pick(options, "neutral", baseline.version())
+                    .or(() -> pick(options, "neutral", null))
+                    .orElse(options.stream().filter(o -> !o.equals(baseline)).findFirst().orElse(baseline));
             baselineRunField.setValue(baseline);
             candidateRunField.setValue(candidate);
         }
@@ -77,8 +78,10 @@ public class CheckRunComparisonView extends StandardView {
         refresh();
     }
 
-    private boolean isBaseline(CheckAnalyticsService.RunInfo run) {
-        return run.label() != null && run.label().toLowerCase().contains("main baseline");
+    private java.util.Optional<ConfigOption> pick(List<ConfigOption> options, String config, String version) {
+        return options.stream()
+                .filter(o -> o.config().equals(config) && (version == null || o.version().equals(version)))
+                .findFirst();
     }
 
     private void buildDiffGrid() {
@@ -86,8 +89,8 @@ public class CheckRunComparisonView extends StandardView {
         diffGrid.setAllRowsVisible(true);
         diffGrid.addColumn(CheckDelta::category).setHeader("Category").setAutoWidth(true);
         diffGrid.addColumn(d -> shorten(d.question())).setHeader("Question").setFlexGrow(1);
-        diffGrid.addColumn(d -> fmt(d.base())).setHeader("Baseline").setAutoWidth(true);
-        diffGrid.addColumn(d -> fmt(d.compare())).setHeader("Candidate").setAutoWidth(true);
+        diffGrid.addColumn(d -> fmt(d.base())).setHeader("Baseline avg").setAutoWidth(true);
+        diffGrid.addColumn(d -> fmt(d.compare())).setHeader("Candidate avg").setAutoWidth(true);
         diffGrid.addColumn(d -> signed(d.delta())).setHeader("Δ").setAutoWidth(true);
         diffGrid.setPartNameGenerator(d -> d.delta() > 0.0001 ? "delta-up"
                 : d.delta() < -0.0001 ? "delta-down" : null);
@@ -95,17 +98,17 @@ public class CheckRunComparisonView extends StandardView {
     }
 
     private void refresh() {
-        String baseId = baselineRunField.getValue() != null ? baselineRunField.getValue().id() : null;
-        String candId = candidateRunField.getValue() != null ? candidateRunField.getValue().id() : null;
+        ConfigOption base = baselineRunField.getValue();
+        ConfigOption cand = candidateRunField.getValue();
 
-        List<CheckDelta> deltas = analyticsService.compareChecks(baseId, candId);
-        CheckAnalyticsService.ComparisonSummary summary = analyticsService.summarize(baseId, candId, deltas);
+        List<CheckDelta> deltas = analyticsService.compareConfigs(base, cand);
+        CheckAnalyticsService.ComparisonSummary summary = analyticsService.summarizeConfigs(base, cand, deltas);
 
         renderSummary(summary);
 
-        // category chart: baseline vs candidate averages
+        // category chart: baseline vs candidate averaged per category
         List<MapDataItem> categoryItems = new ArrayList<>();
-        for (CheckAnalyticsService.CategoryScore cs : analyticsService.categoryComparison(baseId, candId)) {
+        for (CheckAnalyticsService.CategoryScore cs : analyticsService.categoryCompareConfigs(deltas)) {
             categoryItems.add(new MapDataItem(Map.of(
                     "category", cs.category(), "baseline", cs.base(), "candidate", cs.compare())));
         }
