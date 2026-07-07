@@ -53,8 +53,19 @@ public class CheckDef {
     @Column(name = "ACTIVE")
     private Boolean active;
 
+    @Column(name = "GOLDEN")
+    private Boolean golden = false;
+
     @Column(name = "CATEGORY")
     private String category;
+
+    public Boolean getGolden() {
+        return golden;
+    }
+
+    public void setGolden(Boolean golden) {
+        this.golden = golden;
+    }
 
     @Column(name = "QUESTION")
     @Lob

@@ -294,5 +294,95 @@
     "category": "javaapi",
     "question": "What are the entry-point builder methods of io.jmix.flowui.DialogWindows for opening views in dialogs?",
     "answer": "DialogWindows.detail(...) creates a DetailWindowBuilder (edit an entity, e.g. from a picker, list component or origin+entityClass); lookup(...) creates a LookupWindowBuilder (select an entity); view(origin, viewClass/viewId) creates a generic WindowBuilder."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "bd43eba6-fb92-47e7-bf14-ae4e6c521f0d",
+    "active": "true",
+    "golden": "true",
+    "category": "code",
+    "question": "Напиши код для программного открытия экрана редактирования заказа с передачей идентификатора заказа.",
+    "answer": "В Jmix 2/3 экран-детали открывается через DialogWindows или ViewNavigators (а не через ScreenBuilders из Jmix 1.x). Пример: dialogWindows.detail(this, Order.class).editEntity(order).open(); или viewNavigators.detailView(this, Order.class).editEntity(order).navigate(). Чтобы открыть по идентификатору, сначала загрузите сущность через dataManager.load(Order.class).id(orderId).one() и передайте её в editEntity(...)."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "579dca5a-d68b-41fd-beeb-0b91dfe9a6ae",
+    "active": "true",
+    "golden": "true",
+    "category": "fact",
+    "question": "Для чего используется аннотация @Install в Jmix?",
+    "answer": "@Install применяется в контроллерах экранов Jmix, чтобы передавать делегаты и обработчики в предопределённые точки расширения визуальных и дата-компонентов. Аннотированный метод подключается через @Install(to = \"componentOrLoaderId\", subject = \"...\"), например dataLoadDelegate для лоадера или renderer/validator/instanceName-провайдер для компонента."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "bec829a6-e27d-4c66-8f87-2fee3e406cee",
+    "active": "true",
+    "golden": "true",
+    "category": "fact",
+    "question": "Объясни разницу между EntityManager и DataManager в Jmix. В каких случаях что рекомендуется использовать?",
+    "answer": "DataManager — основной высокоуровневый API Jmix для загрузки и сохранения сущностей: fluent-API с fetch-планами, поддержкой нескольких хранилищ и автоматическим применением ограничений доступа (security). Рекомендуется в большинстве случаев (экраны и бизнес-сервисы). EntityManager — низкоуровневый JPA API, доступный внутри транзакций для особых/сложных случаев; сам DataManager делегирует ему. По умолчанию используйте DataManager; переходите на EntityManager только когда нужно низкоуровневое поведение JPA."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "dc29c829-4c88-46ea-b248-8ffd648561e6",
+    "active": "true",
+    "golden": "true",
+    "category": "ui",
+    "question": "Как реализовать диалог подтверждения перед удалением записи из таблицы?",
+    "answer": "Стандартный removeAction (тип list_remove) у dataGrid уже показывает диалог подтверждения перед удалением. Для кастомного подтверждения используйте бин Dialogs: dialogs.createOptionDialog().withHeader(...).withText(...).withActions(new DialogAction(DialogAction.Type.YES).withHandler(e -> ...удаление...), new DialogAction(DialogAction.Type.NO)).open()."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "bc8d13a2-44f4-4ff8-b175-d156c780a180",
+    "active": "true",
+    "golden": "true",
+    "category": "scenario",
+    "question": "Приложение работает медленно при загрузке списка заказов. Какие шаги предпринять для оптимизации производительности экрана?",
+    "answer": "Сначала найдите узкое место: включите логирование SQL и проверьте наличие проблемы N+1. Исправьте fetch-план, чтобы связанные атрибуты загружались одним запросом (fetchPlan extends=\"_base\" с вложенными свойствами) вместо ленивой загрузки на каждую строку. Используйте пагинацию (simplePagination + data loader с maxResults) вместо загрузки всех строк, избегайте тяжёлых рендереров/генераторов колонок, применяйте DataManager.loadValues для агрегатов. Загружайте только те атрибуты, которые нужны экрану."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "8edf73f6-7c4b-4824-8bdf-1d13c5fb0d5c",
+    "active": "true",
+    "golden": "true",
+    "category": "instruction",
+    "question": "Как вручную создать и применить миграцию базы данных для добавления нового столбца в существующую таблицу с использованием Liquibase в Jmix? Автоматические средства генерации отключены.",
+    "answer": "Создайте новый XML-changelog Liquibase в папке проекта liquibase/changelog с changeSet, содержащим addColumn для нужной таблицы, затем подключите его в master changelog.xml (или полагайтесь на includeAll, если он настроен). Liquibase выполняется при старте приложения (или через Gradle-задачу Liquibase) и применяет изменение. Пример: <changeSet id=\"1\" author=\"dev\"><addColumn tableName=\"ORDER_\"><column name=\"COMMENT_\" type=\"VARCHAR(255)\"/></addColumn></changeSet>."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "a682d854-4d19-4ca4-a1fc-9c4657f15b64",
+    "active": "true",
+    "golden": "true",
+    "category": "ui",
+    "question": "Как отобразить всплывающее уведомление (notification) с подтверждением успешного сохранения данных?",
+    "answer": "Внедрите бин Notifications и покажите уведомление после сохранения: notifications.create(\"Saved successfully\").withType(Notifications.Type.SUCCESS).show(); или короткую форму notifications.show(\"Saved\"). Тип, позицию и длительность можно настроить в билдере."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "41cca0be-dc14-4535-b5ea-39251c7a6129",
+    "active": "true",
+    "golden": "true",
+    "category": "instruction",
+    "question": "Как создать новую сущность (entity) в проекте Jmix через Studio? Опиши шаги.",
+    "answer": "В Jmix Studio: откройте окно инструментов Jmix, выберите New → JPA Entity, задайте имя класса, пакет и тип идентификатора (обычно UUID с генерацией Jmix), затем добавьте атрибуты в дизайнере сущности. Studio сгенерирует класс с @JmixEntity и соответствующий changelog Liquibase; запуск приложения применит изменения в БД. После этого можно сгенерировать list/detail-экраны для сущности."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "0eef1929-1866-4883-882d-eb2d4b20af10",
+    "active": "true",
+    "golden": "true",
+    "category": "scenario",
+    "question": "Какой подход выбрать, если нужно ограничить редактирование заказов только их создателю, но при этом менеджер должен видеть все заказы?",
+    "answer": "Скомбинируйте resource-роли и row-level-роли. Менеджеру дайте resource-роль с полным чтением заказов. Для обычных пользователей добавьте row-level-политику (@JpqlRowLevelPolicy или @PredicateRowLevelPolicy в @RowLevelRole), которая ограничивает update (и/или read) заказами, где создатель равен текущему пользователю, например через :current_user_username. Resource-роли определяют, какие сущности/операции разрешены; row-level-роли фильтруют, какие строки видны."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "7b7824fa-8b64-4279-b1ed-05a7d7996d54",
+    "active": "true",
+    "golden": "true",
+    "category": "code",
+    "question": "Покажи пример JPQL-запроса в Jmix для получения списка заказов со статусом \"NEW\", отсортированных по дате создания, с использованием DataManager.",
+    "answer": "dataManager.load(Order.class).query(\"select o from Order_ o where o.status = :status order by o.createdDate\").parameter(\"status\", \"NEW\").list(); — DataManager выполняет JPQL SELECT, связывает именованный параметр и возвращает список сущностей Order, отсортированный по дате создания."
   }
 ]
