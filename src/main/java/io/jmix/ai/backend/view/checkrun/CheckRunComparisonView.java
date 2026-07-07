@@ -18,6 +18,7 @@ import io.jmix.flowui.view.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -50,14 +51,21 @@ public class CheckRunComparisonView extends StandardView {
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        List<CheckAnalyticsService.RunInfo> runs = analyticsService.loadRuns();
+        List<CheckAnalyticsService.RunInfo> runs = new ArrayList<>(analyticsService.loadRuns());
+        Collections.reverse(runs); // newest first
         baselineRunField.setItems(runs);
         candidateRunField.setItems(runs);
         baselineRunField.setItemLabelGenerator(CheckAnalyticsService.RunInfo::label);
         candidateRunField.setItemLabelGenerator(CheckAnalyticsService.RunInfo::label);
-        if (runs.size() >= 2) {
-            baselineRunField.setValue(runs.get(runs.size() - 2));
-            candidateRunField.setValue(runs.get(runs.size() - 1));
+        if (!runs.isEmpty()) {
+            // default to newest baseline (main) vs newest candidate (non-baseline)
+            CheckAnalyticsService.RunInfo candidate = runs.stream()
+                    .filter(r -> !isBaseline(r)).findFirst().orElse(runs.get(0));
+            CheckAnalyticsService.RunInfo baseline = runs.stream()
+                    .filter(this::isBaseline).findFirst()
+                    .orElse(runs.size() > 1 ? runs.get(1) : runs.get(0));
+            baselineRunField.setValue(baseline);
+            candidateRunField.setValue(candidate);
         }
 
         buildDiffGrid();
@@ -67,6 +75,10 @@ public class CheckRunComparisonView extends StandardView {
         regressionsOnlyField.addValueChangeListener(e -> refresh());
 
         refresh();
+    }
+
+    private boolean isBaseline(CheckAnalyticsService.RunInfo run) {
+        return run.label() != null && run.label().toLowerCase().contains("main baseline");
     }
 
     private void buildDiffGrid() {
