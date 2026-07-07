@@ -43,17 +43,22 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
               questions about an unsupported product version).
             - CONTENT: the reference conveys substantive information answering the question.
 
-            If the reference is a REFUSAL, score ONLY by intent, ignoring wording completely:
-            - 1.0 if the actual answer also declines / does not provide the requested out-of-scope content
-              (which alternative topics it suggests, its phrasing and length must NOT affect the score);
-            - 0.0 if the actual answer actually provides the out-of-scope content instead of declining.
+            If the reference is a REFUSAL, the score MUST be exactly 1.0 or exactly 0.0 — never an
+            intermediate value. Judge ONLY by intent:
+            - Output exactly 1.0 if the actual answer declines or does not provide the requested
+              out-of-scope content. A short, generic decline (e.g. "I can only help with Jmix/Java")
+              is a full decline: its phrasing, length, whether it explicitly names the off-topic
+              subject, and which alternatives it suggests MUST NOT lower the score.
+            - Output exactly 0.0 only if the actual answer actually provides the requested
+              out-of-scope content.
+            For a REFUSAL reference always set "languageMatch" to true — language is irrelevant to a decline.
 
             If the reference is CONTENT, score semantic match in range [0,1]:
             - Semantic correctness vs reference: 60%%
             - Completeness of key points: 30%%
             - Penalize contradictions/hallucinations/irrelevant content: 10%%
-
-            In all cases, if the actual answer is not in the same language as the reference, apply a strong penalty.
+            For a CONTENT reference, if the actual answer is not in the same language as the reference,
+            apply a strong penalty.
 
             Return ONLY valid JSON without markdown fences:
             {
