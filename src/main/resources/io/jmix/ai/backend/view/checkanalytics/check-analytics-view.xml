@@ -71,7 +71,6 @@
                     <charts:axisPointer type="SHADOW"/>
                 </charts:tooltip>
                 <charts:dataZoom>
-                    <charts:insideDataZoom/>
                     <charts:sliderDataZoom orientation="HORIZONTAL"/>
                 </charts:dataZoom>
                 <charts:xAxes>
