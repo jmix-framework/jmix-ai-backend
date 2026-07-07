@@ -3,7 +3,8 @@
       xmlns:charts="http://jmix.io/schema/charts/ui"
       title="msg://checkRunComparisonView.title">
     <layout>
-        <vbox width="100%" height="100%" padding="true" spacing="true">
+        <scroller width="100%" height="100%">
+        <vbox width="100%" padding="true" spacing="true">
 
             <hbox width="100%" spacing="true" alignItems="END">
                 <comboBox id="baselineRunField" label="msg://baselineRun.label" width="24em"/>
@@ -62,5 +63,6 @@
             <vbox id="resultsBox" width="100%" spacing="true"/>
 
         </vbox>
+        </scroller>
     </layout>
 </view>
