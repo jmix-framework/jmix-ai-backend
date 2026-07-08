@@ -62,12 +62,8 @@ public class CheckRunComparisonView extends StandardView {
         candidateRunField.setHelperText("Compared against the baseline, question by question");
 
         if (!options.isEmpty()) {
-            ConfigOption baseline = pick(options, "main")
-                    .orElse(options.get(0));
-            ConfigOption candidate = pick(options, "neutral")
-                    .orElse(options.stream().filter(o -> !o.equals(baseline)).findFirst().orElse(baseline));
-            baselineRunField.setValue(baseline);
-            candidateRunField.setValue(candidate);
+            baselineRunField.setValue(options.get(0));
+            candidateRunField.setValue(options.size() > 1 ? options.get(1) : options.get(0));
         }
 
         buildDiffGrid();
@@ -77,12 +73,6 @@ public class CheckRunComparisonView extends StandardView {
         regressionsOnlyField.addValueChangeListener(e -> refresh());
 
         refresh();
-    }
-
-    private java.util.Optional<ConfigOption> pick(List<ConfigOption> options, String config) {
-        return options.stream()
-                .filter(o -> o.config().equals(config))
-                .findFirst();
     }
 
     private void buildDiffGrid() {

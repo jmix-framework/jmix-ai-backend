@@ -71,7 +71,7 @@ public class CheckAnalyticsService {
             if (run.getScore() == null) {
                 continue;
             }
-            groups.computeIfAbsent(configName(run.getConfigLabel(), run.getParameters()), k -> new ArrayList<>()).add(run);
+            groups.computeIfAbsent(configName(run.getConfigLabel()), k -> new ArrayList<>()).add(run);
         }
         return groups;
     }
@@ -141,21 +141,9 @@ public class CheckAnalyticsService {
         return sumCount == null || sumCount[1] == 0 ? 0.0 : sumCount[0] / sumCount[1];
     }
 
-    private String configName(@Nullable String label, @Nullable String parameters) {
-        if (label != null && !label.isBlank()) {
-            String l = label.toUpperCase();
-            if (l.startsWith("MAIN")) {
-                return "main";
-            }
-            if (l.startsWith("NEUTRAL")) {
-                return "neutral";
-            }
-            if (l.contains("SNIPPET")) {
-                return "strict";
-            }
-            return shortConfig(label);
-        }
-        return detectConfig(parameters);
+    /** Groups runs by their config description (the human-chosen name), shortened for display. */
+    private static String configName(@Nullable String label) {
+        return label != null && !label.isBlank() ? shortConfig(label) : "unlabeled";
     }
 
     /** All finished runs oldest-first, labelled with date, config and check count. */
@@ -180,22 +168,11 @@ public class CheckAnalyticsService {
 
     private String buildLabel(CheckRun run) {
         String date = run.getCreatedDate() != null ? run.getCreatedDate().format(LABEL_FORMAT) : "?";
-        return date + " " + configName(run.getConfigLabel(), run.getParameters());
+        return date + " " + configName(run.getConfigLabel());
     }
 
     private static String shortConfig(String label) {
         return label.length() > 30 ? label.substring(0, 30) + "…" : label;
-    }
-
-    /** Best-effort corpus label for a run without a description, read from its parameters YAML. */
-    private String detectConfig(@Nullable String parameters) {
-        if (parameters == null) {
-            return "base";
-        }
-        if (parameters.contains("vectorType: docs-snippets") || parameters.contains("vectorType: uisamples-snippets")) {
-            return "snippets";
-        }
-        return parameters.matches("(?s).*javaapi_retriever:\\s*\\n\\s*enabled: true.*") ? "javaapi" : "base";
     }
 
     private List<Check> loadChecks(String runId) {

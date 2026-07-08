@@ -4,24 +4,18 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.vectorstore.AbstractOpenAiEnricher;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -43,11 +37,14 @@ import java.util.concurrent.Future;
  * hash of the source page, so re-ingestion of unchanged pages costs no LLM calls.
  */
 @Component
-public class SnippetizerEnricher {
+public class SnippetizerEnricher extends AbstractOpenAiEnricher {
 
     private static final Logger log = LoggerFactory.getLogger(SnippetizerEnricher.class);
 
     private static final int MAX_INPUT_CHARS = 60_000;
+
+    // bump when the snippetization prompt changes so cached snippets are regenerated
+    private static final String PROMPT_VERSION = "p2";
 
     private static final String SYSTEM_PROMPT = """
             You convert a page of Jmix framework documentation into small self-contained snippets for a code-search index.
@@ -85,11 +82,7 @@ public class SnippetizerEnricher {
     private static final TypeReference<List<Snippet>> SNIPPET_LIST_TYPE = new TypeReference<>() {
     };
 
-    private final String modelName;
-    private final double temperature;
-    private final String reasoningEffort;
     private final int parallelism;
-    private final OpenAiApi openAiApi;
     private final EnrichmentCacheRepository enrichmentCacheRepository;
 
     public SnippetizerEnricher(
@@ -99,21 +92,19 @@ public class SnippetizerEnricher {
             @Value("${snippets.enrichment.parallelism}") int parallelism,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
             EnrichmentCacheRepository enrichmentCacheRepository) {
-        this.modelName = modelName;
-        this.temperature = temperature;
-        this.reasoningEffort = reasoningEffort;
+        super(modelName, temperature, reasoningEffort, configuredApiKey, false);
         this.parallelism = Math.max(1, parallelism);
         this.enrichmentCacheRepository = enrichmentCacheRepository;
-        String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
-        this.openAiApi = StringUtils.isBlank(apiKey) ? null : OpenAiApi.builder().apiKey(apiKey).build();
     }
 
-    // bump when the snippetization prompt changes so cached snippets are regenerated
-    private static final String PROMPT_VERSION = "p2";
+    @Override
+    protected BeanOutputConverter<?> outputConverter() {
+        return OUTPUT_CONVERTER;
+    }
 
+    @Override
     public String getModelKey() {
-        String base = StringUtils.isBlank(reasoningEffort) ? modelName : modelName + ":" + reasoningEffort;
-        return base + ":" + PROMPT_VERSION;
+        return super.getModelKey() + ":" + PROMPT_VERSION;
     }
 
     /**
@@ -250,31 +241,5 @@ public class SnippetizerEnricher {
             log.error("Failed to deserialize cached snippets", e);
             return null;
         }
-    }
-
-    protected ChatModel buildChatModel() {
-        if (openAiApi == null) {
-            throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
-        }
-        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
-                .model(modelName)
-                .temperature(temperature)
-                .responseFormat(new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, OUTPUT_CONVERTER.getJsonSchema()));
-        if (!StringUtils.isBlank(reasoningEffort)) {
-            optionsBuilder.reasoningEffort(reasoningEffort);
-        }
-        return OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(optionsBuilder.build())
-                .build();
-    }
-
-    @Nullable
-    private static String getContent(@Nullable ChatResponse chatResponse) {
-        return Optional.ofNullable(chatResponse)
-                .map(ChatResponse::getResult)
-                .map(Generation::getOutput)
-                .map(AbstractMessage::getText)
-                .orElse(null);
     }
 }

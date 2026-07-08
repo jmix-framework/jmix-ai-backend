@@ -1,28 +1,21 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.jmix.ai.backend.vectorstore.AbstractOpenAiEnricher;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Generates an LLM-written description and usage example for a Java API card.
@@ -31,7 +24,7 @@ import java.util.Optional;
  * {@link #assembleCard} keeps them verbatim and only adds the generated prose.
  */
 @Component
-public class JavaApiEnricher {
+public class JavaApiEnricher extends AbstractOpenAiEnricher {
 
     private static final Logger log = LoggerFactory.getLogger(JavaApiEnricher.class);
 
@@ -57,10 +50,6 @@ public class JavaApiEnricher {
             new BeanOutputConverter<>(Enrichment.class);
 
     private final boolean enabled;
-    private final String modelName;
-    private final double temperature;
-    private final String reasoningEffort;
-    private final OpenAiApi openAiApi;
 
     public JavaApiEnricher(
             @Value("${javaapi.enrichment.enabled}") boolean enabled,
@@ -68,26 +57,17 @@ public class JavaApiEnricher {
             @Value("${javaapi.enrichment.temperature}") double temperature,
             @Value("${javaapi.enrichment.reasoning-effort:}") String reasoningEffort,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey) {
+        super(modelName, temperature, reasoningEffort, configuredApiKey, enabled);
         this.enabled = enabled;
-        this.modelName = modelName;
-        this.temperature = temperature;
-        this.reasoningEffort = reasoningEffort;
-        String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
-        if (enabled && StringUtils.isBlank(apiKey)) {
-            throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
-        }
-        this.openAiApi = StringUtils.isBlank(apiKey) ? null : OpenAiApi.builder().apiKey(apiKey).build();
     }
 
     public boolean isEnabled() {
         return enabled;
     }
 
-    /**
-     * Cache key for generated enrichments: model plus reasoning effort, since both affect the output.
-     */
-    public String getModelKey() {
-        return StringUtils.isBlank(reasoningEffort) ? modelName : modelName + ":" + reasoningEffort;
+    @Override
+    protected BeanOutputConverter<?> outputConverter() {
+        return OUTPUT_CONVERTER;
     }
 
     /**
@@ -133,29 +113,5 @@ public class JavaApiEnricher {
         }
         String description = enrichment.description().replaceAll("\\s+", " ").trim();
         return new Snippet(card.title(), description, card.language(), code, card.source()).format();
-    }
-
-    protected ChatModel buildChatModel() {
-        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
-                .model(modelName)
-                .temperature(temperature)
-                .responseFormat(new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, OUTPUT_CONVERTER.getJsonSchema()));
-        if (!StringUtils.isBlank(reasoningEffort)) {
-            optionsBuilder.reasoningEffort(reasoningEffort);
-        }
-        OpenAiChatOptions options = optionsBuilder.build();
-        return OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(options)
-                .build();
-    }
-
-    @Nullable
-    private static String getContent(@Nullable ChatResponse chatResponse) {
-        return Optional.ofNullable(chatResponse)
-                .map(ChatResponse::getResult)
-                .map(Generation::getOutput)
-                .map(AbstractMessage::getText)
-                .orElse(null);
     }
 }
