@@ -20,10 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import io.jmix.core.Id;
-import io.jmix.core.metamodel.datatype.DatatypeFormatter;
 import io.jmix.flowui.Dialogs;
 import io.jmix.flowui.UiComponents;
-import io.jmix.flowui.ViewNavigators;
 import io.jmix.flowui.backgroundtask.BackgroundTask;
 import io.jmix.flowui.backgroundtask.TaskLifeCycle;
 import io.jmix.flowui.component.grid.DataGrid;
@@ -41,10 +39,6 @@ public class CheckRunListView extends StandardListView<CheckRun> {
 
     @Autowired
     private CheckRunner checkRunner;
-    @Autowired
-    private ViewNavigators viewNavigators;
-    @Autowired
-    private DatatypeFormatter datatypeFormatter;
     @Autowired
     private UiComponents uiComponents;
     @Autowired
@@ -92,8 +86,6 @@ public class CheckRunListView extends StandardListView<CheckRun> {
                 )
                 .withHeader("Checks are running")
                 .withText("Please wait...")
-//                .withTotal(10)
-//                .withShowProgressInPercentage(true)
                 .withCancelAllowed(true)
                 .open();
     }

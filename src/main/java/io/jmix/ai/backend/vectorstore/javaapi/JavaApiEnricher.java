@@ -136,9 +136,6 @@ public class JavaApiEnricher {
     }
 
     protected ChatModel buildChatModel() {
-        if (openAiApi == null) {
-            throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
-        }
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .model(modelName)
                 .temperature(temperature)

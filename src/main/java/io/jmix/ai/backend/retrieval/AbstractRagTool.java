@@ -106,11 +106,6 @@ public abstract class AbstractRagTool {
         return executeSearch(queryText, similarityThreshold, effectiveTopK, wanted);
     }
 
-    /** Kept for direct programmatic callers (e.g. SearchService) that use the configured defaults. */
-    public String execute(String queryText) {
-        return executeSearch(queryText, similarityThreshold, topK, topReranked);
-    }
-
     protected String executeSearch(String queryText, double similarityThreshold, int topK, int topReranked) {
         long startTime = System.currentTimeMillis();
         listener.onToolCallStart(toolName, queryText);

@@ -65,7 +65,7 @@ public class SearchService {
         List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, listener);
 
         for (AbstractRagTool tool : ragTools) {
-            tool.execute(query);
+            tool.execute(query, null);
         }
 
         return getDistinctDocuments(retrievedDocuments);
