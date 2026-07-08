@@ -56,6 +56,12 @@ public class SnippetizerEnricher {
             - "title": specific and searchable; mention the component, class or feature name.
             - "description": 2-5 sentences, self-contained and understandable without the page; explicitly mention key terms, class names, XML attributes and use cases so the text is easy to find by search.
             - "code": if the topic has code on the page, copy the most relevant code block VERBATIM from the page. Never invent, modify or merge code. Use "" if there is no code for the topic.
+            - Keep declarative code COMPLETE: when the example uses Jmix annotations or declarative wiring
+              (e.g. @Install, @Subscribe, @Supply, @ViewComponent, @Autowired) or an XML element with attributes,
+              include the whole element - the annotation(s) TOGETHER WITH the method signature it decorates,
+              or the full XML tag with its attributes - never the bare method body without its annotation.
+              If a usage needs both a declaration and its handler, keep them in the SAME snippet so it is
+              self-contained and copy-pasteable.
             - "language": java, xml, groovy, kotlin, sql, properties or plaintext. Use "" when "code" is empty.
             - Cover ALL distinct topics of the page; typically 2-8 snippets per page.
             - Write titles and descriptions in English.
@@ -102,8 +108,12 @@ public class SnippetizerEnricher {
         this.openAiApi = StringUtils.isBlank(apiKey) ? null : OpenAiApi.builder().apiKey(apiKey).build();
     }
 
+    // bump when the snippetization prompt changes so cached snippets are regenerated
+    private static final String PROMPT_VERSION = "p2";
+
     public String getModelKey() {
-        return StringUtils.isBlank(reasoningEffort) ? modelName : modelName + ":" + reasoningEffort;
+        String base = StringUtils.isBlank(reasoningEffort) ? modelName : modelName + ":" + reasoningEffort;
+        return base + ":" + PROMPT_VERSION;
     }
 
     /**
