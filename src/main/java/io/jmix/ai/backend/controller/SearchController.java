@@ -2,17 +2,22 @@ package io.jmix.ai.backend.controller;
 
 import io.jmix.ai.backend.retrieval.SearchResultsFormatter;
 import io.jmix.ai.backend.retrieval.SearchService;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.document.Document;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/search")
 public class SearchController {
+
+    private static final int MAX_QUERY_LENGTH = 10_000;
 
     private final SearchService searchService;
 
@@ -22,6 +27,12 @@ public class SearchController {
 
     @PostMapping
     public List<SearchResultDocument> search(@RequestBody SearchRequest request) {
+        if (StringUtils.isBlank(request.query())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Query is empty or blank");
+        }
+        if (request.query().length() > MAX_QUERY_LENGTH) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Query is too long");
+        }
         List<Document> documents = searchService.search(request.query());
 
         documents = SearchResultsFormatter.sortByRelevance(documents);
