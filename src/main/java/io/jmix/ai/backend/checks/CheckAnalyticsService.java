@@ -22,12 +22,9 @@ public class CheckAnalyticsService {
     private static final DateTimeFormatter LABEL_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
 
     private final DataManager dataManager;
-    private final double passThreshold;
 
-    public CheckAnalyticsService(DataManager dataManager,
-                                 @org.springframework.beans.factory.annotation.Value("${answer-checks.pass-threshold:0.8}") double passThreshold) {
+    public CheckAnalyticsService(DataManager dataManager) {
         this.dataManager = dataManager;
-        this.passThreshold = passThreshold;
     }
 
     public record RunInfo(String label, double score, double accuracy) {
@@ -146,24 +143,16 @@ public class CheckAnalyticsService {
         return label != null && !label.isBlank() ? label : "unlabeled";
     }
 
-    /** All finished runs oldest-first, labelled with date, config and check count. */
+    /** All finished runs oldest-first, labelled with date and config, using the stored score/accuracy. */
     public List<RunInfo> loadRuns() {
-        List<CheckRun> runs = dataManager.load(CheckRun.class)
+        return dataManager.load(CheckRun.class)
                 .query("e.score is not null order by e.createdDate")
-                .list();
-        List<RunInfo> result = new ArrayList<>(runs.size());
-        for (CheckRun run : runs) {
-            List<Check> checks = loadChecks(run.getId().toString());
-            int count = checks.size();
-            long passed = checks.stream()
-                    .filter(c -> c.getScore() != null && c.getScore() >= passThreshold)
-                    .count();
-            result.add(new RunInfo(
-                    buildLabel(run) + " · " + count,
-                    run.getScore() != null ? run.getScore() : 0.0,
-                    count == 0 ? 0.0 : (double) passed / count));
-        }
-        return result;
+                .list().stream()
+                .map(run -> new RunInfo(
+                        buildLabel(run),
+                        run.getScore() != null ? run.getScore() : 0.0,
+                        run.getAccuracy() != null ? run.getAccuracy() : 0.0))
+                .toList();
     }
 
     private String buildLabel(CheckRun run) {

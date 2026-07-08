@@ -118,6 +118,9 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         List<Integer> sizes = vectorStoreRepository.snippetTokenSizes();
         tokenStatsCards.removeAll();
         if (sizes.isEmpty()) {
+            tokenHistogramChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
+                    .withDataProvider(new ListChartItems<>(List.of()))
+                    .withCategoryField("bucket").withValueFields("snippets")));
             return;
         }
         List<Integer> sorted = sizes.stream().sorted().toList();
@@ -339,6 +342,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     public void vectorStoreDataGridRemoveActionDelegate(final Collection<VectorStoreEntity> collection) {
         List<VectorStoreEntity> entities = getEntitiesOfTheSameSource(collection.iterator().next());
         vectorStoreRepository.delete(entities);
+        refreshAnalytics();
     }
 
     @Install(to = "vectorStoreDataGrid.removeAction", subject = "beforeActionPerformedHandler")
