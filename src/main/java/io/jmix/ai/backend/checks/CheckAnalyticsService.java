@@ -58,31 +58,30 @@ public class CheckAnalyticsService {
     public record CorpusCoverage(String corpus, int v2, int v3) {
     }
 
-    /** A selectable comparison target: one config on one Jmix version, backed by all its runs. */
-    public record ConfigOption(String key, String label, String config, String version,
+    /** A selectable comparison target: one config, backed by all its runs. */
+    public record ConfigOption(String key, String label, String config,
                                int runs, double meanScore, double meanAccuracy) {
     }
 
     /**
-     * Distinct config x version combinations across all finished runs, each aggregating its runs.
+     * Distinct configs across all finished runs, each aggregating its runs.
      * These are the selectable sides of the comparison, so the user picks a meaningful, noise-averaged
      * config rather than two arbitrary single runs.
      */
     public List<ConfigOption> configOptions() {
-        Map<String, List<CheckRun>> groups = groupRunsByConfigVersion();
+        Map<String, List<CheckRun>> groups = groupRunsByConfig();
         List<ConfigOption> options = new ArrayList<>();
-        groups.forEach((key, group) -> {
-            String[] p = key.split("\\|", 2);
+        groups.forEach((config, group) -> {
             double meanScore = group.stream().mapToDouble(r -> r.getScore() != null ? r.getScore() : 0.0).average().orElse(0.0);
             double meanAcc = group.stream().mapToDouble(r -> r.getAccuracy() != null ? r.getAccuracy() : 0.0).average().orElse(0.0);
-            String label = "%s \u00b7 %s  (%d run%s)".formatted(p[0], p[1], group.size(), group.size() == 1 ? "" : "s");
-            options.add(new ConfigOption(key, label, p[0], p[1], group.size(), round(meanScore), round(meanAcc)));
+            String label = "%s  (%d run%s)".formatted(config, group.size(), group.size() == 1 ? "" : "s");
+            options.add(new ConfigOption(config, label, config, group.size(), round(meanScore), round(meanAcc)));
         });
-        options.sort(java.util.Comparator.comparing(ConfigOption::config).thenComparing(ConfigOption::version));
+        options.sort(java.util.Comparator.comparing(ConfigOption::config));
         return options;
     }
 
-    private Map<String, List<CheckRun>> groupRunsByConfigVersion() {
+    private Map<String, List<CheckRun>> groupRunsByConfig() {
         List<CheckRun> runs = dataManager.load(CheckRun.class).query("e.score is not null").list();
         Map<String, List<CheckRun>> groups = new LinkedHashMap<>();
         for (CheckRun run : runs) {
@@ -90,8 +89,7 @@ public class CheckAnalyticsService {
                 continue;
             }
             String config = configName(run.getConfigLabel(), run.getParameters());
-            String version = run.getJmixVersion() != null ? run.getJmixVersion().getId() : "?";
-            groups.computeIfAbsent(config + "|" + version, k -> new ArrayList<>()).add(run);
+            groups.computeIfAbsent(config, k -> new ArrayList<>()).add(run);
         }
         return groups;
     }
@@ -101,7 +99,7 @@ public class CheckAnalyticsService {
         if (option == null) {
             return perQuestion;
         }
-        List<CheckRun> runs = groupRunsByConfigVersion().getOrDefault(option.key(), List.of());
+        List<CheckRun> runs = groupRunsByConfig().getOrDefault(option.key(), List.of());
         for (CheckRun run : runs) {
             for (Check check : loadChecks(run.getId().toString())) {
                 String q = check.getQuestion() != null ? check.getQuestion() : "?";
@@ -228,11 +226,10 @@ public class CheckAnalyticsService {
 
     private String buildLabel(CheckRun run) {
         String date = run.getCreatedDate() != null ? run.getCreatedDate().format(LABEL_FORMAT) : "?";
-        String version = run.getJmixVersion() != null ? run.getJmixVersion().getId() : "?";
         String config = run.getConfigLabel() != null && !run.getConfigLabel().isBlank()
                 ? shortConfig(run.getConfigLabel())
                 : detectConfig(run.getParameters());
-        return date + " " + version + " " + config;
+        return date + " " + config;
     }
 
     private static String shortConfig(String label) {

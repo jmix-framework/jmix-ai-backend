@@ -25,7 +25,6 @@ class SnippetizerEnricherTest {
             Map.of("type", "docs-snippets",
                     "source", "flow-ui/vc/components/button.html",
                     "sourceHash", "hash1",
-                    "jmixVersion", "v2",
                     "url", "https://docs.jmix.io/jmix/flow-ui/vc/components/button.html",
                     "docPath", "Flow UI > Visual Components > Button"));
 
@@ -101,7 +100,7 @@ class SnippetizerEnricherTest {
 
     @Test
     void modelKeyIncludesReasoningEffort() {
-        assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low");
+        assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:p2");
     }
 
     private static ChatResponse chatResponse(String content) {

@@ -1,7 +1,6 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
-import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
@@ -19,7 +18,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +44,7 @@ public class JavaApiIngester extends AbstractIngester {
 
     private static final Logger log = LoggerFactory.getLogger(JavaApiIngester.class);
 
-    private final Map<JmixVersion, String> baseUrls = new EnumMap<>(JmixVersion.class);
+    private final String baseUrl;
     private final String classListPage;
     private final Set<String> moduleWhitelist;
     private final List<String> pathBlacklist;
@@ -60,8 +58,7 @@ public class JavaApiIngester extends AbstractIngester {
     private final EnrichmentCacheRepository enrichmentCacheRepository;
 
     public JavaApiIngester(
-            @Value("${javaapi.v2.base-url:}") String v2BaseUrl,
-            @Value("${javaapi.v3.base-url:}") String v3BaseUrl,
+            @Value("${javaapi.v2.base-url:}") String baseUrl,
             @Value("${javaapi.class-list-page}") String classListPage,
             @Value("${javaapi.whitelist}") String whitelist,
             @Value("${javaapi.blacklist:}") String blacklist,
@@ -72,9 +69,8 @@ public class JavaApiIngester extends AbstractIngester {
             VectorStoreRepository vectorStoreRepository,
             JavaApiEnricher enricher,
             EnrichmentCacheRepository enrichmentCacheRepository) {
-        super(vectorStore, timeSource, vectorStoreRepository, true);
-        putBaseUrl(JmixVersion.V2, v2BaseUrl);
-        putBaseUrl(JmixVersion.V3, v3BaseUrl);
+        super(vectorStore, timeSource, vectorStoreRepository);
+        this.baseUrl = baseUrl.isBlank() || baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
         this.classListPage = classListPage;
         this.moduleWhitelist = Arrays.stream(whitelist.split(","))
                 .map(String::trim)
@@ -90,23 +86,9 @@ public class JavaApiIngester extends AbstractIngester {
         this.enrichmentCacheRepository = enrichmentCacheRepository;
     }
 
-    private void putBaseUrl(JmixVersion version, String baseUrl) {
-        if (!baseUrl.isBlank()) {
-            baseUrls.put(version, baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
-        }
-    }
-
     @Override
     public String getType() {
         return "javaapi";
-    }
-
-    /**
-     * Only versions with a configured base URL (e.g. Javadoc for Jmix 3 is not published yet).
-     */
-    @Override
-    public List<JmixVersion> getVersions() {
-        return List.copyOf(baseUrls.keySet());
     }
 
     @Override
@@ -115,8 +97,8 @@ public class JavaApiIngester extends AbstractIngester {
     }
 
     @Override
-    protected List<String> loadSources(JmixVersion version) {
-        String url = baseUrls.get(version) + classListPage;
+    protected List<String> loadSources() {
+        String url = baseUrl + classListPage;
         String html;
         try {
             html = restTemplate.getForObject(url, String.class);
@@ -148,8 +130,8 @@ public class JavaApiIngester extends AbstractIngester {
     }
 
     @Override
-    protected Document loadDocument(String source, JmixVersion version) {
-        String url = baseUrls.get(version) + source;
+    protected Document loadDocument(String source) {
+        String url = baseUrl + source;
         log.debug("Loading javadoc page: {}", url);
 
         String html;
@@ -172,7 +154,7 @@ public class JavaApiIngester extends AbstractIngester {
         Snippet card = renderer.render(classDoc, url);
         String cardText = card.format();
 
-        Map<String, Object> metadata = createMetadata(source, cardText, version);
+        Map<String, Object> metadata = createMetadata(source, cardText);
         metadata.put("url", url);
         metadata.put("className", classDoc.fullyQualifiedName());
 
@@ -198,8 +180,7 @@ public class JavaApiIngester extends AbstractIngester {
         return chunkDocs;
     }
 
-    private record PendingEnrichment(Document document, Snippet card, String source, String jmixVersion,
-                                     String contentHash) {
+    private record PendingEnrichment(Document document, Snippet card, String source, String contentHash) {
     }
 
     private List<Document> enrichDocuments(List<Document> documents) {
@@ -214,16 +195,15 @@ public class JavaApiIngester extends AbstractIngester {
         for (Document document : documents) {
             Snippet card = Snippet.parse(document.getText());
             String source = getSourceFromDocument(document);
-            String jmixVersion = (String) document.getMetadata().get("jmixVersion");
             String contentHash = (String) document.getMetadata().get("sourceHash");
             Optional<EnrichmentCache> cached = enrichmentCacheRepository
-                    .find(getType(), source, jmixVersion, modelName)
+                    .find(getType(), source, modelName)
                     .filter(entry -> Objects.equals(contentHash, entry.getContentHash()));
             if (cached.isPresent()) {
                 result.add(withEnrichment(document, card,
                         new JavaApiEnricher.Enrichment(cached.get().getDescription(), cached.get().getExample())));
             } else {
-                pending.add(new PendingEnrichment(document, card, source, jmixVersion, contentHash));
+                pending.add(new PendingEnrichment(document, card, source, contentHash));
             }
         }
 
@@ -240,7 +220,7 @@ public class JavaApiIngester extends AbstractIngester {
                     JavaApiEnricher.Enrichment enrichment = getEnrichment(futures.get(i), item.source());
                     if (enrichment != null) {
                         // save on the caller thread: DataManager requires the caller's security context
-                        enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
+                        enrichmentCacheRepository.save(getType(), item.source(), modelName,
                                 item.contentHash(), enrichment.description(), enrichment.example());
                     }
                     result.add(withEnrichment(item.document(), item.card(), enrichment));

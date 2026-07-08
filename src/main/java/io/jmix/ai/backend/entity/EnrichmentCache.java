@@ -14,7 +14,7 @@ import java.util.UUID;
  */
 @JmixEntity
 @Table(name = "ENRICHMENT_CACHE", indexes = {
-        @Index(name = "IDX_ENRICHMENT_CACHE_LOOKUP", columnList = "TYPE_, SOURCE, JMIX_VERSION, MODEL_NAME")
+        @Index(name = "IDX_ENRICHMENT_CACHE_LOOKUP", columnList = "TYPE_, SOURCE, MODEL_NAME")
 })
 @Entity
 public class EnrichmentCache {
@@ -32,9 +32,6 @@ public class EnrichmentCache {
 
     @Column(name = "SOURCE", nullable = false, length = 1000)
     private String source;
-
-    @Column(name = "JMIX_VERSION")
-    private String jmixVersion;
 
     @Column(name = "MODEL_NAME", nullable = false)
     private String modelName;
@@ -80,14 +77,6 @@ public class EnrichmentCache {
 
     public void setSource(String source) {
         this.source = source;
-    }
-
-    public String getJmixVersion() {
-        return jmixVersion;
-    }
-
-    public void setJmixVersion(String jmixVersion) {
-        this.jmixVersion = jmixVersion;
     }
 
     public String getModelName() {

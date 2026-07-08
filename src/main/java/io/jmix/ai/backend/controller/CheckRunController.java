@@ -1,9 +1,7 @@
 package io.jmix.ai.backend.controller;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.jmix.ai.backend.checks.CheckRunner;
 import io.jmix.ai.backend.entity.CheckRun;
-import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.core.DataManager;
 import io.jmix.core.Id;
@@ -18,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Programmatic trigger for a check run against a specific config and Jmix version.
+ * Programmatic trigger for a check run against a specific config.
  * Runs synchronously and returns the resulting score/accuracy, so a script can
  * repeat runs and average out sampling noise for an honest baseline-vs-candidate comparison.
  */
@@ -50,14 +48,8 @@ public class CheckRunController {
             }
             Parameters params = found.get(0);
 
-            JmixVersion version = JmixVersion.fromId(request.version());
-            if (version == null) {
-                version = JmixVersion.V2;
-            }
-
             CheckRun checkRun = dataManager.create(CheckRun.class);
             checkRun.setParameters(params.getContent());
-            checkRun.setJmixVersion(version);
             // configLabel is derived from the parameters YAML inside runChecks when null
             checkRun = dataManager.save(checkRun);
 
@@ -67,7 +59,6 @@ public class CheckRunController {
             return Map.of(
                     "id", done.getId().toString(),
                     "config", request.config(),
-                    "version", version.getId(),
                     "score", done.getScore() != null ? done.getScore() : 0.0,
                     "accuracy", done.getAccuracy() != null ? done.getAccuracy() : 0.0
             );
@@ -75,7 +66,6 @@ public class CheckRunController {
     }
 
     public record Request(
-            String config,
-            @JsonProperty("version") String version) {
+            String config) {
     }
 }

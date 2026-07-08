@@ -30,15 +30,14 @@ public class DocsSnippetsIngester extends DocsIngester {
     private final SnippetizerEnricher snippetizer;
 
     public DocsSnippetsIngester(
-            @Value("${docs.v2.base-url}") String v2BaseUrl,
-            @Value("${docs.v3.base-url}") String v3BaseUrl,
+            @Value("${docs.v2.base-url}") String baseUrl,
             @Value("${docs.initial-page}") String initialPage,
             @Value("${docs.limit}") int limit,
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository,
             SnippetizerEnricher snippetizer) {
-        super(v2BaseUrl, v3BaseUrl, initialPage, limit, vectorStore, timeSource, vectorStoreRepository);
+        super(baseUrl, initialPage, limit, vectorStore, timeSource, vectorStoreRepository);
         this.snippetizer = snippetizer;
     }
 

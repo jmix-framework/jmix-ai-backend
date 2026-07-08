@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.retrieval;
 
-import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,7 +32,7 @@ class AbstractRagToolTest {
                         "vectorType", "docs-snippets"))));
 
         DocsTool tool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, reader,
-                new ArrayList<>(), listener, JmixVersion.V2);
+                new ArrayList<>(), listener);
 
         assertThat(tool.type).isEqualTo("docs-snippets");
     }
@@ -45,7 +44,7 @@ class AbstractRagToolTest {
                         "description", "docs tool"))));
 
         DocsTool tool = new DocsTool(vectorStore, postRetrievalProcessor, reranker, reader,
-                new ArrayList<>(), listener, JmixVersion.V2);
+                new ArrayList<>(), listener);
 
         assertThat(tool.type).isEqualTo("docs");
     }

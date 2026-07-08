@@ -62,10 +62,9 @@ public class CheckRunComparisonView extends StandardView {
         candidateRunField.setHelperText("Compared against the baseline, question by question");
 
         if (!options.isEmpty()) {
-            ConfigOption baseline = pick(options, "main", null)
+            ConfigOption baseline = pick(options, "main")
                     .orElse(options.get(0));
-            ConfigOption candidate = pick(options, "neutral", baseline.version())
-                    .or(() -> pick(options, "neutral", null))
+            ConfigOption candidate = pick(options, "neutral")
                     .orElse(options.stream().filter(o -> !o.equals(baseline)).findFirst().orElse(baseline));
             baselineRunField.setValue(baseline);
             candidateRunField.setValue(candidate);
@@ -80,9 +79,9 @@ public class CheckRunComparisonView extends StandardView {
         refresh();
     }
 
-    private java.util.Optional<ConfigOption> pick(List<ConfigOption> options, String config, String version) {
+    private java.util.Optional<ConfigOption> pick(List<ConfigOption> options, String config) {
         return options.stream()
-                .filter(o -> o.config().equals(config) && (version == null || o.version().equals(version)))
+                .filter(o -> o.config().equals(config))
                 .findFirst();
     }
 

@@ -23,7 +23,6 @@
                     </action>
                 </actions>
             </entityPicker>
-            <select id="jmixVersionField" itemsEnum="io.jmix.ai.backend.entity.JmixVersion" width="7em"/>
         </hbox>
     </layout>
 </view>

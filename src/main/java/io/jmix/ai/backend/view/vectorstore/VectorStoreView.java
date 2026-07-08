@@ -10,7 +10,6 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
-import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.ai.backend.vectorstore.Ingester;
 import io.jmix.ai.backend.vectorstore.IngesterManager;
@@ -41,7 +40,6 @@ import io.jmix.flowui.util.RemoveOperation;
 import io.jmix.flowui.view.*;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.lang.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -163,46 +161,34 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     private void buildTopicHeatmap() {
-        Map<String, int[]> byTopic = new java.util.LinkedHashMap<>();
+        Map<String, Integer> byTopic = new java.util.LinkedHashMap<>();
         for (Object[] row : vectorStoreRepository.countSnippetTopicByVersion()) {
             String topic = (String) row[0];
-            String version = (String) row[1];
             int count = (int) row[2];
             if (topic == null || topic.isBlank()) {
                 continue;
             }
-            int[] vv = byTopic.computeIfAbsent(topic, k -> new int[2]);
-            if ("v3".equalsIgnoreCase(version)) {
-                vv[1] += count;
-            } else {
-                vv[0] += count;
-            }
+            byTopic.merge(topic, count, Integer::sum);
         }
 
-        List<Map.Entry<String, int[]>> top = byTopic.entrySet().stream()
-                .sorted((a, b) -> Integer.compare(total(b.getValue()), total(a.getValue())))
+        List<Map.Entry<String, Integer>> top = byTopic.entrySet().stream()
+                .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
                 .limit(24)
                 .toList();
-        int max = top.stream()
-                .flatMapToInt(e -> java.util.stream.IntStream.of(e.getValue()[0], e.getValue()[1]))
-                .max().orElse(1);
+        int max = top.stream().mapToInt(Map.Entry::getValue).max().orElse(1);
 
         Div grid = new Div();
         grid.getStyle().set("display", "grid")
-                .set("grid-template-columns", "minmax(11em, 20em) 5em 5em")
+                .set("grid-template-columns", "minmax(11em, 20em) 5em")
                 .set("gap", "3px").set("max-width", "34em").set("align-items", "stretch");
-        grid.add(headerCell("Topic", "left"), headerCell("Jmix 2", "center"), headerCell("Jmix 3", "center"));
-        for (Map.Entry<String, int[]> e : top) {
-            grid.add(topicLabelCell(e.getKey()), heatCell(e.getValue()[0], max), heatCell(e.getValue()[1], max));
+        grid.add(headerCell("Topic", "left"), headerCell("chunks", "center"));
+        for (Map.Entry<String, Integer> e : top) {
+            grid.add(topicLabelCell(e.getKey()), heatCell(e.getValue(), max));
         }
 
         topicHeatmapBox.removeAll();
         topicHeatmapBox.setPadding(false);
         topicHeatmapBox.add(grid);
-    }
-
-    private static int total(int[] vv) {
-        return vv[0] + vv[1];
     }
 
     private Div headerCell(String text, String align) {
@@ -237,10 +223,9 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     private void buildCoverage() {
-        Map<String, int[]> byType = new java.util.LinkedHashMap<>();
+        Map<String, Integer> byType = new java.util.LinkedHashMap<>();
         for (Object[] row : vectorStoreRepository.countByTypeAndVersion()) {
             String type = (String) row[0];
-            String version = (String) row[1];
             int count = (int) row[2];
             if (type == null) {
                 continue;
@@ -249,48 +234,30 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
             if ("docs".equals(type) || "uisamples".equals(type)) {
                 continue;
             }
-            int[] vv = byType.computeIfAbsent(type, k -> new int[2]);
-            if ("v3".equalsIgnoreCase(version)) {
-                vv[1] += count;
-            } else {
-                vv[0] += count;
-            }
+            byType.merge(type, count, Integer::sum);
         }
         List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        byType.forEach((type, vv) -> rows.add(Map.of("corpus", type, "v2", vv[0], "v3", vv[1])));
+        byType.forEach((type, count) -> rows.add(Map.of("corpus", type, "chunks", count)));
         coverageChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(rows.stream().map(MapDataItem::new).toList()))
-                .withCategoryField("corpus").withValueFields("v2", "v3")));
+                .withCategoryField("corpus").withValueFields("chunks")));
     }
 
     private void buildUpdateMenuItems() {
         for (Ingester ingester : ingesterManager.getIngesters()) {
-            List<JmixVersion> versions = ingester.getVersions();
-            if (versions.isEmpty()) {
-                addUpdateMenuItem(ingester.getType(), null);
-            } else {
-                for (JmixVersion version : versions) {
-                    addUpdateMenuItem(ingester.getType(), version);
-                }
-            }
+            addUpdateMenuItem(ingester.getType());
         }
         updateButton.addItem("all", "Update all data").addClickListener(clickEvent -> confirmAll());
     }
 
-    private void addUpdateMenuItem(String type, @Nullable JmixVersion version) {
-        String itemId = version == null ? type : type + "-" + version.getId();
-        String label = version == null
-                ? "Update " + type
-                : "Update " + type + " (" + version.getId() + ")";
-        updateButton.addItem(itemId, label).addClickListener(clickEvent ->
+    private void addUpdateMenuItem(String type) {
+        updateButton.addItem(type, "Update " + type).addClickListener(clickEvent ->
                 dialogs.createOptionDialog()
                         .withHeader("Confirm")
-                        .withText(version == null
-                                ? "Update all data of type '%s'?".formatted(type)
-                                : "Update %s (%s)?".formatted(type, version.getId()))
+                        .withText("Update all data of type '%s'?".formatted(type))
                         .withActions(
                                 new DialogAction(DialogAction.Type.YES).withHandler(e ->
-                                        updateInBackground(new UpdateByTypeAndVersionTask(type, version))),
+                                        updateInBackground(new UpdateByTypeTask(type))),
                                 new DialogAction(DialogAction.Type.NO)
                         )
                         .open());
@@ -433,19 +400,17 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         }
     }
 
-    private class UpdateByTypeAndVersionTask extends UpdateTask {
+    private class UpdateByTypeTask extends UpdateTask {
 
         private final String type;
-        private final JmixVersion version;
 
-        private UpdateByTypeAndVersionTask(String type, JmixVersion version) {
+        private UpdateByTypeTask(String type) {
             this.type = type;
-            this.version = version;
         }
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return ingesterManager.updateByTypeAndVersion(type, version);
+            return ingesterManager.updateByType(type);
         }
     }
 

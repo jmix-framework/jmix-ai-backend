@@ -25,8 +25,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -166,7 +164,7 @@ class AbstractIngesterTest {
         List<Document> chunks = List.of(new Document("2", "chunk", Map.of()));
 
         doReturn("source1").when(ingester).getSource(entity);
-        doReturn(document).when(ingester).loadDocument(eq("source1"), isNull());
+        doReturn(document).when(ingester).loadDocument("source1");
         doReturn(false).when(ingester).isContentSame(document, entity);
         doReturn(chunks).when(ingester).splitToChunks(List.of(document));
 
@@ -192,7 +190,7 @@ class AbstractIngesterTest {
         Document document = new Document("1", "content", Map.of("sourceHash", "hash1"));
         
         doReturn("source1").when(ingester).getSource(entity);
-        doReturn(document).when(ingester).loadDocument(eq("source1"), isNull());
+        doReturn(document).when(ingester).loadDocument("source1");
         doReturn(true).when(ingester).isContentSame(document, entity);
         
         String result = ingester.update(entity);
@@ -207,7 +205,7 @@ class AbstractIngesterTest {
     private static class TestIngester extends AbstractIngester {
         
         public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
-            super(vectorStore, timeSource, vectorStoreRepository, false);
+            super(vectorStore, timeSource, vectorStoreRepository);
         }
 
         @Override

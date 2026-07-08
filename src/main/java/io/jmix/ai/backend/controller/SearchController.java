@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.controller;
 
-import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.retrieval.SearchResultsFormatter;
 import io.jmix.ai.backend.retrieval.SearchService;
 import org.springframework.ai.document.Document;
@@ -8,8 +7,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
@@ -25,11 +22,7 @@ public class SearchController {
 
     @PostMapping
     public List<SearchResultDocument> search(@RequestBody SearchRequest request) {
-        JmixVersion version = JmixVersion.fromId(request.jmixVersion());
-        if (version == null) {
-            version = JmixVersion.V2;
-        }
-        List<Document> documents = searchService.search(request.query(), version);
+        List<Document> documents = searchService.search(request.query());
 
         documents = SearchResultsFormatter.sortByRelevance(documents);
         documents = SearchResultsFormatter.applyTokenBudget(documents, request.tokens());
@@ -52,7 +45,6 @@ public class SearchController {
 
     public record SearchRequest(
             String query,
-            @JsonProperty("jmix_version") String jmixVersion,
             Integer tokens) {
     }
 }

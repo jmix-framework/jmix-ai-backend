@@ -1,7 +1,6 @@
 package io.jmix.ai.backend.retrieval;
 
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
-import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
@@ -29,7 +28,7 @@ public class SearchService {
         this.toolsManager = toolsManager;
     }
 
-    public List<Document> search(String query, JmixVersion jmixVersion) {
+    public List<Document> search(String query) {
         List<Document> retrievedDocuments = new ArrayList<>();
 
         List<String> logMessages = new ArrayList<>();
@@ -63,7 +62,7 @@ public class SearchService {
 
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.SEARCH);
 
-        List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, listener, jmixVersion);
+        List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, listener);
 
         for (AbstractRagTool tool : ragTools) {
             tool.execute(query);

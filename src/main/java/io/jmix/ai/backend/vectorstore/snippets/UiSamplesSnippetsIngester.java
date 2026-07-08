@@ -29,8 +29,7 @@ public class UiSamplesSnippetsIngester extends UiSamplesIngester {
     private final SnippetizerEnricher snippetizer;
 
     public UiSamplesSnippetsIngester(
-            @Value("${uisamples.v2.base-url}") String v2BaseUrl,
-            @Value("${uisamples.v3.base-url}") String v3BaseUrl,
+            @Value("${uisamples.v2.base-url}") String baseUrl,
             @Value("${uisamples.doc-path}") String docPath,
             @Value("${uisamples.sample-path}") String samplePath,
             @Value("${uisamples.limit}") int limit,
@@ -38,7 +37,7 @@ public class UiSamplesSnippetsIngester extends UiSamplesIngester {
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository,
             SnippetizerEnricher snippetizer) {
-        super(v2BaseUrl, v3BaseUrl, docPath, samplePath, limit, vectorStore, timeSource, vectorStoreRepository);
+        super(baseUrl, docPath, samplePath, limit, vectorStore, timeSource, vectorStoreRepository);
         this.snippetizer = snippetizer;
     }
 

@@ -78,7 +78,6 @@
                 </actions>
                 <columns resizable="true">
                     <column property="createdDate"/>
-                    <column property="jmixVersion"/>
                     <column property="configLabel"/>
                     <column property="score"/>
                     <column property="accuracy"/>

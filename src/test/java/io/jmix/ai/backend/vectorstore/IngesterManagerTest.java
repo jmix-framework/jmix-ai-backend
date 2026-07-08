@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.vectorstore;
 
-import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,8 +45,6 @@ class IngesterManagerTest {
 
     @Test
     void shouldUpdateAll() {
-        when(docsIngester.getVersions()).thenReturn(List.of());
-        when(anotherIngester.getVersions()).thenReturn(List.of());
         when(docsIngester.updateAll()).thenReturn("docs result");
         when(anotherIngester.updateAll()).thenReturn("another result");
 
@@ -60,7 +57,6 @@ class IngesterManagerTest {
 
     @Test
     void shouldUpdateByType() {
-        lenient().when(docsIngester.getVersions()).thenReturn(List.of());
         when(docsIngester.updateAll()).thenReturn("docs result");
 
         String result = ingesterManager.updateByType("docs");
@@ -68,34 +64,6 @@ class IngesterManagerTest {
         verify(docsIngester).updateAll();
         verifyNoInteractions(anotherIngester);
         assertThat(result).contains("docs result");
-    }
-
-    @Test
-    void shouldUpdateByTypeAndVersion() {
-        lenient().when(docsIngester.getVersions()).thenReturn(List.of(JmixVersion.V2, JmixVersion.V3));
-        when(docsIngester.updateAll(JmixVersion.V2)).thenReturn("docs v2 result");
-
-        String result = ingesterManager.updateByTypeAndVersion("docs", JmixVersion.V2);
-
-        verify(docsIngester).updateAll(JmixVersion.V2);
-        verifyNoInteractions(anotherIngester);
-        assertThat(result).contains("docs v2 result");
-    }
-
-    @Test
-    void shouldUpdateAllRunningEveryVersionForVersionedIngesters() {
-        when(docsIngester.getVersions()).thenReturn(List.of(JmixVersion.V2, JmixVersion.V3));
-        when(docsIngester.updateAll(JmixVersion.V2)).thenReturn("docs v2");
-        when(docsIngester.updateAll(JmixVersion.V3)).thenReturn("docs v3");
-        when(anotherIngester.getVersions()).thenReturn(List.of());
-        when(anotherIngester.updateAll()).thenReturn("another result");
-
-        String result = ingesterManager.update();
-
-        verify(docsIngester).updateAll(JmixVersion.V2);
-        verify(docsIngester).updateAll(JmixVersion.V3);
-        verify(anotherIngester).updateAll();
-        assertThat(result).contains("docs v2", "docs v3", "another result");
     }
 
     @Test
