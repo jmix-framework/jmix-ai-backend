@@ -170,9 +170,10 @@ public class ChatImpl implements Chat {
                 addLogMessage(log, logMessages, "No response received from the chat model");
                 return new StructuredResponse("", logMessages, ctx.retrievedDocuments(), 0, 0, 0);
             }
-            String responseText = getContentFromChatResponse(chatResponse);
-            Integer promptTokens = chatResponse.getMetadata().getUsage().getPromptTokens();
-            Integer completionTokens = chatResponse.getMetadata().getUsage().getCompletionTokens();
+            String responseText = Objects.requireNonNullElse(getContentFromChatResponse(chatResponse), "");
+            var usage = chatResponse.getMetadata().getUsage();
+            int promptTokens = usage != null && usage.getPromptTokens() != null ? usage.getPromptTokens() : 0;
+            int completionTokens = usage != null && usage.getCompletionTokens() != null ? usage.getCompletionTokens() : 0;
 
             long responseTime = System.currentTimeMillis() - start;
             addLogMessage(log, logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(

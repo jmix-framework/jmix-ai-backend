@@ -28,7 +28,7 @@ public class ParametersReader {
 
     public Integer getInteger(String key, Integer defaultValue) {
         Object value = getValue(key);
-        return value != null ? (Integer) value : defaultValue;
+        return value instanceof Number n ? n.intValue() : defaultValue;
     }
 
     public double getDouble(String key) {
@@ -37,7 +37,7 @@ public class ParametersReader {
 
     public Double getDouble(String key, Double defaultValue) {
         Object value = getValue(key);
-        return value != null ? (Double) value : defaultValue;
+        return value instanceof Number n ? n.doubleValue() : defaultValue;
     }
 
     public boolean getBoolean(String key) {
