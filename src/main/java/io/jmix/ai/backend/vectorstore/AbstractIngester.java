@@ -150,7 +150,19 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     protected boolean isContentSame(Document document, VectorStoreEntity entity) {
-        return Objects.equals(entity.getMetadataMap().get("sourceHash"), document.getMetadata().get("sourceHash"));
+        return Objects.equals(entity.getMetadataMap().get("sourceHash"), document.getMetadata().get("sourceHash"))
+                && Objects.equals(currentGenerationKey(), entity.getMetadataMap().get("generationKey"));
+    }
+
+    /**
+     * For LLM-generated corpora, a key identifying the current generator config (model + prompt
+     * version). Stored in each chunk's {@code generationKey} metadata and compared in
+     * {@link #isContentSame}, so bumping the prompt/model rebuilds existing docs on the next update.
+     * Returns {@code null} for deterministic corpora (no rebuild on config change).
+     */
+    @Nullable
+    protected String currentGenerationKey() {
+        return null;
     }
 
     protected void deleteExistingEntities(VectorStoreEntity entity) {

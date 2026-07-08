@@ -26,7 +26,7 @@
             <column name="DESCRIPTION" type="CLOB"/>
             <column name="EXAMPLE" type="CLOB"/>
         </createTable>
-        <createIndex tableName="ENRICHMENT_CACHE" indexName="IDX_ENRICHMENT_CACHE_LOOKUP">
+        <createIndex tableName="ENRICHMENT_CACHE" indexName="IDX_ENRICHMENT_CACHE_LOOKUP" unique="true">
             <column name="TYPE_"/>
             <column name="SOURCE"/>
             <column name="MODEL_NAME"/>

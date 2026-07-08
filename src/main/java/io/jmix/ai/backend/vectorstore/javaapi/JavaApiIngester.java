@@ -92,6 +92,11 @@ public class JavaApiIngester extends AbstractIngester {
     }
 
     @Override
+    protected String currentGenerationKey() {
+        return enricher.isEnabled() ? enricher.getModelKey() : null;
+    }
+
+    @Override
     protected int getSourceLimit() {
         return limit;
     }
@@ -174,6 +179,9 @@ public class JavaApiIngester extends AbstractIngester {
             for (String part : parts) {
                 Map<String, Object> metadataCopy = new HashMap<>(document.getMetadata());
                 metadataCopy.put("size", part.length());
+                if (currentGenerationKey() != null) {
+                    metadataCopy.put("generationKey", currentGenerationKey());
+                }
                 chunkDocs.add(createDocument(part, metadataCopy));
             }
         }

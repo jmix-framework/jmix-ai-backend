@@ -14,7 +14,7 @@ import java.util.UUID;
  */
 @JmixEntity
 @Table(name = "ENRICHMENT_CACHE", indexes = {
-        @Index(name = "IDX_ENRICHMENT_CACHE_LOOKUP", columnList = "TYPE_, SOURCE, MODEL_NAME")
+        @Index(name = "IDX_ENRICHMENT_CACHE_LOOKUP", columnList = "TYPE_, SOURCE, MODEL_NAME", unique = true)
 })
 @Entity
 public class EnrichmentCache {

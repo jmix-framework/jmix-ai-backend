@@ -47,6 +47,11 @@ public class DocsSnippetsIngester extends DocsIngester {
     }
 
     @Override
+    protected String currentGenerationKey() {
+        return snippetizer.getModelKey();
+    }
+
+    @Override
     protected List<Document> splitToChunks(List<Document> documents) {
         Map<String, List<Snippet>> snippetsByDoc = snippetizer.resolveAll(getType(), documents,
                 document -> DocsHtmlConverter.toPlainText(document.getText()));
@@ -66,6 +71,9 @@ public class DocsSnippetsIngester extends DocsIngester {
                 Map<String, Object> metadata = new HashMap<>(document.getMetadata());
                 metadata.put("size", text.length());
                 metadata.put("enriched", "true");
+                if (currentGenerationKey() != null) {
+                    metadata.put("generationKey", currentGenerationKey());
+                }
                 chunkDocs.add(createDocument(text, metadata));
             }
         }
