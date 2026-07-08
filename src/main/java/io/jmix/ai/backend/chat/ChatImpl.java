@@ -64,18 +64,15 @@ public class ChatImpl implements Chat {
     private final ToolsManager toolsManager;
     private final ChatLogManager chatLogManager;
     private final Scheduler streamingScheduler;
-    private final SystemPromptResolver systemPromptResolver;
 
     public ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
                     ParametersRepository parametersRepository,
                     @Qualifier("streamingScheduler") Scheduler streamingScheduler,
                     ToolsManager toolsManager,
-                    ChatLogManager chatLogManager,
-                    SystemPromptResolver systemPromptResolver) {
+                    ChatLogManager chatLogManager) {
         this.parametersRepository = parametersRepository;
         this.streamingScheduler = streamingScheduler;
         this.chatLogManager = chatLogManager;
-        this.systemPromptResolver = systemPromptResolver;
 
         chatMemory = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
@@ -109,7 +106,8 @@ public class ChatImpl implements Chat {
         List<AbstractRagTool> tools = toolsManager.getTools(parametersYaml, retrievedDocuments, listener);
 
         String systemMessageTemplate = parametersReader.getString("systemMessage");
-        String systemPrompt = systemPromptResolver.resolve(systemMessageTemplate);
+        String systemPrompt = systemMessageTemplate == null ? null
+                : systemMessageTemplate.replace("${jmixVersion}", "version 2.8");
 
         ChatClient.ChatClientRequestSpec request = chatClient.prompt(buildPrompt(userPrompt, systemPrompt));
         request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));

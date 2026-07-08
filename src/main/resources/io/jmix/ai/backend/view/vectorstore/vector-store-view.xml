@@ -23,7 +23,7 @@
     </actions>
     <layout>
         <charts:chart id="coverageChart" width="100%" height="17em" minHeight="15em">
-            <charts:title text="Searchable corpus — snippet chunks by type"/>
+            <charts:title text="msg://coverage.title"/>
             <charts:legend bottom="0"/>
             <charts:tooltip trigger="AXIS">
                 <charts:axisPointer type="SHADOW"/>
@@ -40,13 +40,13 @@
                 <charts:bar name="chunks"/>
             </charts:series>
         </charts:chart>
-        <details id="topicDetails" summaryText="Documentation topic coverage — snippet chunks per topic"
+        <details id="topicDetails" summaryText="msg://topicCoverage.title"
                  opened="true" width="100%">
             <vbox id="topicHeatmapBox" width="100%"/>
         </details>
 
         <charts:chart id="tokenByTopicChart" width="100%" height="17em" minHeight="15em">
-            <charts:title text="Average snippet size by topic (approx. tokens)"/>
+            <charts:title text="msg://tokenByTopic.title"/>
             <charts:tooltip trigger="AXIS">
                 <charts:axisPointer type="SHADOW"/>
             </charts:tooltip>
@@ -67,7 +67,7 @@
 
         <hbox id="tokenStatsCards" width="100%" spacing="true"/>
         <charts:chart id="tokenHistogramChart" width="100%" height="17em" minHeight="15em">
-            <charts:title text="Distribution of slop-snippet size (approx. tokens)"/>
+            <charts:title text="msg://tokenHistogram.title"/>
             <charts:tooltip trigger="AXIS">
                 <charts:axisPointer type="SHADOW"/>
             </charts:tooltip>

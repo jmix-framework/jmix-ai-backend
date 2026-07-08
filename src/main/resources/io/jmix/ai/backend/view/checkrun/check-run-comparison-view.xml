@@ -15,7 +15,7 @@
             <hbox id="summaryCards" width="100%" spacing="true"/>
 
             <charts:chart id="overviewChart" width="100%" height="15em" minHeight="13em">
-                <charts:title text="Overall — baseline vs candidate (averaged over all runs)"/>
+                <charts:title text="msg://overview.title"/>
                 <charts:legend bottom="0"/>
                 <charts:tooltip trigger="AXIS">
                     <charts:axisPointer type="SHADOW"/>

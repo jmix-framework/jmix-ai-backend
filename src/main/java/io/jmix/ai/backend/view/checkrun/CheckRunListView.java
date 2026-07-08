@@ -81,6 +81,7 @@ public class CheckRunListView extends StandardListView<CheckRun> {
                             @Override
                             public void done(Void result) {
                                 checkRunsDl.load();
+                                buildTrend();
                             }
                         }
                 )

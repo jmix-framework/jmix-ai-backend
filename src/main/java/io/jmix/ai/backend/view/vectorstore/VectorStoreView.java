@@ -90,11 +90,16 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     @Subscribe
     public void onInit(final InitEvent event) {
         buildUpdateMenuItems();
+        refreshAnalytics();
+        urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
+    }
+
+    /** Rebuilds the corpus charts and topic heatmap; call after the corpus changes (ingest/delete). */
+    private void refreshAnalytics() {
         buildCoverage();
         buildTopicHeatmap();
         buildTokenByTopic();
         buildTokenDistribution();
-        urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
     }
 
     private void buildTokenByTopic() {
@@ -230,7 +235,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
             if (type == null) {
                 continue;
             }
-            // show the searchable slop-snippet corpus, not the raw pre-snippet chunks
+            // show the searchable snippet corpus, not the raw pre-snippet chunks
             if ("docs".equals(type) || "uisamples".equals(type)) {
                 continue;
             }
@@ -323,6 +328,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                         new DialogAction(DialogAction.Type.YES).withHandler(e -> {
                             vectorStoreRepository.delete(filterField.getTypedValue());
                             vectorStoreDl.load();
+                            refreshAnalytics();
                         }),
                         new DialogAction(DialogAction.Type.NO)
                 )
@@ -353,6 +359,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                                     .withHandler(e -> {
                                         vectorStoreRepository.delete(entities);
                                         vectorStoreDl.load();
+                                        refreshAnalytics();
                                     }),
                             new DialogAction(DialogAction.Type.CANCEL)
                     )
@@ -391,6 +398,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                     .withHeader("Update result")
                     .open();
             vectorStoreDl.load();
+            refreshAnalytics();
         }
 
         @Override

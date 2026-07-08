@@ -57,7 +57,7 @@ public class CheckAnalyticsService {
         groupRunsByConfig().forEach((config, group) -> {
             double meanScore = group.stream().mapToDouble(r -> r.getScore() != null ? r.getScore() : 0.0).average().orElse(0.0);
             double meanAcc = group.stream().mapToDouble(r -> r.getAccuracy() != null ? r.getAccuracy() : 0.0).average().orElse(0.0);
-            String label = "%s  (%d run%s)".formatted(config, group.size(), group.size() == 1 ? "" : "s");
+            String label = "%s  (%d run%s)".formatted(shortConfig(config), group.size(), group.size() == 1 ? "" : "s");
             options.add(new ConfigOption(config, label, round(meanScore), round(meanAcc)));
         });
         options.sort(java.util.Comparator.comparing(ConfigOption::config));
@@ -71,7 +71,7 @@ public class CheckAnalyticsService {
             if (run.getScore() == null) {
                 continue;
             }
-            groups.computeIfAbsent(configName(run.getConfigLabel()), k -> new ArrayList<>()).add(run);
+            groups.computeIfAbsent(configKey(run.getConfigLabel()), k -> new ArrayList<>()).add(run);
         }
         return groups;
     }
@@ -141,9 +141,9 @@ public class CheckAnalyticsService {
         return sumCount == null || sumCount[1] == 0 ? 0.0 : sumCount[0] / sumCount[1];
     }
 
-    /** Groups runs by their config description (the human-chosen name), shortened for display. */
-    private static String configName(@Nullable String label) {
-        return label != null && !label.isBlank() ? shortConfig(label) : "unlabeled";
+    /** Grouping key for a run's config: the full description (shortened only for display). */
+    private static String configKey(@Nullable String label) {
+        return label != null && !label.isBlank() ? label : "unlabeled";
     }
 
     /** All finished runs oldest-first, labelled with date, config and check count. */
@@ -168,7 +168,7 @@ public class CheckAnalyticsService {
 
     private String buildLabel(CheckRun run) {
         String date = run.getCreatedDate() != null ? run.getCreatedDate().format(LABEL_FORMAT) : "?";
-        return date + " " + configName(run.getConfigLabel());
+        return date + " " + shortConfig(configKey(run.getConfigLabel()));
     }
 
     private static String shortConfig(String label) {

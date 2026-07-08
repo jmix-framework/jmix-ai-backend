@@ -84,7 +84,7 @@ public class VectorStoreRepository {
     }
 
     /**
-     * Counts docs-snippet chunks (the searchable slop-snippet corpus) grouped by topic
+     * Counts docs-snippet chunks (the searchable snippet corpus) grouped by topic
      * (first URL path segment after the version) and Jmix version.
      * Returns rows of [topic, jmixVersion, count]. Used for the topic-coverage heatmap.
      */

@@ -37,7 +37,7 @@
             <properties include=".*"/>
         </genericFilter>
         <charts:chart id="trendChart" width="100%" height="15em" minHeight="13em">
-            <charts:title text="Score / accuracy across runs (overall trend)"/>
+            <charts:title text="msg://trend.title"/>
             <charts:tooltip trigger="AXIS"/>
             <charts:legend bottom="0"/>
             <charts:xAxes>
