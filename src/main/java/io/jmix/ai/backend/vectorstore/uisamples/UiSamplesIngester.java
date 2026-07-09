@@ -77,7 +77,14 @@ public class UiSamplesIngester extends AbstractIngester {
         String url = getDocUrl(source, version);
         log.debug("Loading sample: {}", url);
 
-        String textContent = restTemplate.getForObject(url, String.class);
+        String textContent;
+        try {
+            textContent = restTemplate.getForObject(url, String.class);
+        } catch (Exception e) {
+            // a transient failure of one sample must not abort the whole ingestion run
+            log.warn("Failed to load sample: {} ({})", url, e.getMessage());
+            return null;
+        }
         if (textContent == null) {
             log.warn("Failed to load sample: {}", url);
             return null;
