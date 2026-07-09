@@ -1,0 +1,310 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - banner:
+            - button [expanded]:
+              - generic:
+                - generic: 
+              - text: 
+            - heading [level=1]: Check runs
+        - generic:
+          - generic:
+            - heading [level=2]:
+              - link:
+                - /url: .
+                - text: Jmix AI Backend
+            - navigation:
+              - list:
+                - listitem:
+                  - link:
+                    - /url: chat-view
+                    - generic:
+                      - img
+                    - generic: Chat
+                - listitem:
+                  - link:
+                    - /url: chat-logs
+                    - generic:
+                      - img
+                    - generic: Chat logs
+                - listitem:
+                  - generic:
+                    - button [expanded]:
+                      - generic: 
+                      - generic:
+                        - generic:
+                          - generic: Configuration
+                    - generic:
+                      - generic:
+                        - list:
+                          - listitem:
+                            - link:
+                              - /url: parameters
+                              - generic: Parameters
+                          - listitem:
+                            - link:
+                              - /url: vector-store
+                              - generic: Vector store
+                          - listitem:
+                            - link:
+                              - /url: datatl/entity-inspector
+                              - generic: Entity inspector
+                - listitem:
+                  - generic:
+                    - button [expanded]:
+                      - generic: 
+                      - generic:
+                        - generic:
+                          - generic: Answer checks
+                    - generic:
+                      - generic:
+                        - list:
+                          - listitem:
+                            - link:
+                              - /url: check-defs
+                              - generic: Check definitions
+                          - listitem:
+                            - link:
+                              - /url: check-runs
+                              - generic: Check runs
+                - listitem:
+                  - generic:
+                    - button:
+                      - generic: 
+                      - generic:
+                        - generic:
+                          - generic: Security
+            - generic:
+              - generic: "[admin]"
+              - button:
+                - generic:
+                  - generic:
+                    - generic: 
+        - generic:
+          - generic:
+            - generic:
+              - button:
+                - generic: 
+                - generic: Filter
+              - text:  
+            - generic:
+              - button:
+                - generic:
+                  - generic:
+                    - generic: 
+              - button [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+              - button [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+              - generic:
+                - button [disabled]:
+                  - generic:
+                    - generic:
+                      - generic: 
+                - button [disabled]:
+                  - generic:
+                    - generic:
+                      - generic: 
+                - generic:
+                  - generic: 0 rows
+                - button [disabled]:
+                  - generic:
+                    - generic:
+                      - generic: 
+                - button [disabled]:
+                  - generic:
+                    - generic:
+                      - generic: 
+            - generic:
+              - generic:
+                - generic:
+                  - treegrid:
+                    - rowgroup:
+                      - row:
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                    - rowgroup
+              - generic:
+                - generic:
+                  - treegrid:
+                    - rowgroup:
+                      - row:
+                        - columnheader
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                        - columnheader:
+                          - generic:
+                            - generic:
+                              - generic: 
+                    - rowgroup
+  - generic:
+    - generic: Online
+  - dialog:
+    - generic:
+      - generic:
+        - generic:
+          - heading "Check run" [level=2] [ref=f12e168]
+          - button [ref=f12e211]:
+            - generic [ref=f12e175]: 
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Parameters •
+                      - generic:
+                        - textbox: gpt-5.1, low reasoning, 2026-04-02, modified at by
+                        - generic:
+                          - generic:
+                            - button:
+                              - generic:
+                                - generic:
+                                  - generic: 
+                            - button:
+                              - generic:
+                                - generic:
+                                  - generic: 
+                            - button:
+                              - generic:
+                                - generic:
+                                  - generic: 
+                  - text:    
+              - generic:
+                - button:
+                  - generic:
+                    - generic:
+                      - generic: 
+                - button:
+                  - generic:
+                    - generic:
+                      - generic: 
+  - dialog "Parameters":
+    - generic [ref=f12e214]:
+      - generic:
+        - heading "Parameters" [level=2] [ref=f12e215]
+        - button "Close this dialog window" [ref=f12e219]:
+          - generic [ref=f12e222]: 
+      - generic [ref=f12e225]:
+        - generic:
+          - generic [ref=f12e226]:
+            - generic:
+              - button "Create" [ref=f12e227]:
+                - generic [ref=f12e228]:
+                  - generic [ref=f12e230]: 
+                  - generic [ref=f12e231]:
+                    - generic: Create
+              - button "Copy" [disabled]:
+                - generic:
+                  - generic:
+                    - generic: Copy
+              - button "Edit" [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+                  - generic:
+                    - generic: Edit
+              - button "Remove" [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+                  - generic:
+                    - generic: Remove
+              - button "Activate" [disabled]:
+                - generic:
+                  - generic:
+                    - generic: Activate
+          - treegrid [ref=f12e234]:
+            - rowgroup [ref=f12e235]:
+              - row "Sort by Active Sort by Target type Sort by Description Sort by Last modified date Sort by Last modified by" [ref=f12e236]:
+                - columnheader "Sort by Active" [ref=f12e237]:
+                  - generic "Sort by Active" [ref=f12e239]:
+                    - generic [ref=f12e240]:
+                      - generic: Active
+                    - generic [ref=f12e241]: 
+                - columnheader "Sort by Target type" [ref=f12e243]:
+                  - generic "Sort by Target type" [ref=f12e245]:
+                    - generic [ref=f12e246]:
+                      - generic: Target type
+                    - generic [ref=f12e247]: 
+                - columnheader "Sort by Description" [ref=f12e249]:
+                  - generic "Sort by Description" [ref=f12e251]:
+                    - generic [ref=f12e252]:
+                      - generic: Description
+                    - generic [ref=f12e253]: 
+                - columnheader "Sort by Last modified date" [ref=f12e255]:
+                  - generic "Sort by Last modified date" [ref=f12e257]:
+                    - generic [ref=f12e258]:
+                      - generic: Last modified date
+                    - generic [ref=f12e259]: 
+                - columnheader "Sort by Last modified by" [ref=f12e261]:
+                  - generic "Sort by Last modified by" [ref=f12e263]:
+                    - generic [ref=f12e264]:
+                      - generic: Last modified by
+                    - generic [ref=f12e265]: 
+            - rowgroup [ref=f12e267]:
+              - row "False baseline gpt-5.1 (javaapi off)" [ref=f12e268]:
+                - gridcell "False" [ref=f12e269]:
+                  - generic [ref=f12e270]: "False"
+                - gridcell [ref=f12e271]
+                - gridcell "baseline gpt-5.1 (javaapi off)" [ref=f12e273]:
+                  - generic [ref=f12e274]: baseline gpt-5.1 (javaapi off)
+                - gridcell [ref=f12e275]
+                - gridcell [ref=f12e277]
+              - row "False gpt-5.1 + javaapi_retriever enabled" [ref=f12e279]:
+                - gridcell "False" [ref=f12e280]:
+                  - generic [ref=f12e281]: "False"
+                - gridcell [ref=f12e282]
+                - gridcell "gpt-5.1 + javaapi_retriever enabled" [ref=f12e284]:
+                  - generic [ref=f12e285]: gpt-5.1 + javaapi_retriever enabled
+                - gridcell [ref=f12e286]
+                - gridcell [ref=f12e288]
+            - rowgroup
+          - generic [ref=f12e290]:
+            - generic:
+              - button "Select" [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+                  - generic:
+                    - generic: Select
+              - button "Cancel" [ref=f12e291]:
+                - generic [ref=f12e292]:
+                  - generic [ref=f12e294]: 
+                  - generic [ref=f12e295]:
+                    - generic: Cancel

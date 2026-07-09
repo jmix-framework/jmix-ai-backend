@@ -30,18 +30,3 @@ vite.generated.ts
 webpack.generated.js
 
 .DS_Store
-
-.playwright-mcp/
-javaapi-grid.png
-analytics-*.png
-audit-*.json
-scripts/__pycache__/
-*-screen.png
-coverage-vs.png
-exp-*.png
-
-# scratch screenshots
-accuracy-dash.png
-runs-fixed.png
-scroll-bottom.png
-*.png

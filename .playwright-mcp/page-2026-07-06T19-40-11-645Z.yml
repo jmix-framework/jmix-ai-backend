@@ -1,0 +1,87 @@
+- generic [ref=f42e1]:
+  - generic [ref=f42e45]:
+    - banner [ref=f42e47]:
+      - button "Menu toggle" [expanded] [ref=f42e48]:
+        - generic [ref=f42e50]: 
+        - text: 
+      - heading "Check analytics" [level=1] [ref=f42e51]
+    - generic [ref=f42e53]:
+      - heading "Jmix AI Backend" [level=2] [ref=f42e54]:
+        - link "Jmix AI Backend" [ref=f42e55] [cursor=pointer]:
+          - /url: .
+      - navigation "Views" [ref=f42e56]:
+        - list [ref=f42e57]:
+          - listitem [ref=f42e58]:
+            - link "Chat" [ref=f42e59] [cursor=pointer]:
+              - /url: chat-view
+              - img [ref=f42e61]
+              - generic [ref=f42e65]: Chat
+          - listitem [ref=f42e66]:
+            - link "Chat logs" [ref=f42e67] [cursor=pointer]:
+              - /url: chat-logs
+              - img [ref=f42e69]
+              - generic [ref=f42e74]: Chat logs
+          - listitem [ref=f42e75]:
+            - generic [ref=f42e76]:
+              - button "Configuration" [expanded] [ref=f42e77]:
+                - generic [ref=f42e78]: 
+                - generic [ref=f42e81]: Configuration
+              - list [ref=f42e84]:
+                - listitem [ref=f42e85]:
+                  - link "Parameters" [ref=f42e86] [cursor=pointer]:
+                    - /url: parameters
+                    - generic [ref=f42e87]: Parameters
+                - listitem [ref=f42e88]:
+                  - link "Vector store" [ref=f42e89] [cursor=pointer]:
+                    - /url: vector-store
+                    - generic [ref=f42e90]: Vector store
+                - listitem [ref=f42e91]:
+                  - link "Entity inspector" [ref=f42e92] [cursor=pointer]:
+                    - /url: datatl/entity-inspector
+                    - generic [ref=f42e93]: Entity inspector
+          - listitem [ref=f42e94]:
+            - generic [ref=f42e95]:
+              - button "Answer checks" [expanded] [ref=f42e96]:
+                - generic [ref=f42e97]: 
+                - generic "Answer checks description" [ref=f42e99]:
+                  - generic [ref=f42e100]: Answer checks
+              - list [ref=f42e103]:
+                - listitem [ref=f42e104]:
+                  - link "Check definitions" [ref=f42e105] [cursor=pointer]:
+                    - /url: check-defs
+                    - generic [ref=f42e106]: Check definitions
+                - listitem [ref=f42e107]:
+                  - link "Check runs" [ref=f42e108] [cursor=pointer]:
+                    - /url: check-runs
+                    - generic [ref=f42e109]: Check runs
+                - listitem [ref=f42e110]:
+                  - link "Check analytics" [ref=f42e111] [cursor=pointer]:
+                    - /url: check-analytics
+                    - generic [ref=f42e112]: Check analytics
+          - listitem [ref=f42e113]:
+            - button "Security" [ref=f42e115]:
+              - generic [ref=f42e116]: 
+              - generic [ref=f42e119]: Security
+      - generic [ref=f42e120]:
+        - generic "[admin]" [ref=f42e121]
+        - button "Logout" [ref=f42e122]:
+          - generic [ref=f42e125]: 
+    - generic [ref=f42e133]:
+      - generic:
+        - generic [ref=f42e135]:
+          - generic [ref=f42e136]:
+            - generic: Base run
+          - generic [ref=f42e137]:
+            - combobox "Base run" [active] [ref=f42e138]: 07-06 19:02 javaapi · 19
+            - generic:
+              - text: 
+              - generic [ref=f42e139]: 
+        - generic [ref=f42e141]:
+          - generic [ref=f42e142]:
+            - generic: Compare run
+          - generic [ref=f42e143]:
+            - combobox "Compare run" [ref=f42e144]: 07-06 19:06 snippets · 19
+            - generic:
+              - text: 
+              - generic [ref=f42e145]: 
+  - generic [ref=f42e4]: Online

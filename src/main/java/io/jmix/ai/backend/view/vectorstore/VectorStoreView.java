@@ -129,8 +129,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         int max = sorted.get(n - 1);
         double avg = sorted.stream().mapToInt(Integer::intValue).average().orElse(0);
         double median = n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
-        double variance = sorted.stream().mapToDouble(s -> (s - avg) * (s - avg)).sum() / n;
-        double stddev = Math.sqrt(variance);
+        double stddev = Math.sqrt(sorted.stream().mapToDouble(s -> (s - avg) * (s - avg)).sum() / n);
 
         tokenStatsCards.add(
                 statCard("count", String.valueOf(n)),
@@ -138,8 +137,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                 statCard("median", "%.0f".formatted(median)),
                 statCard("avg", "%.0f".formatted(avg)),
                 statCard("max", String.valueOf(max)),
-                statCard("std dev", "%.0f".formatted(stddev)),
-                statCard("variance", "%.0f".formatted(variance)));
+                statCard("std dev", "%.0f".formatted(stddev)));
 
         // histogram: ~20 fixed-width buckets from min..max
         int buckets = 20;

@@ -1,0 +1,327 @@
+- generic [ref=f66e1]:
+  - generic [ref=f66e45]:
+    - banner [ref=f66e47]:
+      - button "Menu toggle" [expanded] [ref=f66e48]:
+        - generic [ref=f66e50]: 
+        - text: 
+      - heading "Check runs" [level=1] [ref=f66e51]
+    - generic [ref=f66e53]:
+      - heading "Jmix AI Backend" [level=2] [ref=f66e54]:
+        - link "Jmix AI Backend" [ref=f66e55] [cursor=pointer]:
+          - /url: .
+      - navigation "Views" [ref=f66e56]:
+        - list [ref=f66e57]:
+          - listitem [ref=f66e58]:
+            - link "Chat" [ref=f66e59] [cursor=pointer]:
+              - /url: chat-view
+              - img [ref=f66e61]
+              - generic [ref=f66e65]: Chat
+          - listitem [ref=f66e66]:
+            - link "Chat logs" [ref=f66e67] [cursor=pointer]:
+              - /url: chat-logs
+              - img [ref=f66e69]
+              - generic [ref=f66e74]: Chat logs
+          - listitem [ref=f66e75]:
+            - generic [ref=f66e76]:
+              - button "Configuration" [expanded] [ref=f66e77]:
+                - generic [ref=f66e78]: 
+                - generic [ref=f66e81]: Configuration
+              - list [ref=f66e84]:
+                - listitem [ref=f66e85]:
+                  - link "Parameters" [ref=f66e86] [cursor=pointer]:
+                    - /url: parameters
+                    - generic [ref=f66e87]: Parameters
+                - listitem [ref=f66e88]:
+                  - link "Vector store" [ref=f66e89] [cursor=pointer]:
+                    - /url: vector-store
+                    - generic [ref=f66e90]: Vector store
+                - listitem [ref=f66e91]:
+                  - link "Entity inspector" [ref=f66e92] [cursor=pointer]:
+                    - /url: datatl/entity-inspector
+                    - generic [ref=f66e93]: Entity inspector
+          - listitem [ref=f66e94]:
+            - generic [ref=f66e95]:
+              - button "Answer checks" [expanded] [ref=f66e96]:
+                - generic [ref=f66e97]: 
+                - generic "Answer checks description" [ref=f66e99]:
+                  - generic [ref=f66e100]: Answer checks
+              - list [ref=f66e103]:
+                - listitem [ref=f66e104]:
+                  - link "Check definitions" [ref=f66e105] [cursor=pointer]:
+                    - /url: check-defs
+                    - generic [ref=f66e106]: Check definitions
+                - listitem [ref=f66e107]:
+                  - link "Check runs" [ref=f66e108] [cursor=pointer]:
+                    - /url: check-runs
+                    - generic [ref=f66e109]: Check runs
+                - listitem [ref=f66e110]:
+                  - link "Compare runs" [ref=f66e111] [cursor=pointer]:
+                    - /url: check-runs/compare
+                    - generic [ref=f66e112]: Compare runs
+          - listitem [ref=f66e113]:
+            - button "Security" [ref=f66e115]:
+              - generic [ref=f66e116]: 
+              - generic [ref=f66e119]: Security
+      - generic [ref=f66e120]:
+        - generic "[admin]" [ref=f66e121]
+        - button "Logout" [ref=f66e122]:
+          - generic [ref=f66e125]: 
+    - generic [ref=f66e127]:
+      - generic:
+        - generic [ref=f66e128]:
+          - button "Filter" [expanded] [ref=f66e129]:
+            - generic [ref=f66e130]: 
+            - generic [ref=f66e131]:
+              - generic: Filter
+          - generic [ref=f66e135]:
+            - generic:
+              - menubar [ref=f66e136]:
+                - generic [ref=f66e137]:
+                  - generic:
+                    - menuitem "Refresh" [ref=f66e138]:
+                      - generic [ref=f66e142]:
+                        - generic: Refresh
+                    - menuitem "" [ref=f66e143]:
+                      - generic [ref=f66e148]: 
+              - menubar [ref=f66e149]:
+                - menuitem "" [ref=f66e151]:
+                  - generic [ref=f66e156]: 
+              - button "Add search condition" [ref=f66e157]:
+                - generic [ref=f66e159]:
+                  - generic: Add search condition
+        - generic [ref=f66e164]:
+          - generic:
+            - button "Run now" [ref=f66e165]:
+              - generic [ref=f66e166]:
+                - generic [ref=f66e168]: 
+                - generic [ref=f66e169]:
+                  - generic: Run now
+            - button "Read" [disabled]:
+              - generic:
+                - generic:
+                  - generic: 
+                - generic:
+                  - generic: Read
+            - button "Remove" [disabled]:
+              - generic:
+                - generic:
+                  - generic: 
+                - generic:
+                  - generic: Remove
+            - generic [ref=f66e170]:
+              - button [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+              - button [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+              - generic [ref=f66e172]: 13 rows
+              - button [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+              - button [disabled]:
+                - generic:
+                  - generic:
+                    - generic: 
+        - generic [ref=f66e173]:
+          - treegrid [ref=f66e176]:
+            - rowgroup [ref=f66e177]:
+              - row "Sort by Created date Sort by Jmix version Sort by Config Sort by Score Sort by Accuracy" [ref=f66e178]:
+                - columnheader "Sort by Created date" [ref=f66e179]:
+                  - generic "Sort by Created date" [ref=f66e181]:
+                    - generic [ref=f66e182]:
+                      - generic: Created date
+                    - generic [ref=f66e183]: 
+                - columnheader "Sort by Jmix version" [ref=f66e185]:
+                  - generic "Sort by Jmix version" [ref=f66e187]:
+                    - generic [ref=f66e188]:
+                      - generic: Jmix version
+                    - generic [ref=f66e189]: 
+                - columnheader "Sort by Config" [ref=f66e191]:
+                  - generic "Sort by Config" [ref=f66e193]:
+                    - generic [ref=f66e194]:
+                      - generic: Config
+                    - generic [ref=f66e195]: 
+                - columnheader "Sort by Score" [ref=f66e197]:
+                  - generic "Sort by Score" [ref=f66e199]:
+                    - generic [ref=f66e200]:
+                      - generic: Score
+                    - generic [ref=f66e201]: 
+                - columnheader "Sort by Accuracy" [ref=f66e203]:
+                  - generic "Sort by Accuracy" [ref=f66e205]:
+                    - generic [ref=f66e206]:
+                      - generic: Accuracy
+                    - generic [ref=f66e207]: 
+            - rowgroup [ref=f66e209]:
+              - row "07/07/2026 15:18 +0300 Jmix v2 EXP-NEW snippets + javaapi 0.907 0.897" [ref=f66e210]:
+                - gridcell "07/07/2026 15:18 +0300" [ref=f66e211]:
+                  - generic [ref=f66e212]: 07/07/2026 15:18 +0300
+                - gridcell "Jmix v2" [ref=f66e213]:
+                  - generic [ref=f66e214]: Jmix v2
+                - gridcell "EXP-NEW snippets + javaapi" [ref=f66e215]:
+                  - generic [ref=f66e216]: EXP-NEW snippets + javaapi
+                - gridcell "0.907" [ref=f66e217]:
+                  - generic [ref=f66e218]: "0.907"
+                - gridcell "0.897" [ref=f66e219]:
+                  - generic [ref=f66e220]: "0.897"
+              - row "07/07/2026 15:01 +0300 Jmix v2 EXP-OLD docs+uisamples chunks, no javaapi 0.882 0.759" [ref=f66e221]:
+                - gridcell "07/07/2026 15:01 +0300" [ref=f66e222]:
+                  - generic [ref=f66e223]: 07/07/2026 15:01 +0300
+                - gridcell "Jmix v2" [ref=f66e224]:
+                  - generic [ref=f66e225]: Jmix v2
+                - gridcell "EXP-OLD docs+uisamples chunks, no javaapi" [ref=f66e226]:
+                  - generic [ref=f66e227]: EXP-OLD docs+uisamples chunks, no javaapi
+                - gridcell "0.882" [ref=f66e228]:
+                  - generic [ref=f66e229]: "0.882"
+                - gridcell "0.759" [ref=f66e230]:
+                  - generic [ref=f66e231]: "0.759"
+              - row "07/07/2026 14:52 +0300 Jmix v3 EXP-NEW snippets + javaapi 0.897 0.842" [ref=f66e232]:
+                - gridcell "07/07/2026 14:52 +0300" [ref=f66e233]:
+                  - generic [ref=f66e234]: 07/07/2026 14:52 +0300
+                - gridcell "Jmix v3" [ref=f66e235]:
+                  - generic [ref=f66e236]: Jmix v3
+                - gridcell "EXP-NEW snippets + javaapi" [ref=f66e237]:
+                  - generic [ref=f66e238]: EXP-NEW snippets + javaapi
+                - gridcell "0.897" [ref=f66e239]:
+                  - generic [ref=f66e240]: "0.897"
+                - gridcell "0.842" [ref=f66e241]:
+                  - generic [ref=f66e242]: "0.842"
+              - row "07/07/2026 14:49 +0300 Jmix v3 EXP-OLD docs+uisamples chunks, no javaapi 0.924 0.895" [ref=f66e243]:
+                - gridcell "07/07/2026 14:49 +0300" [ref=f66e244]:
+                  - generic [ref=f66e245]: 07/07/2026 14:49 +0300
+                - gridcell "Jmix v3" [ref=f66e246]:
+                  - generic [ref=f66e247]: Jmix v3
+                - gridcell "EXP-OLD docs+uisamples chunks, no javaapi" [ref=f66e248]:
+                  - generic [ref=f66e249]: EXP-OLD docs+uisamples chunks, no javaapi
+                - gridcell "0.924" [ref=f66e250]:
+                  - generic [ref=f66e251]: "0.924"
+                - gridcell "0.895" [ref=f66e252]:
+                  - generic [ref=f66e253]: "0.895"
+              - row "07/07/2026 14:47 +0300 Jmix v2 EXP-NEW snippets + javaapi 0.878 0.842" [ref=f66e254]:
+                - gridcell "07/07/2026 14:47 +0300" [ref=f66e255]:
+                  - generic [ref=f66e256]: 07/07/2026 14:47 +0300
+                - gridcell "Jmix v2" [ref=f66e257]:
+                  - generic [ref=f66e258]: Jmix v2
+                - gridcell "EXP-NEW snippets + javaapi" [ref=f66e259]:
+                  - generic [ref=f66e260]: EXP-NEW snippets + javaapi
+                - gridcell "0.878" [ref=f66e261]:
+                  - generic [ref=f66e262]: "0.878"
+                - gridcell "0.842" [ref=f66e263]:
+                  - generic [ref=f66e264]: "0.842"
+              - row "07/07/2026 14:42 +0300 Jmix v2 EXP-OLD docs+uisamples chunks, no javaapi 0.872 0.842" [ref=f66e265]:
+                - gridcell "07/07/2026 14:42 +0300" [ref=f66e266]:
+                  - generic [ref=f66e267]: 07/07/2026 14:42 +0300
+                - gridcell "Jmix v2" [ref=f66e268]:
+                  - generic [ref=f66e269]: Jmix v2
+                - gridcell "EXP-OLD docs+uisamples chunks, no javaapi" [ref=f66e270]:
+                  - generic [ref=f66e271]: EXP-OLD docs+uisamples chunks, no javaapi
+                - gridcell "0.872" [ref=f66e272]:
+                  - generic [ref=f66e273]: "0.872"
+                - gridcell "0.842" [ref=f66e274]:
+                  - generic [ref=f66e275]: "0.842"
+              - row "07/07/2026 13:37 +0300 Jmix v3 gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets) 0.909" [ref=f66e276]:
+                - gridcell "07/07/2026 13:37 +0300" [ref=f66e277]:
+                  - generic [ref=f66e278]: 07/07/2026 13:37 +0300
+                - gridcell "Jmix v3" [ref=f66e279]:
+                  - generic [ref=f66e280]: Jmix v3
+                - gridcell "gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets)" [ref=f66e281]:
+                  - generic [ref=f66e282]: gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets)
+                - gridcell "0.909" [ref=f66e283]:
+                  - generic [ref=f66e284]: "0.909"
+                - gridcell [ref=f66e285]
+              - row "06/07/2026 19:06 +0300 Jmix v3 gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets) 0.877" [ref=f66e287]:
+                - gridcell "06/07/2026 19:06 +0300" [ref=f66e288]:
+                  - generic [ref=f66e289]: 06/07/2026 19:06 +0300
+                - gridcell "Jmix v3" [ref=f66e290]:
+                  - generic [ref=f66e291]: Jmix v3
+                - gridcell "gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets)" [ref=f66e292]:
+                  - generic [ref=f66e293]: gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets)
+                - gridcell "0.877" [ref=f66e294]:
+                  - generic [ref=f66e295]: "0.877"
+                - gridcell [ref=f66e296]
+              - row "06/07/2026 19:02 +0300 Jmix v3 gpt-5.1 + javaapi_retriever enabled 0.781" [ref=f66e298]:
+                - gridcell "06/07/2026 19:02 +0300" [ref=f66e299]:
+                  - generic [ref=f66e300]: 06/07/2026 19:02 +0300
+                - gridcell "Jmix v3" [ref=f66e301]:
+                  - generic [ref=f66e302]: Jmix v3
+                - gridcell "gpt-5.1 + javaapi_retriever enabled" [ref=f66e303]:
+                  - generic [ref=f66e304]: gpt-5.1 + javaapi_retriever enabled
+                - gridcell "0.781" [ref=f66e305]:
+                  - generic [ref=f66e306]: "0.781"
+                - gridcell [ref=f66e307]
+              - row "06/07/2026 18:45 +0300 Jmix v3 gpt-5.1 + javaapi_retriever enabled 0.584" [ref=f66e309]:
+                - gridcell "06/07/2026 18:45 +0300" [ref=f66e310]:
+                  - generic [ref=f66e311]: 06/07/2026 18:45 +0300
+                - gridcell "Jmix v3" [ref=f66e312]:
+                  - generic [ref=f66e313]: Jmix v3
+                - gridcell "gpt-5.1 + javaapi_retriever enabled" [ref=f66e314]:
+                  - generic [ref=f66e315]: gpt-5.1 + javaapi_retriever enabled
+                - gridcell "0.584" [ref=f66e316]:
+                  - generic [ref=f66e317]: "0.584"
+                - gridcell [ref=f66e318]
+              - row "06/07/2026 18:03 +0300 Jmix v3 gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets) 0.641" [ref=f66e320]:
+                - gridcell "06/07/2026 18:03 +0300" [ref=f66e321]:
+                  - generic [ref=f66e322]: 06/07/2026 18:03 +0300
+                - gridcell "Jmix v3" [ref=f66e323]:
+                  - generic [ref=f66e324]: Jmix v3
+                - gridcell "gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets)" [ref=f66e325]:
+                  - generic [ref=f66e326]: gpt-5.1 + javaapi + SNIPPET corpora (docs-snippets, uisamples-snippets)
+                - gridcell "0.641" [ref=f66e327]:
+                  - generic [ref=f66e328]: "0.641"
+                - gridcell [ref=f66e329]
+              - row "06/07/2026 16:28 +0300 Jmix v3 gpt-5.1 + javaapi_retriever enabled 0.501" [ref=f66e331]:
+                - gridcell "06/07/2026 16:28 +0300" [ref=f66e332]:
+                  - generic [ref=f66e333]: 06/07/2026 16:28 +0300
+                - gridcell "Jmix v3" [ref=f66e334]:
+                  - generic [ref=f66e335]: Jmix v3
+                - gridcell "gpt-5.1 + javaapi_retriever enabled" [ref=f66e336]:
+                  - generic [ref=f66e337]: gpt-5.1 + javaapi_retriever enabled
+                - gridcell "0.501" [ref=f66e338]:
+                  - generic [ref=f66e339]: "0.501"
+                - gridcell [ref=f66e340]
+              - row "06/07/2026 16:24 +0300 Jmix v3 baseline gpt-5.1 (javaapi off) 0.521" [ref=f66e342]:
+                - gridcell "06/07/2026 16:24 +0300" [ref=f66e343]:
+                  - generic [ref=f66e344]: 06/07/2026 16:24 +0300
+                - gridcell "Jmix v3" [ref=f66e345]:
+                  - generic [ref=f66e346]: Jmix v3
+                - gridcell "baseline gpt-5.1 (javaapi off)" [ref=f66e347]:
+                  - generic [ref=f66e348]: baseline gpt-5.1 (javaapi off)
+                - gridcell "0.521" [ref=f66e349]:
+                  - generic [ref=f66e350]: "0.521"
+                - gridcell [ref=f66e351]
+            - rowgroup
+          - treegrid [ref=f66e357]:
+            - rowgroup [ref=f66e358]:
+              - row "Sort by Category Sort by Question Sort by Reference answer Sort by Actual answer Sort by Score" [ref=f66e359]:
+                - columnheader [ref=f66e360]
+                - columnheader "Sort by Category" [ref=f66e362]:
+                  - generic "Sort by Category" [ref=f66e364]:
+                    - generic [ref=f66e365]:
+                      - generic: Category
+                    - generic [ref=f66e366]: 
+                - columnheader "Sort by Question" [ref=f66e367]:
+                  - generic "Sort by Question" [ref=f66e369]:
+                    - generic [ref=f66e370]:
+                      - generic: Question
+                    - generic [ref=f66e371]: 
+                - columnheader "Sort by Reference answer" [ref=f66e372]:
+                  - generic "Sort by Reference answer" [ref=f66e374]:
+                    - generic [ref=f66e375]:
+                      - generic: Reference answer
+                    - generic [ref=f66e376]: 
+                - columnheader "Sort by Actual answer" [ref=f66e377]:
+                  - generic "Sort by Actual answer" [ref=f66e379]:
+                    - generic [ref=f66e380]:
+                      - generic: Actual answer
+                    - generic [ref=f66e381]: 
+                - columnheader "Sort by Score" [ref=f66e382]:
+                  - generic "Sort by Score" [ref=f66e384]:
+                    - generic [ref=f66e385]:
+                      - generic: Score
+                    - generic [ref=f66e386]: 
+            - rowgroup [ref=f66e387]
+            - rowgroup
+  - generic [ref=f66e4]: Online

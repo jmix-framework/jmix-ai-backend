@@ -41,8 +41,6 @@ public class CheckRunComparisonView extends StandardView {
     @ViewComponent
     private HorizontalLayout summaryCards;
     @ViewComponent
-    private Chart overviewChart;
-    @ViewComponent
     private Chart categoryChart;
     @ViewComponent
     private Chart deltaChart;
@@ -96,16 +94,6 @@ public class CheckRunComparisonView extends StandardView {
         CheckAnalyticsService.ComparisonSummary summary = analyticsService.summarizeConfigs(base, cand, deltas);
 
         renderSummary(summary);
-
-        // overview: overall averaged score and accuracy, baseline vs candidate
-        List<MapDataItem> overviewItems = List.of(
-                new MapDataItem(Map.of("metric", "Avg score",
-                        "baseline", nz(summary.baseScore()), "candidate", nz(summary.candidateScore()))),
-                new MapDataItem(Map.of("metric", "Accuracy",
-                        "baseline", nz(summary.baseAccuracy()), "candidate", nz(summary.candidateAccuracy()))));
-        overviewChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
-                .withDataProvider(new ListChartItems<>(overviewItems))
-                .withCategoryField("metric").withValueFields("baseline", "candidate")));
 
         // category chart: baseline vs candidate averaged per category
         List<MapDataItem> categoryItems = new ArrayList<>();
@@ -163,10 +151,6 @@ public class CheckRunComparisonView extends StandardView {
         double d = cand - base;
         String arrow = d > 0.0001 ? " ▲" : d < -0.0001 ? " ▼" : "";
         return "%.2f → %.2f (%+.2f)%s".formatted(base, cand, d, arrow);
-    }
-
-    private static double nz(Double d) {
-        return d == null ? 0.0 : d;
     }
 
     private static String fmt(double v) {

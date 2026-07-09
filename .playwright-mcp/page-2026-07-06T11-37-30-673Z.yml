@@ -1,0 +1,65 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e45]:
+    - banner [ref=e47]:
+      - button "Menu toggle" [expanded] [ref=e48]:
+        - generic [ref=e50]: 
+        - text: 
+      - heading [level=1]
+    - generic [ref=e52]:
+      - heading "Jmix AI Backend" [level=2] [ref=e53]:
+        - link "Jmix AI Backend" [ref=e54] [cursor=pointer]:
+          - /url: .
+      - navigation "Views" [ref=e55]:
+        - list [ref=e56]:
+          - listitem [ref=e57]:
+            - link "Chat" [ref=e58] [cursor=pointer]:
+              - /url: chat-view
+              - img [ref=e60]
+              - generic [ref=e64]: Chat
+          - listitem [ref=e65]:
+            - link "Chat logs" [ref=e66] [cursor=pointer]:
+              - /url: chat-logs
+              - img [ref=e68]
+              - generic [ref=e73]: Chat logs
+          - listitem [ref=e74]:
+            - generic [ref=e75]:
+              - button "Configuration" [expanded] [ref=e76]:
+                - generic [ref=e77]: 
+                - generic [ref=e80]: Configuration
+              - list [ref=e83]:
+                - listitem [ref=e84]:
+                  - link "Parameters" [ref=e85] [cursor=pointer]:
+                    - /url: parameters
+                    - generic [ref=e86]: Parameters
+                - listitem [ref=e87]:
+                  - link "Vector store" [ref=e88] [cursor=pointer]:
+                    - /url: vector-store
+                    - generic [ref=e89]: Vector store
+                - listitem [ref=e90]:
+                  - link "Entity inspector" [ref=e91] [cursor=pointer]:
+                    - /url: datatl/entity-inspector
+                    - generic [ref=e92]: Entity inspector
+          - listitem [ref=e93]:
+            - generic [ref=e94]:
+              - button "Answer checks" [expanded] [ref=e95]:
+                - generic [ref=e96]: 
+                - generic "Answer checks description" [ref=e98]:
+                  - generic [ref=e99]: Answer checks
+              - list [ref=e102]:
+                - listitem [ref=e103]:
+                  - link "Check definitions" [ref=e104] [cursor=pointer]:
+                    - /url: check-defs
+                    - generic [ref=e105]: Check definitions
+                - listitem [ref=e106]:
+                  - link "Check runs" [ref=e107] [cursor=pointer]:
+                    - /url: check-runs
+                    - generic [ref=e108]: Check runs
+          - listitem [ref=e109]:
+            - button "Security" [ref=e111]:
+              - generic [ref=e112]: 
+              - generic [ref=e115]: Security
+      - generic [ref=e116]:
+        - generic "[admin]" [ref=e117]
+        - button "Logout" [ref=e118]:
+          - generic [ref=e121]: 
+  - generic [ref=e4]: Online

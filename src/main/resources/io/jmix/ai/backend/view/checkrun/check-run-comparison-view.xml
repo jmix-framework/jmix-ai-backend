@@ -14,28 +14,6 @@
 
             <hbox id="summaryCards" width="100%" spacing="true"/>
 
-            <charts:chart id="overviewChart" width="100%" height="15em" minHeight="13em">
-                <charts:title text="msg://overview.title"/>
-                <charts:legend bottom="0"/>
-                <charts:tooltip trigger="AXIS">
-                    <charts:axisPointer type="SHADOW"/>
-                </charts:tooltip>
-                <charts:xAxes>
-                    <charts:xAxis type="CATEGORY"/>
-                </charts:xAxes>
-                <charts:yAxes>
-                    <charts:yAxis type="VALUE" min="0" max="1"/>
-                </charts:yAxes>
-                <charts:series>
-                    <charts:bar name="baseline">
-                        <charts:itemStyle color="#8C8C8C"/>
-                    </charts:bar>
-                    <charts:bar name="candidate">
-                        <charts:itemStyle color="#5AD8A6"/>
-                    </charts:bar>
-                </charts:series>
-            </charts:chart>
-
             <hbox width="100%" height="24em" spacing="true">
                 <charts:chart id="categoryChart" width="100%" height="100%" minWidth="20em">
                     <charts:title text="msg://category.title"/>

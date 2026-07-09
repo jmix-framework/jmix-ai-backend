@@ -1,0 +1,430 @@
+[
+ {
+  "className": "io.jmix.flowui.view.builder.DetailWindowClassBuilder",
+  "unknown": [
+   "detailWindow",
+   "viewBuilder"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs.BackgroundTaskDialogBuilder",
+  "unknown": [
+   "backgroundTaskDialog"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs.DialogBuilder",
+  "unknown": [
+   "message"
+  ]
+ },
+ {
+  "className": "io.jmix.security.model.RowLevelBiPredicate",
+  "unknown": [
+   "canAccess"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.xml.layout.loader.container.AccordionPanelLoader",
+  "unknown": [
+   "exposeCreateComponent"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.kit.component.ActionHolder",
+  "unknown": [
+   "if"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Actions",
+  "unknown": [
+   "perform"
+  ]
+ },
+ {
+  "className": "io.jmix.core.security.AddonAuthenticationManagerSupplier",
+  "unknown": [
+   "authenticate"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.devserver.AppShell",
+  "unknown": [
+   "AppShellSettings"
+  ]
+ },
+ {
+  "className": "io.jmix.core.security.ClientDetails",
+  "unknown": [
+   "clientType",
+   "locale",
+   "scope",
+   "sessionId",
+   "timeZone"
+  ]
+ },
+ {
+  "className": "io.jmix.core.security.AuthenticationManagerSupplier",
+  "unknown": [
+   "authenticate"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.model.BaseCollectionLoader",
+  "unknown": [
+   "ascending",
+   "by"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.download.ByteArrayDownloadDataProvider",
+  "unknown": [
+   "readAllBytes"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.download.DownloadDataProvider",
+  "unknown": [
+   "ByteArrayInputStream",
+   "read"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.kit.component.ComponentUtils",
+  "unknown": [
+   "keyCombination"
+  ]
+ },
+ {
+  "className": "io.jmix.core.querycondition.ConditionXmlLoader",
+  "unknown": [
+   "parseText"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.data.items.ContainerDataProvider",
+  "unknown": [
+   "compareToIgnoreCase"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.grid.editor.DataGridEditorImpl",
+  "unknown": [
+   "TextField"
+  ]
+ },
+ {
+  "className": "io.jmix.core.DateTimeTransformations",
+  "unknown": [
+   "systemDefault"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.view.DefaultMainViewParent",
+  "unknown": [
+   "BeforeEnterEvent"
+  ]
+ },
+ {
+  "className": "io.jmix.core.DeletePolicyException",
+  "unknown": [
+   "softDelete"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs",
+  "unknown": [
+   "caption"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs.HasModal",
+  "unknown": [
+   "message"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs.HasTheme",
+  "unknown": [
+   "messageDialogBuilder",
+   "text",
+   "title"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs.InputDialogBuilder.LabelsPosition",
+  "unknown": [
+   "inputDialog"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs.MessageDialogBuilder",
+  "unknown": [
+   "messageDialog"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs.Resizable",
+  "unknown": [
+   "messageDialogBuilder"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.Dialogs.SideDialogBuilder",
+  "unknown": [
+   "sideDialog"
+  ]
+ },
+ {
+  "className": "io.jmix.core.common.util.Dom4j",
+  "unknown": [
+   "FileOutputStream"
+  ]
+ },
+ {
+  "className": "io.jmix.core.datastore.security.EntityAttributesEraser",
+  "unknown": [
+   "for"
+  ]
+ },
+ {
+  "className": "io.jmix.core.EntityAttributeSerializationExtension",
+  "unknown": [
+   "JsonPrimitive"
+  ]
+ },
+ {
+  "className": "io.jmix.core.EntityAttributeVisitor",
+  "unknown": [
+   "traverseAttributes"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.combobox.EntityComboBox",
+  "unknown": [
+   "completedFuture"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.sys.registration.FacetRegistration",
+  "unknown": [
+   "facet",
+   "facetLoader",
+   "replaces",
+   "tag"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.download.FileRefDownloadDataProvider",
+  "unknown": [
+   "read"
+  ]
+ },
+ {
+  "className": "io.jmix.core.FileTransferException",
+  "unknown": [
+   "upload"
+  ]
+ },
+ {
+  "className": "io.jmix.securityflowui.security.FlowuiVaadinWebSecurity",
+  "unknown": [
+   "requestMatcher"
+  ]
+ },
+ {
+  "className": "io.jmix.core.FluentLoader.ByCondition",
+  "unknown": [
+   "byCondition"
+  ]
+ },
+ {
+  "className": "io.jmix.core.FluentLoader.ById",
+  "unknown": [
+   "byId"
+  ]
+ },
+ {
+  "className": "io.jmix.core.FluentLoader.ByQuery",
+  "unknown": [
+   "byQuery"
+  ]
+ },
+ {
+  "className": "io.jmix.core.FluentValueLoader",
+  "unknown": [
+   "UserDto"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.view.Supply",
+  "unknown": [
+   "Column"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.validation.FutureValidator",
+  "unknown": [
+   "plusMinutes"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.gridlayout.GridLayout",
+  "unknown": [
+   "intValue",
+   "ofStream"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.action.inputdialog.InputDialogAction",
+  "unknown": [
+   "singleKey"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.textfield.JmixBigDecimalField",
+  "unknown": [
+   "signum"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.textfield.JmixEmailField",
+  "unknown": [
+   "ok"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.scroller.JmixScroller",
+  "unknown": [
+   "VerticalLayout"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.kit.component.usermenu.JmixUserMenu.AbstractUserMenuItem",
+  "unknown": [
+   "wire"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.kit.component.usermenu.JmixUserMenuItemsDelegate.SeparatorUserMenuItem",
+  "unknown": [
+   "Html"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.view.navigation.ListViewNavigator",
+  "unknown": [
+   "listView"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.upload.receiver.MultiFileTemporaryStorageBuffer",
+  "unknown": [
+   "write"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.action.ObservableBaseAction",
+  "unknown": [
+   "keyCombination"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.validation.PastOrPresentValidator",
+  "unknown": [
+   "plusMinutes"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.validation.PastValidator",
+  "unknown": [
+   "minusHours"
+  ]
+ },
+ {
+  "className": "io.jmix.core.QueryParamValueProvider",
+  "unknown": [
+   "Order"
+  ]
+ },
+ {
+  "className": "io.jmix.core.Resources",
+  "unknown": [
+   "readNBytes"
+  ]
+ },
+ {
+  "className": "io.jmix.security.role.assignment.RoleAssignmentRoleType",
+  "unknown": [
+   "equalsIgnoreCase"
+  ]
+ },
+ {
+  "className": "io.jmix.security.authentication.StandardAuthenticationManagerSupplier",
+  "unknown": [
+   "authenticate"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.asynctask.UiAsyncTasks",
+  "unknown": [
+   "generate"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.backgroundtask.UiBackgroundTaskProperties",
+  "unknown": [
+   "ofSeconds"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.sys.event.UiEventListenerMethodAdapter",
+  "unknown": [
+   "forInstance"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.exception.UiExceptionHandler",
+  "unknown": [
+   "if"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.action.ViewOpeningAction",
+  "unknown": [
+   "wasCancelled"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.sys.ViewSupport.BackwardNavigationTargets",
+  "unknown": [
+   "first",
+   "second"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.sys.ViewXmlParser",
+  "unknown": [
+   "ByteArrayInputStream"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.delegate.VirtualListDelegate",
+  "unknown": [
+   "ofCollection"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.delegate.RichTextEditorDelegate",
+  "unknown": [
+   "TextArea"
+  ]
+ },
+ {
+  "className": "io.jmix.flowui.component.timepicker.TypedTimePicker",
+  "unknown": [
+   "systemDefault"
+  ]
+ }
+]

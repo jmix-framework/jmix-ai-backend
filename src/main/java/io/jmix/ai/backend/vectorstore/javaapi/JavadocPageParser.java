@@ -40,7 +40,7 @@ public class JavadocPageParser {
         }
 
         List<JavadocClassDoc.Member> fields = parseSummaryTable(doc, "section.field-summary");
-        fields.addAll(parseSummaryTable(doc, "section.constants-summary, section.enum-constant-summary"));
+        fields.addAll(parseSummaryTable(doc, "section.enum-constant-summary"));
         List<JavadocClassDoc.Member> constructors = parseSummaryTable(doc, "section.constructor-summary");
         List<JavadocClassDoc.Member> methods = parseSummaryTable(doc, "section.method-summary");
 
