@@ -21,14 +21,12 @@ import java.util.Optional;
 public abstract class AbstractOpenAiEnricher {
 
     private final String modelName;
-    private final double temperature;
     private final String reasoningEffort;
     private final OpenAiApi openAiApi;
 
-    protected AbstractOpenAiEnricher(String modelName, double temperature, String reasoningEffort,
+    protected AbstractOpenAiEnricher(String modelName, String reasoningEffort,
                                      String configuredApiKey, boolean requireApiKey) {
         this.modelName = modelName;
-        this.temperature = temperature;
         this.reasoningEffort = reasoningEffort;
         String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
         if (requireApiKey && StringUtils.isBlank(apiKey)) {
@@ -51,7 +49,6 @@ public abstract class AbstractOpenAiEnricher {
         }
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .model(modelName)
-                .temperature(temperature)
                 .responseFormat(new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, outputConverter().getJsonSchema()));
         if (!StringUtils.isBlank(reasoningEffort)) {
             options.reasoningEffort(reasoningEffort);

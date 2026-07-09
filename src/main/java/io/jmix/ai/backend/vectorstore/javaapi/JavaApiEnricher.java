@@ -51,18 +51,25 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
 
     private final boolean enabled;
 
+    // bump on SYSTEM_PROMPT changes: invalidates the enrichment cache and rebuilds existing chunks
+    private static final String PROMPT_VERSION = "p2";
+
     public JavaApiEnricher(
             @Value("${javaapi.enrichment.enabled}") boolean enabled,
             @Value("${javaapi.enrichment.model}") String modelName,
-            @Value("${javaapi.enrichment.temperature}") double temperature,
             @Value("${javaapi.enrichment.reasoning-effort:}") String reasoningEffort,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey) {
-        super(modelName, temperature, reasoningEffort, configuredApiKey, enabled);
+        super(modelName, reasoningEffort, configuredApiKey, enabled);
         this.enabled = enabled;
     }
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    @Override
+    public String getModelKey() {
+        return super.getModelKey() + ":" + PROMPT_VERSION;
     }
 
     @Override

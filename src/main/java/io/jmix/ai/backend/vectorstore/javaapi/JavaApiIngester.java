@@ -179,7 +179,8 @@ public class JavaApiIngester extends AbstractIngester {
             for (String part : parts) {
                 Map<String, Object> metadataCopy = new HashMap<>(document.getMetadata());
                 metadataCopy.put("size", part.length());
-                if (currentGenerationKey() != null) {
+                // failed enrichment stays unstamped so the next update retries it
+                if (currentGenerationKey() != null && "true".equals(metadataCopy.get("enriched"))) {
                     metadataCopy.put("generationKey", currentGenerationKey());
                 }
                 chunkDocs.add(createDocument(part, metadataCopy));

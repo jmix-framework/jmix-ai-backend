@@ -33,7 +33,7 @@ class SnippetizerEnricherTest {
         Prompt capturedPrompt;
 
         TestSnippetizer(ChatModel chatModel) {
-            super("test-model", 1.0, "low", 4, "test-key", mock(EnrichmentCacheRepository.class));
+            super("test-model", "low", 4, "test-key", mock(EnrichmentCacheRepository.class));
             this.chatModel = chatModel;
         }
 

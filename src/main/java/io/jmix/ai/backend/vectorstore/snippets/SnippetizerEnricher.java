@@ -87,12 +87,11 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
 
     public SnippetizerEnricher(
             @Value("${snippets.enrichment.model}") String modelName,
-            @Value("${snippets.enrichment.temperature}") double temperature,
             @Value("${snippets.enrichment.reasoning-effort:}") String reasoningEffort,
             @Value("${snippets.enrichment.parallelism}") int parallelism,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
             EnrichmentCacheRepository enrichmentCacheRepository) {
-        super(modelName, temperature, reasoningEffort, configuredApiKey, false);
+        super(modelName, reasoningEffort, configuredApiKey, false);
         this.parallelism = Math.max(1, parallelism);
         this.enrichmentCacheRepository = enrichmentCacheRepository;
     }
