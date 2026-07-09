@@ -4,6 +4,7 @@ import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.entity.Check;
 import io.jmix.ai.backend.entity.CheckDef;
 import io.jmix.ai.backend.entity.CheckRun;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.DataManager;
 import io.jmix.core.Id;
 import org.junit.jupiter.api.AfterEach;
@@ -166,7 +167,7 @@ public class CheckRunnerTest {
     private static class TestChat implements Chat {
 
         @Override
-        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, Consumer<String> externalLogger) {
             if (userPrompt.equals("What is the answer?")) {
                 return new StructuredResponse("42", List.of(), null, 100, 200, 1000);
             }
@@ -191,7 +192,7 @@ public class CheckRunnerTest {
     private static class EchoChat implements Chat {
 
         @Override
-        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, Consumer<String> externalLogger) {
             String answer = userPrompt.replace("Question ", "Answer ");
             return new StructuredResponse(answer, List.of(), null, 10, 10, 10);
         }
@@ -200,7 +201,7 @@ public class CheckRunnerTest {
     private static class FailingChat implements Chat {
 
         @Override
-        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, Consumer<String> externalLogger) {
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, Consumer<String> externalLogger) {
             if ("fail".equals(userPrompt)) {
                 throw new RuntimeException("simulated failure");
             }

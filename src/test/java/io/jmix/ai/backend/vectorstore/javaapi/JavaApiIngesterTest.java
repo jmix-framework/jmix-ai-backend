@@ -48,7 +48,7 @@ class JavaApiIngesterTest {
     @BeforeEach
     void setUp() {
         ingester = new JavaApiIngester(
-                "https://docs.jmix.io/api/2.8", "allclasses-index.html", "core", "/impl/,/antlr2/", 0, 4,
+                "https://docs.jmix.io/api/2.8", "", "allclasses-index.html", "core", "/impl/,/antlr2/", 0, 4,
                 vectorStore, timeSource, vectorStoreRepository, enricher, enrichmentCacheRepository);
     }
 
@@ -56,7 +56,8 @@ class JavaApiIngesterTest {
         return new Document("1", CARD.format(), Map.of(
                 "type", "javaapi",
                 "source", "io/jmix/core/DataManager.html",
-                "sourceHash", "hash1"));
+                "sourceHash", "hash1",
+                "jmixVersion", "v2"));
     }
 
     @Test
@@ -79,7 +80,7 @@ class JavaApiIngesterTest {
         cached.setContentHash("hash1");
         cached.setDescription("Cached description.");
         cached.setExample("DataManager dm;");
-        when(enrichmentCacheRepository.find("javaapi", "io/jmix/core/DataManager.html", "test-model"))
+        when(enrichmentCacheRepository.find("javaapi", "io/jmix/core/DataManager.html", "v2", "test-model"))
                 .thenReturn(Optional.of(cached));
 
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
@@ -90,7 +91,7 @@ class JavaApiIngesterTest {
                 .contains("// Usage example:\nDataManager dm;");
         assertThat(chunks.get(0).getMetadata()).containsEntry("enriched", "true");
         verify(enricher, never()).enrich(anyString());
-        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any());
+        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -99,7 +100,7 @@ class JavaApiIngesterTest {
         when(enricher.getModelKey()).thenReturn("test-model");
         EnrichmentCache stale = new EnrichmentCache();
         stale.setContentHash("old-hash");
-        when(enrichmentCacheRepository.find(any(), any(), any())).thenReturn(Optional.of(stale));
+        when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.of(stale));
         when(enricher.enrich(anyString()))
                 .thenReturn(new JavaApiEnricher.Enrichment("Generated description.", "dm.unconstrained();"));
 
@@ -110,7 +111,7 @@ class JavaApiIngesterTest {
                 .contains("DESCRIPTION: Generated description.")
                 .contains("dm.unconstrained();");
         verify(enricher).enrich(CARD.format());
-        verify(enrichmentCacheRepository).save("javaapi", "io/jmix/core/DataManager.html", "test-model",
+        verify(enrichmentCacheRepository).save("javaapi", "io/jmix/core/DataManager.html", "v2", "test-model",
                 "hash1", "Generated description.", "dm.unconstrained();");
     }
 
@@ -118,7 +119,7 @@ class JavaApiIngesterTest {
     void splitToChunks_FallsBackToDeterministicCardOnGenerationFailure() {
         when(enricher.isEnabled()).thenReturn(true);
         when(enricher.getModelKey()).thenReturn("test-model");
-        when(enrichmentCacheRepository.find(any(), any(), any())).thenReturn(Optional.empty());
+        when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
         when(enricher.enrich(anyString())).thenReturn(null);
 
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
@@ -126,14 +127,14 @@ class JavaApiIngesterTest {
         assertThat(chunks).hasSize(1);
         assertThat(chunks.get(0).getText()).isEqualTo(CARD.format());
         assertThat(chunks.get(0).getMetadata()).doesNotContainKey("enriched");
-        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any());
+        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void splitToChunks_EnrichesAllDocumentsInParallel() {
         when(enricher.isEnabled()).thenReturn(true);
         when(enricher.getModelKey()).thenReturn("test-model");
-        when(enrichmentCacheRepository.find(any(), any(), any())).thenReturn(Optional.empty());
+        when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
         when(enricher.enrich(anyString()))
                 .thenAnswer(inv -> new JavaApiEnricher.Enrichment("Generated.", ""));
 
@@ -145,7 +146,12 @@ class JavaApiIngesterTest {
         assertThat(chunks).allSatisfy(chunk ->
                 assertThat(chunk.getText()).contains("DESCRIPTION: Generated."));
         verify(enricher, times(4)).enrich(anyString());
-        verify(enrichmentCacheRepository, times(4)).save(any(), any(), any(), any(), any(), any());
+        verify(enrichmentCacheRepository, times(4)).save(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void getVersions_ReturnsOnlyConfiguredVersions() {
+        assertThat(ingester.getVersions()).extracting(Enum::name).containsExactly("V2");
     }
 
     @Test

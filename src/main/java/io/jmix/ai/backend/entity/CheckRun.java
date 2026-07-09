@@ -30,6 +30,9 @@ public class CheckRun {
     @Lob
     private String parameters;
 
+    @Column(name = "JMIX_VERSION")
+    private String jmixVersion = JmixVersion.V2.getId();
+
     @Column(name = "SCORE")
     private Double score;
 
@@ -38,6 +41,14 @@ public class CheckRun {
 
     @Column(name = "CONFIG_LABEL")
     private String configLabel;
+
+    public JmixVersion getJmixVersion() {
+        return jmixVersion == null ? null : JmixVersion.fromId(jmixVersion);
+    }
+
+    public void setJmixVersion(JmixVersion jmixVersion) {
+        this.jmixVersion = jmixVersion == null ? null : jmixVersion.getId();
+    }
 
     public String getConfigLabel() {
         return configLabel;

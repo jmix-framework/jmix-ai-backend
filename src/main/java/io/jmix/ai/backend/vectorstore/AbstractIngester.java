@@ -2,6 +2,7 @@ package io.jmix.ai.backend.vectorstore;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.core.TimeSource;
 import io.jmix.core.UuidProvider;
@@ -28,30 +29,47 @@ public abstract class AbstractIngester implements Ingester {
     protected final VectorStore vectorStore;
     protected final TimeSource timeSource;
     protected final VectorStoreRepository vectorStoreRepository;
+    protected final boolean versionScoped;
 
     protected AbstractIngester(
             VectorStore vectorStore,
             TimeSource timeSource,
-            VectorStoreRepository vectorStoreRepository) {
+            VectorStoreRepository vectorStoreRepository,
+            boolean versionScoped) {
         this.vectorStore = vectorStore;
         this.timeSource = timeSource;
         this.vectorStoreRepository = vectorStoreRepository;
+        this.versionScoped = versionScoped;
+    }
+
+    @Override
+    public List<JmixVersion> getVersions() {
+        return versionScoped ? List.of(JmixVersion.V2, JmixVersion.V3) : List.of();
     }
 
     @Override
     public String updateAll() {
+        return doUpdateAll(null);
+    }
+
+    @Override
+    public String updateAll(JmixVersion version) {
+        return doUpdateAll(versionScoped ? version : null);
+    }
+
+    private String doUpdateAll(@Nullable JmixVersion version) {
         long start = timeSource.currentTimeMillis();
 
-        prepareUpdate();
+        prepareUpdate(version);
 
-        List<String> sources = loadSources();
+        List<String> sources = loadSources(version);
         int limit = getSourceLimit();
         log.info("Found {} sources, loading {}", sources.size(), limit > 0 ? "first " + limit : "all");
 
         List<Document> documents = sources.stream()
                 .limit(limit > 0 ? limit : sources.size())
-                .map(this::loadDocument)
-                .filter(this::checkContent)
+                .map(source -> loadDocument(source, version))
+                .filter(document -> checkContent(document, version))
                 .toList();
 
         log.debug("Splitting {} sources into chunks", documents.size());
@@ -65,17 +83,27 @@ public abstract class AbstractIngester implements Ingester {
         return "loaded: %d, added: %d documents in %d chunks".formatted(sources.size(), documents.size(), docChunks.size());
     }
 
+    protected void prepareUpdate(@Nullable JmixVersion version) {
+        prepareUpdate();
+    }
+
     protected void prepareUpdate() {
     }
 
     @Override
     public String update(VectorStoreEntity entity) {
-        prepareUpdate();
+        JmixVersion version = versionScoped
+                ? JmixVersion.fromId((String) entity.getMetadataMap().get("jmixVersion"))
+                : null;
+        if (versionScoped && version == null) {
+            return "cannot update: missing jmixVersion metadata";
+        }
+        prepareUpdate(version);
 
         String source = getSource(entity);
         log.info("Loading source: {}", source);
 
-        Document document = loadDocument(source);
+        Document document = loadDocument(source, version);
         if (document == null) {
             return "source not found: " + source;
         }
@@ -94,7 +122,11 @@ public abstract class AbstractIngester implements Ingester {
         }
     }
 
-    protected boolean checkContent(Document document) {
+    protected boolean checkContent(@Nullable Document document) {
+        return checkContent(document, null);
+    }
+
+    protected boolean checkContent(@Nullable Document document, @Nullable JmixVersion version) {
         if (document == null) {
             return false;
         }
@@ -102,7 +134,7 @@ public abstract class AbstractIngester implements Ingester {
         String source = getSourceFromDocument(document);
 
         List<VectorStoreEntity> entities = vectorStoreRepository.loadList(
-                buildFilterQuery(source)
+                buildFilterQuery(source, version)
         );
 
         if (entities.isEmpty()) {
@@ -120,12 +152,19 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     protected Map<String, Object> createMetadata(String source, String textContent) {
+        return createMetadata(source, textContent, null);
+    }
+
+    protected Map<String, Object> createMetadata(String source, String textContent, @Nullable JmixVersion version) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("type", getType());
         metadata.put("source", source);
         metadata.put("sourceHash", computeHash(textContent));
         metadata.put("size", textContent.length());
         metadata.put("updated", timeSource.now().toLocalDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        if (versionScoped && version != null) {
+            metadata.put("jmixVersion", version.getId());
+        }
         return metadata;
     }
 
@@ -146,6 +185,14 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     protected String buildFilterQuery(String source) {
+        return buildFilterQuery(source, null);
+    }
+
+    protected String buildFilterQuery(String source, @Nullable JmixVersion version) {
+        if (versionScoped && version != null) {
+            return "type == '%s' && source == '%s' && jmixVersion == '%s'"
+                    .formatted(getType(), source, version.getId());
+        }
         return "type == '%s' && source == '%s'".formatted(getType(), source);
     }
 
@@ -167,7 +214,10 @@ public abstract class AbstractIngester implements Ingester {
 
     protected void deleteExistingEntities(VectorStoreEntity entity) {
         String source = getSource(entity);
-        List<VectorStoreEntity> entities = vectorStoreRepository.loadList(buildFilterQuery(source));
+        JmixVersion version = versionScoped
+                ? JmixVersion.fromId((String) entity.getMetadataMap().get("jmixVersion"))
+                : null;
+        List<VectorStoreEntity> entities = vectorStoreRepository.loadList(buildFilterQuery(source, version));
         vectorStoreRepository.delete(entities);
     }
 
@@ -176,11 +226,20 @@ public abstract class AbstractIngester implements Ingester {
         return hash32.toString();
     }
 
+    protected List<String> loadSources(@Nullable JmixVersion version) {
+        return loadSources();
+    }
+
     protected List<String> loadSources() {
         return List.of();
     }
 
     protected abstract int getSourceLimit();
+
+    @Nullable
+    protected Document loadDocument(String source, @Nullable JmixVersion version) {
+        return loadDocument(source);
+    }
 
     @Nullable
     protected Document loadDocument(String source) {

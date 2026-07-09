@@ -37,7 +37,8 @@
                 <charts:yAxis type="VALUE"/>
             </charts:yAxes>
             <charts:series>
-                <charts:bar name="chunks"/>
+                <charts:bar name="v2"/>
+                <charts:bar name="v3"/>
             </charts:series>
         </charts:chart>
         <details id="topicDetails" summaryText="msg://topicCoverage.title"

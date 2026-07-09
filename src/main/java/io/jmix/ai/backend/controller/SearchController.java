@@ -1,5 +1,7 @@
 package io.jmix.ai.backend.controller;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.retrieval.SearchResultsFormatter;
 import io.jmix.ai.backend.retrieval.SearchService;
 import org.apache.commons.lang3.StringUtils;
@@ -33,7 +35,11 @@ public class SearchController {
         if (request.query().length() > MAX_QUERY_LENGTH) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Query is too long");
         }
-        List<Document> documents = searchService.search(request.query());
+        JmixVersion version = JmixVersion.fromId(request.jmixVersion());
+        if (version == null) {
+            version = JmixVersion.V2;
+        }
+        List<Document> documents = searchService.search(request.query(), version);
 
         documents = SearchResultsFormatter.sortByRelevance(documents);
         documents = SearchResultsFormatter.applyTokenBudget(documents, request.tokens());
@@ -56,6 +62,7 @@ public class SearchController {
 
     public record SearchRequest(
             String query,
+            @JsonProperty("jmix_version") String jmixVersion,
             Integer tokens) {
     }
 }

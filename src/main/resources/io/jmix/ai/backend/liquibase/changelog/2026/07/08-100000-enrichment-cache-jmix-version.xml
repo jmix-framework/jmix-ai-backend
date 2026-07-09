@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+    <changeSet id="1" author="jmix-ai-backend">
+        <addColumn tableName="ENRICHMENT_CACHE">
+            <column name="JMIX_VERSION" type="VARCHAR(10)"/>
+        </addColumn>
+        <!-- everything cached so far was generated from v2 sources -->
+        <update tableName="ENRICHMENT_CACHE">
+            <column name="JMIX_VERSION" value="v2"/>
+        </update>
+        <dropIndex tableName="ENRICHMENT_CACHE" indexName="IDX_ENRICHMENT_CACHE_LOOKUP"/>
+        <createIndex tableName="ENRICHMENT_CACHE" indexName="IDX_ENRICHMENT_CACHE_LOOKUP" unique="true">
+            <column name="TYPE_"/>
+            <column name="SOURCE"/>
+            <column name="JMIX_VERSION"/>
+            <column name="MODEL_NAME"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

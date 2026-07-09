@@ -41,21 +41,22 @@ public class CheckAnalyticsService {
                                     Double baseAccuracy, Double candidateAccuracy) {
     }
 
-    /** A selectable comparison target: one config, backed by all its runs. */
+    /** A selectable comparison target: one config on one Jmix version, backed by all its runs. */
     public record ConfigOption(String config, String label, double meanScore, double meanAccuracy) {
     }
 
     /**
-     * Distinct configs across all finished runs, each aggregating its runs, so the user compares a
-     * meaningful noise-averaged config rather than two arbitrary single runs.
+     * Distinct config x version pairs across all finished runs, each aggregating its runs, so the
+     * user compares a meaningful noise-averaged config rather than two arbitrary single runs.
      */
     public List<ConfigOption> configOptions() {
         List<ConfigOption> options = new ArrayList<>();
-        groupRunsByConfig().forEach((config, group) -> {
+        groupRunsByConfig().forEach((key, group) -> {
             double meanScore = group.stream().mapToDouble(r -> r.getScore() != null ? r.getScore() : 0.0).average().orElse(0.0);
             double meanAcc = group.stream().mapToDouble(r -> r.getAccuracy() != null ? r.getAccuracy() : 0.0).average().orElse(0.0);
-            String label = "%s  (%d run%s)".formatted(shortConfig(config), group.size(), group.size() == 1 ? "" : "s");
-            options.add(new ConfigOption(config, label, round(meanScore), round(meanAcc)));
+            String[] p = key.split("\\|\\|", 2);
+            String label = "[%s] %s  (%d run%s)".formatted(p[1], shortConfig(p[0]), group.size(), group.size() == 1 ? "" : "s");
+            options.add(new ConfigOption(key, label, round(meanScore), round(meanAcc)));
         });
         options.sort(java.util.Comparator.comparing(ConfigOption::config));
         return options;
@@ -68,9 +69,14 @@ public class CheckAnalyticsService {
             if (run.getScore() == null) {
                 continue;
             }
-            groups.computeIfAbsent(configKey(run.getConfigLabel()), k -> new ArrayList<>()).add(run);
+            String key = configKey(run.getConfigLabel()) + "||" + versionId(run);
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(run);
         }
         return groups;
+    }
+
+    private static String versionId(CheckRun run) {
+        return run.getJmixVersion() != null ? run.getJmixVersion().getId() : "?";
     }
 
     private Map<String, double[]> aggregateQuestions(@Nullable ConfigOption option, Map<String, String> categoryOut) {
@@ -157,7 +163,7 @@ public class CheckAnalyticsService {
 
     private String buildLabel(CheckRun run) {
         String date = run.getCreatedDate() != null ? run.getCreatedDate().format(LABEL_FORMAT) : "?";
-        return date + " " + shortConfig(configKey(run.getConfigLabel()));
+        return date + " [" + versionId(run) + "] " + shortConfig(configKey(run.getConfigLabel()));
     }
 
     private static String shortConfig(String label) {

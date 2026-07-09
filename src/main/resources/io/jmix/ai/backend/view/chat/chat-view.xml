@@ -8,6 +8,7 @@
     <layout spacing="true" padding="false">
         <hbox width="100%" alignItems="CENTER" padding="true" spacing="true">
             <button id="newChatButton" text="New chat" themeNames="tertiary"/>
+            <select id="jmixVersionField" itemsEnum="io.jmix.ai.backend.entity.JmixVersion" width="7em"/>
             <span text="Parameters:"/>
             <entityPicker id="parametersPicker" metaClass="Parameters" required="true" width="100%">
                 <actions>

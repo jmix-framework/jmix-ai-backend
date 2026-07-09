@@ -9,14 +9,19 @@ import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
 import io.jmix.ai.backend.chat.StreamingEvent;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.UuidProvider;
 import io.jmix.flowui.Notifications;
+import io.jmix.flowui.component.select.JmixSelect;
 import io.jmix.flowui.component.valuepicker.EntityPicker;
+import io.jmix.flowui.facet.SettingsFacet;
 import io.jmix.flowui.facet.UrlQueryParametersFacet;
+import io.jmix.flowui.facet.ViewSettingsFacet;
+import io.jmix.flowui.facet.settings.ViewSettings;
 import io.jmix.flowui.facet.urlqueryparameters.AbstractUrlQueryParametersBinder;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.view.*;
@@ -46,6 +51,10 @@ public class ChatView extends StandardView {
     @ViewComponent
     private EntityPicker<Parameters> parametersPicker;
     @ViewComponent
+    private JmixSelect<JmixVersion> jmixVersionField;
+    @ViewComponent
+    private ViewSettingsFacet settings;
+    @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
 
     private MessageList messageList;
@@ -57,6 +66,7 @@ public class ChatView extends StandardView {
     @Subscribe
     public void onInit(final InitEvent event) {
         parametersPicker.setValue(parametersRepository.loadActive(ParametersTargetType.CHAT));
+        jmixVersionField.setValue(JmixVersion.V2);
         urlQueryParameters.registerBinder(new UrlBinder());
         updateConversationId();
 
@@ -95,7 +105,7 @@ public class ChatView extends StandardView {
         // doOnComplete — append total elapsed time, re-enable input
         // subscribe()  — starts the stream (nothing happens until subscribe is called)
         disposeActiveStream();
-        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId)
+        activeStreamDisposable = chat.requestStream(text, parameters.getContent(), conversationId, jmixVersionField.getValue())
                 .map(this::renderStreamEvent)
                 .doOnNext(md -> ui.access(() -> {
                     botMsg.appendText(md);
@@ -199,6 +209,19 @@ public class ChatView extends StandardView {
         items.clear();
         messageList.setItems(items);
         updateConversationId();
+    }
+
+    @Install(to = "settings", subject = "applySettingsDelegate")
+    private void settingsApplySettingsDelegate(final SettingsFacet.SettingsContext<ViewSettings> settingsContext) {
+        settings.applySettings();
+        settingsContext.getSettings().getString("jmixVersionField", "value").ifPresent(value ->
+                jmixVersionField.setValue(JmixVersion.fromId(value)));
+    }
+
+    @Install(to = "settings", subject = "saveSettingsDelegate")
+    private void settingsSaveSettingsDelegate(final SettingsFacet.SettingsContext<ViewSettings> settingsContext) {
+        settingsContext.getSettings().put("jmixVersionField", "value", jmixVersionField.getValue().getId());
+        settings.saveSettings();
     }
 
     private class UrlBinder extends AbstractUrlQueryParametersBinder {

@@ -37,9 +37,9 @@ class SnippetsIngestersTest {
 
     @BeforeEach
     void setUp() {
-        docsIngester = new DocsSnippetsIngester("https://docs/v2", "intro.html", 0,
+        docsIngester = new DocsSnippetsIngester("https://docs/v2", "https://docs/v3", "intro.html", 0,
                 vectorStore, timeSource, vectorStoreRepository, snippetizer);
-        uiSamplesIngester = new UiSamplesSnippetsIngester("https://us/v2", "doc", "sample", 0,
+        uiSamplesIngester = new UiSamplesSnippetsIngester("https://us/v2", "https://us/v3", "doc", "sample", 0,
                 vectorStore, timeSource, vectorStoreRepository, snippetizer);
     }
 
@@ -49,6 +49,7 @@ class SnippetsIngestersTest {
                 "type", "docs-snippets",
                 "source", "flow-ui/button.html",
                 "sourceHash", "hash1",
+                "jmixVersion", "v2",
                 "url", "https://docs/v2/flow-ui/button.html",
                 "docPath", "Flow UI > Button"));
     }
@@ -58,6 +59,7 @@ class SnippetsIngestersTest {
                 "type", "uisamples-snippets",
                 "source", "button-sample",
                 "sourceHash", "hash2",
+                "jmixVersion", "v2",
                 "url", "https://us/v2/sample/button-sample"));
     }
 

@@ -167,34 +167,46 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     private void buildTopicHeatmap() {
-        Map<String, Integer> byTopic = new java.util.LinkedHashMap<>();
+        Map<String, int[]> byTopic = new java.util.LinkedHashMap<>();
         for (Object[] row : vectorStoreRepository.countSnippetTopicByVersion()) {
             String topic = (String) row[0];
+            String version = (String) row[1];
             int count = (int) row[2];
             if (topic == null || topic.isBlank()) {
                 continue;
             }
-            byTopic.merge(topic, count, Integer::sum);
+            int[] vv = byTopic.computeIfAbsent(topic, k -> new int[2]);
+            if ("v3".equalsIgnoreCase(version)) {
+                vv[1] += count;
+            } else {
+                vv[0] += count;
+            }
         }
 
-        List<Map.Entry<String, Integer>> top = byTopic.entrySet().stream()
-                .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+        List<Map.Entry<String, int[]>> top = byTopic.entrySet().stream()
+                .sorted((a, b) -> Integer.compare(total(b.getValue()), total(a.getValue())))
                 .limit(24)
                 .toList();
-        int max = top.stream().mapToInt(Map.Entry::getValue).max().orElse(1);
+        int max = top.stream()
+                .flatMapToInt(e -> java.util.stream.IntStream.of(e.getValue()[0], e.getValue()[1]))
+                .max().orElse(1);
 
         Div grid = new Div();
         grid.getStyle().set("display", "grid")
-                .set("grid-template-columns", "minmax(11em, 20em) 5em")
+                .set("grid-template-columns", "minmax(11em, 20em) 5em 5em")
                 .set("gap", "3px").set("max-width", "34em").set("align-items", "stretch");
-        grid.add(headerCell("Topic", "left"), headerCell("chunks", "center"));
-        for (Map.Entry<String, Integer> e : top) {
-            grid.add(topicLabelCell(e.getKey()), heatCell(e.getValue(), max));
+        grid.add(headerCell("Topic", "left"), headerCell("Jmix 2", "center"), headerCell("Jmix 3", "center"));
+        for (Map.Entry<String, int[]> e : top) {
+            grid.add(topicLabelCell(e.getKey()), heatCell(e.getValue()[0], max), heatCell(e.getValue()[1], max));
         }
 
         topicHeatmapBox.removeAll();
         topicHeatmapBox.setPadding(false);
         topicHeatmapBox.add(grid);
+    }
+
+    private static int total(int[] vv) {
+        return vv[0] + vv[1];
     }
 
     private Div headerCell(String text, String align) {
@@ -229,9 +241,10 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     private void buildCoverage() {
-        Map<String, Integer> byType = new java.util.LinkedHashMap<>();
+        Map<String, int[]> byType = new java.util.LinkedHashMap<>();
         for (Object[] row : vectorStoreRepository.countByTypeAndVersion()) {
             String type = (String) row[0];
+            String version = (String) row[1];
             int count = (int) row[2];
             if (type == null) {
                 continue;
@@ -240,13 +253,18 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
             if ("docs".equals(type) || "uisamples".equals(type)) {
                 continue;
             }
-            byType.merge(type, count, Integer::sum);
+            int[] vv = byType.computeIfAbsent(type, k -> new int[2]);
+            if ("v3".equalsIgnoreCase(version)) {
+                vv[1] += count;
+            } else {
+                vv[0] += count;
+            }
         }
         List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        byType.forEach((type, count) -> rows.add(Map.of("corpus", type, "chunks", count)));
+        byType.forEach((type, vv) -> rows.add(Map.of("corpus", type, "v2", vv[0], "v3", vv[1])));
         coverageChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(rows.stream().map(MapDataItem::new).toList()))
-                .withCategoryField("corpus").withValueFields("chunks")));
+                .withCategoryField("corpus").withValueFields("v2", "v3")));
     }
 
     private void buildUpdateMenuItems() {

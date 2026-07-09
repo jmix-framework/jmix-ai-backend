@@ -25,6 +25,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -130,20 +132,20 @@ class AbstractIngesterTest {
                 new Document("4", "chunk2", Map.of())
         );
         
-        doReturn(sources).when(ingester).loadSources();
+        doReturn(sources).when(ingester).loadSources(null);
         doReturn(0).when(ingester).getSourceLimit();
-        doReturn(doc1).when(ingester).loadDocument("source1");
-        doReturn(doc2).when(ingester).loadDocument("source2");
-        doReturn(true).when(ingester).checkContent(any());
+        doReturn(doc1).when(ingester).loadDocument("source1", null);
+        doReturn(doc2).when(ingester).loadDocument("source2", null);
+        doReturn(true).when(ingester).checkContent(any(), isNull());
         doReturn(chunks).when(ingester).splitToChunks(List.of(doc1, doc2));
         when(timeSource.currentTimeMillis()).thenReturn(1000L, 5000L);
-        
+
         String result = ingester.updateAll();
-        
-        verify(ingester).prepareUpdate();
-        verify(ingester).loadSources();
-        verify(ingester).loadDocument("source1");
-        verify(ingester).loadDocument("source2");
+
+        verify(ingester).prepareUpdate(null);
+        verify(ingester).loadSources(null);
+        verify(ingester).loadDocument("source1", null);
+        verify(ingester).loadDocument("source2", null);
         verify(vectorStore).add(chunks);
         assertThat(result).isEqualTo("loaded: 2, added: 2 documents in 2 chunks");
     }
@@ -164,7 +166,7 @@ class AbstractIngesterTest {
         List<Document> chunks = List.of(new Document("2", "chunk", Map.of()));
 
         doReturn("source1").when(ingester).getSource(entity);
-        doReturn(document).when(ingester).loadDocument("source1");
+        doReturn(document).when(ingester).loadDocument(eq("source1"), isNull());
         doReturn(false).when(ingester).isContentSame(document, entity);
         doReturn(chunks).when(ingester).splitToChunks(List.of(document));
 
@@ -190,7 +192,7 @@ class AbstractIngesterTest {
         Document document = new Document("1", "content", Map.of("sourceHash", "hash1"));
         
         doReturn("source1").when(ingester).getSource(entity);
-        doReturn(document).when(ingester).loadDocument("source1");
+        doReturn(document).when(ingester).loadDocument(eq("source1"), isNull());
         doReturn(true).when(ingester).isContentSame(document, entity);
         
         String result = ingester.update(entity);
@@ -205,7 +207,7 @@ class AbstractIngesterTest {
     private static class TestIngester extends AbstractIngester {
         
         public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
-            super(vectorStore, timeSource, vectorStoreRepository);
+            super(vectorStore, timeSource, vectorStoreRepository, false);
         }
 
         @Override

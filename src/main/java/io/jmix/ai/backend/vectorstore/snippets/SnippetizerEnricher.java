@@ -122,7 +122,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
         for (Document document : documents) {
             String contentHash = (String) document.getMetadata().get("sourceHash");
             Optional<List<Snippet>> cached = enrichmentCacheRepository
-                    .find(type, source(document), getModelKey())
+                    .find(type, source(document), jmixVersion(document), getModelKey())
                     .filter(entry -> Objects.equals(contentHash, entry.getContentHash()))
                     .map(EnrichmentCache::getDescription)
                     .map(this::fromJson);
@@ -148,7 +148,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
                 List<Snippet> snippets = getResult(futures.get(i), source(document));
                 if (snippets != null && !snippets.isEmpty()) {
                     result.put(document.getId(), snippets);
-                    enrichmentCacheRepository.save(type, source(document), getModelKey(),
+                    enrichmentCacheRepository.save(type, source(document), jmixVersion(document), getModelKey(),
                             (String) document.getMetadata().get("sourceHash"), toJson(snippets), "");
                 }
                 if ((i + 1) % 100 == 0) {
@@ -222,6 +222,10 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
 
     private String source(Document document) {
         return (String) document.getMetadata().get("source");
+    }
+
+    private String jmixVersion(Document document) {
+        return (String) document.getMetadata().get("jmixVersion");
     }
 
     String toJson(List<Snippet> snippets) {

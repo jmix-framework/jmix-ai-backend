@@ -72,11 +72,12 @@ Content-Type: application/json
 {
     "conversation_id": "test-988979",
     "text": "How can I create a button that triggers a notification when clicked?",
-    "cache_enabled": true
+    "jmix_version": "v2"
 }
 ```
 
-The `cache_enabled` property is currently not used.
+The optional `jmix_version` property (`v2` or `v3`) selects the documentation corpus and the version
+mentioned in the system prompt; it defaults to `v2`.
 
 ## Search API
 
@@ -93,7 +94,7 @@ Content-Type: application/json
 }
 ```
 
-Each result contains `id`, `title`, `source` (URL) and `content` (the snippet text with a verbatim code block). The optional `tokens` field limits the total size of the returned snippets; omit it to get all retrieved documents. The endpoint is configured by the active search parameters record.
+Each result contains `id`, `title`, `source` (URL) and `content` (the snippet text with a verbatim code block). The optional `jmix_version` field (`v2` or `v3`, default `v2`) selects the corpus. The optional `tokens` field limits the total size of the returned snippets; omit it to get all retrieved documents. The endpoint is configured by the active search parameters record.
 
 ## Admin UI
 

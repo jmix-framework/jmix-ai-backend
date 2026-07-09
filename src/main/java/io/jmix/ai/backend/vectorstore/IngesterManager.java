@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore;
 
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import org.springframework.stereotype.Component;
 
@@ -17,8 +18,7 @@ public class IngesterManager {
     public String update() {
         StringBuilder sb = new StringBuilder();
         for (Ingester updater : ingesters) {
-            String result = updater.updateAll();
-            sb.append("<b>").append(updater.getType()).append("</b><br>").append(result).append("<br>");
+            updateAllVersions(updater, sb);
         }
         return sb.toString();
     }
@@ -38,11 +38,22 @@ public class IngesterManager {
         ingesters.stream()
                 .filter(updater -> updater.getType().equals(type))
                 .findFirst()
-                .ifPresent(updater -> {
-                    String result = updater.updateAll();
-                    sb.append("<b>").append(updater.getType()).append("</b><br>").append(result);
-                });
+                .ifPresent(updater -> updateAllVersions(updater, sb));
         return sb.toString();
+    }
+
+    private void updateAllVersions(Ingester updater, StringBuilder sb) {
+        List<JmixVersion> versions = updater.getVersions();
+        if (versions.isEmpty()) {
+            String result = updater.updateAll();
+            sb.append("<b>").append(updater.getType()).append("</b><br>").append(result).append("<br>");
+        } else {
+            for (JmixVersion version : versions) {
+                String result = updater.updateAll(version);
+                sb.append("<b>").append(updater.getType()).append(" (").append(version.getId()).append(")</b><br>")
+                  .append(result).append("<br>");
+            }
+        }
     }
 
     public String updateByEntity(VectorStoreEntity entity) {

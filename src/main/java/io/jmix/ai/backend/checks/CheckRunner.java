@@ -4,6 +4,7 @@ import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.entity.Check;
 import io.jmix.ai.backend.entity.CheckDef;
 import io.jmix.ai.backend.entity.CheckRun;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.DataManager;
 import io.jmix.core.Id;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,13 +51,15 @@ public class CheckRunner {
             return;
         }
 
+        JmixVersion jmixVersion = checkRun.getJmixVersion() != null ? checkRun.getJmixVersion() : JmixVersion.V2;
+
         ExecutorService executorService = Executors.newFixedThreadPool(parallelism);
         List<Check> checks = new ArrayList<>();
         try {
             List<Future<Check>> futures = checkDefs.stream()
                     .map(checkDef ->
                             executorService.submit(() ->
-                                    runCheck(checkDef, checkRun.getParameters())
+                                    runCheck(checkDef, checkRun.getParameters(), jmixVersion)
                             )
                     )
                     .toList();
@@ -93,13 +96,13 @@ public class CheckRunner {
         dataManager.save(checkRun);
     }
 
-    private Check runCheck(CheckDef checkDef, String parameters) {
+    private Check runCheck(CheckDef checkDef, String parameters, JmixVersion jmixVersion) {
         StringBuilder logStringBuilder = new StringBuilder();
         try {
             Consumer<String> logStringConsumer = str ->
                     logStringBuilder.append(str).append("\n");
 
-            String actualAnswer = getAnswer(checkDef.getQuestion(), parameters, logStringConsumer);
+            String actualAnswer = getAnswer(checkDef.getQuestion(), parameters, jmixVersion, logStringConsumer);
 
             if (!logStringBuilder.isEmpty())
                 logStringBuilder.append("\n\n");
@@ -154,8 +157,8 @@ public class CheckRunner {
         return null;
     }
 
-    private String getAnswer(String question, String parameters, Consumer<String> logger) {
-        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, logger);
+    private String getAnswer(String question, String parameters, JmixVersion jmixVersion, Consumer<String> logger) {
+        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, jmixVersion, logger);
         return response.text();
     }
 }
