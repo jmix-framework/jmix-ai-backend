@@ -52,8 +52,8 @@ class DefaultChecksInitializerTest {
         // retired in changeset 1, deliberately reactivated in changeset 2 as an adversarial check
         Set<UUID> reactivatedIds = Set.of(UUID.fromString("018c1f8e-3b80-7fa0-e283-af1a2b3c4d5e"));
 
-        assertThat(definitions).hasSize(67);
-        assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(45);
+        assertThat(definitions).hasSize(81);
+        assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(59);
         assertThat(inactiveDefinitionIds).hasSize(22);
         assertThat(Set.copyOf(migratedIds)).isEqualTo(Stream.concat(
                 inactiveDefinitionIds.stream(), reactivatedIds.stream()).collect(Collectors.toSet()));

@@ -558,5 +558,117 @@
     "category": "fact",
     "question": "Для чего используется аннотация @Install в Jmix?",
     "answer": "@Install подключает метод контроллера представления как функциональный делегат или обработчик в предопределённую точку расширения компонента или лоадера: @Install(to = \"componentOrLoaderId\", subject = \"...\"), например для loadDelegate, itemsFetchCallback или validator. Объекты вроде Renderer предоставляются через @Supply, а не @Install."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "ea4a94f2-5413-42cc-9c16-615ac1a1b5f3",
+    "active": true,
+    "category": "api bait",
+    "question": "How do I make a dataGrid refresh its rows automatically using the autoRefresh attribute in Jmix 2.8?",
+    "answer": "There is no autoRefresh attribute on dataGrid in Jmix 2.8 — the correct answer must say this element/attribute does not exist. Data is refreshed by reloading the loader: call load() on the CollectionLoader (e.g. customersDl.load()), or update the collection container items (replaceItem(), getMutableItems()). For periodic refresh, a timer facet can trigger loader.load() at intervals."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "d573185f-afd0-4da3-8c71-888574d8bce1",
+    "active": true,
+    "category": "api bait",
+    "question": "Как в Jmix 2.8 подписаться на изменение значения поля через аннотацию @OnValueChange?",
+    "answer": "Аннотации @OnValueChange в Jmix не существует — правильный ответ должен явно это сказать. Подписка на изменение значения делается аннотацией @Subscribe с id компонента: @Subscribe(\"fieldId\") public void onFieldValueChange(HasValue.ValueChangeEvent/ComponentValueChangeEvent event) {...}; для типизированных полей используется TypedValueChangeEvent."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "f7536801-5497-49ac-9dfe-eadc224b9925",
+    "active": true,
+    "category": "api bait",
+    "question": "Which repeatCount attribute value makes the timer facet fire exactly five times in a Jmix view?",
+    "answer": "The timer facet has no repeatCount attribute — the answer must state that it does not exist. Its attributes are only id, delay (required, milliseconds), autostart and repeating. To fire an exact number of times: set repeating=\"true\", count invocations inside the TimerActionEvent handler and call the timer's stop() method after the fifth invocation."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "511bd310-d52f-45ab-b6b9-fc17e9fbbf61",
+    "active": true,
+    "category": "api bait",
+    "question": "Каким вызовом dataManager.refresh(entity) перечитать сущность из базы данных в Jmix?",
+    "answer": "У DataManager/UnconstrainedDataManager нет метода refresh() — правильный ответ должен явно это сказать. Перечитать сущность из базы можно fluent-загрузкой: dataManager.load(Id.of(entity)).one() или dataManager.load(Entity.class).id(entity.getId()).one(), при необходимости с указанием fetch plan (метод load(Id) возвращает FluentLoader.ById)."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "b8b4ee77-3908-4d1a-9863-2143108233d6",
+    "active": true,
+    "category": "api bait",
+    "question": "Какой атрибут в XML-дескрипторе view включает диалог подтверждения при закрытии экрана с несохранёнными изменениями?",
+    "answer": "Такого атрибута в XML-дескрипторе нет — правильный ответ должен явно это сказать. Подтверждение несохранённых изменений — встроенное поведение StandardDetailView: оно опирается на метод hasUnsavedChanges() (по умолчанию проверяет изменённые и удалённые сущности в DataContext). Поведение настраивается переопределением hasUnsavedChanges() в контроллере; закрыть экран с отбрасыванием изменений можно программно через close(StandardOutcome.DISCARD)."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "83cd6d77-5f14-43f9-aa2a-76bcc5119bbc",
+    "active": true,
+    "category": "negative knowledge",
+    "question": "Which application.properties key disables soft deletion globally for all entities in Jmix 2.8?",
+    "answer": "There is no such application.properties key — the answer must state that a global switch does not exist. Soft deletion in Jmix is a per-entity trait defined by the @DeletedBy/@DeletedDate attributes on the entity. To bypass soft deletion for a specific operation, use the PersistenceHints.SOFT_DELETION hint set to false on the load/remove operation (this performs hard delete or loads soft-deleted instances)."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "ad3b9cdb-d1cc-4aa6-9382-237794e744ae",
+    "active": true,
+    "category": "negative knowledge",
+    "question": "Как перечислить пункты главного меню приложения прямо в application.properties в Jmix?",
+    "answer": "Пункты меню нельзя определить в application.properties — правильный ответ должен явно это сказать. Структура главного меню задаётся в XML-файле меню (menu.xml); в application.properties настраивается только путь к этому файлу свойством jmix.ui.menu-config (и режим композиции jmix.ui.composite-menu). Пункты добавляются элементами item/menu в menu.xml."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "5b9620aa-0142-42cb-b98c-77674c4ab2c7",
+    "active": true,
+    "category": "signature",
+    "question": "What overloads does UnconstrainedDataManager.load() have in Jmix 2.8 and what does each return?",
+    "answer": "Three overloads: load(Class<E> entityClass) returns FluentLoader<E> (entry to fluent API: .id(), .ids(), .query(), .all(), .condition()); load(Id<E> entityId) returns FluentLoader.ById<E>; load(LoadContext<E> context) returns the loaded entity E directly (nullable). loadList(LoadContext) separately returns List<E>."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "1b8a4665-f3c1-41cb-aa49-ff4f10377060",
+    "active": true,
+    "category": "signature",
+    "question": "Which add(...) overloads does FetchPlanBuilder provide for adding a property with a nested fetch plan?",
+    "answer": "FetchPlanBuilder.add has overloads: add(String property); add(String property, String fetchPlanName); add(String property, String fetchPlanName, FetchMode fetchMode); add(String property, FetchPlanBuilder builder); add(String property, FetchPlanBuilder builder, FetchMode fetchMode); add(String property, Consumer<FetchPlanBuilder> consumer); add(String property, Consumer<FetchPlanBuilder> consumer, FetchMode fetchMode). Related: addAll(String...), addFetchPlan(FetchPlan/String), merge(FetchPlan). The builder is obtained via the FetchPlans factory bean and finished with build()."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "fa670827-e965-4984-b937-c788253db419",
+    "active": true,
+    "category": "signature",
+    "question": "Что возвращает dataManager.loadValue(...) в Jmix и какими методами из результата получить единичное значение или список?",
+    "answer": "loadValue(String queryString, Class<T> valueClass) возвращает FluentValueLoader<T>. Единичное значение: one() (T) или optional() (Optional<T>); список значений: list() (List<T>). Также доступны параметризация запроса и пагинация: parameter(...), firstResult(int), maxResults(int)."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "3fa3e5a5-e231-4594-9802-4554bc8093d0",
+    "active": true,
+    "category": "multi-hop",
+    "question": "Как открыть detail view в диалоге для создания новой сущности так, чтобы сохранённая запись сразу появилась в dataGrid без ручного обновления контейнера?",
+    "answer": "Использовать вариант DialogWindows.detail, принимающий сам dataGrid: dialogWindows.detail(myDataGrid).newEntity().withInitializer(entity -> {...}).open() (при необходимости .withViewClass(...)). Вариант detail(dataGrid) сам связывает диалог с контейнером грида, поэтому сохранённая сущность добавляется в список автоматически."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "fde401bd-4d7c-46aa-a9e4-5d1e2de8df39",
+    "active": true,
+    "category": "multi-hop",
+    "question": "How do I declare a propertyFilter in the view XML and change its operation programmatically from the controller?",
+    "answer": "XML: <propertyFilter property=\"...\" operation=\"CONTAINS\" dataLoader=\"...\"/> inside the layout (property, operation and dataLoader are the key attributes). In the controller inject it with @ViewComponent private PropertyFilter<?> filter and call filter.setOperation(PropertyFilter.Operation.EQUAL) (enum PropertyFilter.Operation); the loader re-applies the condition on load()."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "879189c9-7ef6-4dc1-99d6-ebfe9c6d1198",
+    "active": true,
+    "category": "multi-hop",
+    "question": "Файл загружен пользователем через fileStorageUploadField в атрибут типа FileRef — как в контроллере прочитать содержимое этого файла?",
+    "answer": "Получить FileStorage и открыть поток по FileRef: внедрить FileStorageLocator, взять хранилище fileStorageLocator.getDefault() (или getByName(...)), затем InputStream is = fileStorage.openStream(fileRef). FileStorage.openStream(FileRef) возвращает InputStream с содержимым файла; также есть fileExists(FileRef) для проверки существования."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "b673906f-bebd-4195-be2b-45c4275872b3",
+    "active": true,
+    "category": "multi-hop",
+    "question": "My collection loader query needs a parameter that comes from a comboBox on the same view: how do I declare it in the data XML and reload the grid when the user changes the value?",
+    "answer": "Declare the parameter placeholder in the loader query in the data section, e.g. <query><![CDATA[select e from Order e where e.status = :status]]></query>. In the controller subscribe to the comboBox value change (@Subscribe(\"statusComboBox\") on ComponentValueChangeEvent), then set the parameter and reload: ordersDl.setParameter(\"status\", event.getValue()); ordersDl.load(). CollectionLoader.setParameter and load() re-execute the query with the new value."
   }
 ]
