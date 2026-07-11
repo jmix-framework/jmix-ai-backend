@@ -253,18 +253,21 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
             if ("docs".equals(type) || "uisamples".equals(type)) {
                 continue;
             }
-            int[] vv = byType.computeIfAbsent(type, k -> new int[2]);
-            if ("v3".equalsIgnoreCase(version)) {
+            int[] vv = byType.computeIfAbsent(type, k -> new int[3]);
+            if ("v2".equalsIgnoreCase(version)) {
+                vv[0] += count;
+            } else if ("v3".equalsIgnoreCase(version)) {
                 vv[1] += count;
             } else {
-                vv[0] += count;
+                // version-agnostic corpora (e.g. trainings) are searchable under any version
+                vv[2] += count;
             }
         }
         List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        byType.forEach((type, vv) -> rows.add(Map.of("corpus", type, "v2", vv[0], "v3", vv[1])));
+        byType.forEach((type, vv) -> rows.add(Map.of("corpus", type, "v2", vv[0], "v3", vv[1], "shared", vv[2])));
         coverageChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(rows.stream().map(MapDataItem::new).toList()))
-                .withCategoryField("corpus").withValueFields("v2", "v3")));
+                .withCategoryField("corpus").withValueFields("v2", "v3", "shared")));
     }
 
     private void buildUpdateMenuItems() {

@@ -39,6 +39,7 @@
             <charts:series>
                 <charts:bar name="v2"/>
                 <charts:bar name="v3"/>
+                <charts:bar name="shared"/>
             </charts:series>
         </charts:chart>
         <details id="topicDetails" summaryText="msg://topicCoverage.title"

@@ -1,21 +1,33 @@
 package io.jmix.ai.backend.view.checkrun;
 
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.checks.CheckAnalyticsService;
 import io.jmix.ai.backend.checks.CheckAnalyticsService.CheckDelta;
+import io.jmix.ai.backend.checks.CheckAnalyticsService.ComparisonResult;
 import io.jmix.ai.backend.checks.CheckAnalyticsService.ConfigOption;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.chartsflowui.component.Chart;
 import io.jmix.chartsflowui.data.item.MapDataItem;
 import io.jmix.chartsflowui.kit.component.model.DataSet;
 import io.jmix.chartsflowui.kit.data.chart.ListChartItems;
-import io.jmix.flowui.component.combobox.JmixComboBox;
 import io.jmix.flowui.component.checkbox.JmixCheckbox;
-import io.jmix.flowui.view.*;
+import io.jmix.flowui.component.combobox.JmixComboBox;
+import io.jmix.flowui.view.MessageBundle;
+import io.jmix.flowui.view.StandardView;
+import io.jmix.flowui.view.Subscribe;
+import io.jmix.flowui.view.View.InitEvent;
+import io.jmix.flowui.view.ViewComponent;
+import io.jmix.flowui.view.ViewController;
+import io.jmix.flowui.view.ViewDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
@@ -27,11 +39,12 @@ import java.util.Map;
 @ViewDescriptor(path = "check-run-comparison-view.xml")
 public class CheckRunComparisonView extends StandardView {
 
-    private static final int MAX_QUESTION_LABEL = 45;
+    private static final int MAX_QUESTION_LABEL = 70;
 
     @Autowired
     private CheckAnalyticsService analyticsService;
-
+    @ViewComponent
+    private MessageBundle messageBundle;
     @ViewComponent
     private JmixComboBox<ConfigOption> baselineRunField;
     @ViewComponent
@@ -54,10 +67,11 @@ public class CheckRunComparisonView extends StandardView {
         List<ConfigOption> options = analyticsService.configOptions();
         baselineRunField.setItems(options);
         candidateRunField.setItems(options);
-        baselineRunField.setItemLabelGenerator(ConfigOption::label);
-        candidateRunField.setItemLabelGenerator(ConfigOption::label);
-        baselineRunField.setHelperText("Averaged over all runs of this config — run-to-run noise cancels out");
-        candidateRunField.setHelperText("Compared against the baseline, question by question");
+        baselineRunField.setItemLabelGenerator(this::configOptionLabel);
+        candidateRunField.setItemLabelGenerator(this::configOptionLabel);
+        baselineRunField.setHelperText(messageBundle.getMessage("baselineRun.helperText"));
+        candidateRunField.setHelperText(messageBundle.getMessage("candidateRun.helperText"));
+        summaryCards.getStyle().set("flex-wrap", "wrap");
 
         if (!options.isEmpty()) {
             baselineRunField.setValue(options.get(0));
@@ -65,107 +79,191 @@ public class CheckRunComparisonView extends StandardView {
         }
 
         buildDiffGrid();
-
-        baselineRunField.addValueChangeListener(e -> refresh());
-        candidateRunField.addValueChangeListener(e -> refresh());
-        regressionsOnlyField.addValueChangeListener(e -> refresh());
-
+        baselineRunField.addValueChangeListener(change -> refresh());
+        candidateRunField.addValueChangeListener(change -> refresh());
+        regressionsOnlyField.addValueChangeListener(change -> refresh());
         refresh();
     }
 
     private void buildDiffGrid() {
         diffGrid.setWidthFull();
         diffGrid.setAllRowsVisible(true);
-        diffGrid.addColumn(CheckDelta::category).setHeader("Category").setAutoWidth(true);
-        diffGrid.addColumn(d -> shorten(d.question())).setHeader("Question").setFlexGrow(1);
-        diffGrid.addColumn(d -> fmt(d.base())).setHeader("Baseline avg").setAutoWidth(true);
-        diffGrid.addColumn(d -> fmt(d.compare())).setHeader("Candidate avg").setAutoWidth(true);
-        diffGrid.addColumn(d -> signed(d.delta())).setHeader("Δ").setAutoWidth(true);
-        diffGrid.setPartNameGenerator(d -> d.delta() > 0.0001 ? "delta-up"
-                : d.delta() < -0.0001 ? "delta-down" : null);
+        diffGrid.setDetailsVisibleOnClick(false);
+        diffGrid.setItemDetailsRenderer(new ComponentRenderer<>(this::details));
+        diffGrid.addComponentColumn(this::detailsButton)
+                .setHeader(messageBundle.getMessage("grid.details"))
+                .setAutoWidth(true)
+                .setFlexGrow(0);
+        diffGrid.addColumn(CheckDelta::category)
+                .setHeader(messageBundle.getMessage("grid.category"))
+                .setAutoWidth(true);
+        diffGrid.addColumn(delta -> shorten(delta.question()))
+                .setHeader(messageBundle.getMessage("grid.question"))
+                .setFlexGrow(1);
+        diffGrid.addColumn(delta -> formatMetric(delta.base()))
+                .setHeader(messageBundle.getMessage("grid.baselineAverage"))
+                .setAutoWidth(true);
+        diffGrid.addColumn(delta -> formatMetric(delta.compare()))
+                .setHeader(messageBundle.getMessage("grid.candidateAverage"))
+                .setAutoWidth(true);
+        diffGrid.addColumn(delta -> signed(delta.delta()))
+                .setHeader(messageBundle.getMessage("grid.delta"))
+                .setAutoWidth(true);
         resultsBox.add(diffGrid);
+    }
+
+    private Button detailsButton(CheckDelta delta) {
+        Button button = new Button(messageBundle.getMessage("details.action"));
+        button.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_TERTIARY_INLINE);
+        button.addClickListener(click -> diffGrid.setDetailsVisible(delta, !diffGrid.isDetailsVisible(delta)));
+        return button;
+    }
+
+    private Component details(CheckDelta delta) {
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(true);
+        content.setSpacing(true);
+        content.getStyle()
+                .set("background", "var(--lumo-contrast-5pct)")
+                .set("border-radius", "var(--lumo-border-radius-m)");
+
+        Span explanation = new Span(messageBundle.getMessage("details.aggregationNote"));
+        explanation.getStyle()
+                .set("color", "var(--lumo-secondary-text-color)")
+                .set("font-size", "var(--lumo-font-size-s)");
+        content.add(
+                explanation,
+                detailSection(messageBundle.getMessage("details.question"), delta.question()),
+                detailSection(messageBundle.getMessage("details.referenceAnswer"), delta.referenceAnswer()),
+                detailSection(messageBundle.getMessage("details.baselineActualAnswer"), delta.baselineActualAnswer()),
+                detailSection(messageBundle.getMessage("details.candidateActualAnswer"), delta.candidateActualAnswer()));
+        return content;
+    }
+
+    private Component detailSection(String label, String value) {
+        Span heading = new Span(label);
+        heading.getStyle().set("font-weight", "700");
+        Div text = new Div();
+        text.setText(value);
+        text.getStyle()
+                .set("white-space", "pre-wrap")
+                .set("overflow-wrap", "anywhere");
+        Div section = new Div(heading, text);
+        section.setWidthFull();
+        return section;
     }
 
     private void refresh() {
         ConfigOption base = baselineRunField.getValue();
-        ConfigOption cand = candidateRunField.getValue();
-
-        List<CheckDelta> deltas = analyticsService.compareConfigs(base, cand);
-        CheckAnalyticsService.ComparisonSummary summary = analyticsService.summarizeConfigs(base, cand, deltas);
+        ConfigOption candidate = candidateRunField.getValue();
+        ComparisonResult comparison = analyticsService.compareConfigs(base, candidate);
+        CheckAnalyticsService.ComparisonSummary summary =
+                analyticsService.summarizeConfigs(base, candidate, comparison);
 
         renderSummary(summary);
 
-        // category chart: baseline vs candidate averaged per category
         List<MapDataItem> categoryItems = new ArrayList<>();
-        for (CheckAnalyticsService.CategoryScore cs : analyticsService.categoryCompareConfigs(deltas)) {
+        for (CheckAnalyticsService.CategoryScore category :
+                analyticsService.categoryCompareConfigs(comparison.deltas())) {
             categoryItems.add(new MapDataItem(Map.of(
-                    "category", cs.category(), "baseline", cs.base(), "candidate", cs.compare())));
+                    "category", category.category(),
+                    "baseline", category.base(),
+                    "candidate", category.compare())));
         }
         categoryChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(categoryItems))
-                .withCategoryField("category").withValueFields("baseline", "candidate")));
+                .withCategoryField("category")
+                .withValueFields("baseline", "candidate")));
 
-        // delta chart + diff grid, optionally regressions-only
         boolean regressionsOnly = Boolean.TRUE.equals(regressionsOnlyField.getValue());
         List<CheckDelta> visible = regressionsOnly
-                ? deltas.stream().filter(d -> d.delta() < -0.0001).toList()
-                : deltas;
+                ? comparison.deltas().stream().filter(delta -> delta.delta() < -0.0001).toList()
+                : comparison.deltas();
 
         List<MapDataItem> deltaItems = new ArrayList<>();
-        for (CheckDelta d : visible) {
+        for (CheckDelta delta : visible) {
             deltaItems.add(new MapDataItem(Map.of(
-                    "question", shorten(d.question()),
-                    "up", d.delta() > 0 ? d.delta() : 0.0,
-                    "down", d.delta() < 0 ? d.delta() : 0.0)));
+                    "question", shorten(delta.question()),
+                    "improved", delta.delta() > 0 ? delta.delta() : 0.0,
+                    "regressed", delta.delta() < 0 ? delta.delta() : 0.0)));
         }
         deltaChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(deltaItems))
-                .withCategoryField("question").withValueFields("up", "down")));
+                .withCategoryField("question")
+                .withValueFields("improved", "regressed")));
 
         diffGrid.setItems(visible);
     }
 
-    private void renderSummary(CheckAnalyticsService.ComparisonSummary s) {
+    private void renderSummary(CheckAnalyticsService.ComparisonSummary summary) {
         summaryCards.removeAll();
         summaryCards.add(
-                card("Improved", String.valueOf(s.improved()), "delta-up"),
-                card("Regressed", String.valueOf(s.regressed()), "delta-down"),
-                card("Unchanged", String.valueOf(s.unchanged()), null),
-                card("Score", deltaText(s.baseScore(), s.candidateScore()), null),
-                card("Accuracy", deltaText(s.baseAccuracy(), s.candidateAccuracy()), null));
+                card(messageBundle.getMessage("summary.common"), String.valueOf(summary.common()), null),
+                card(messageBundle.getMessage("summary.improved"), String.valueOf(summary.improved()), "success"),
+                card(messageBundle.getMessage("summary.regressed"), String.valueOf(summary.regressed()), "error"),
+                card(messageBundle.getMessage("summary.unchanged"), String.valueOf(summary.unchanged()), null),
+                card(messageBundle.getMessage("summary.baselineOnly"), String.valueOf(summary.baselineOnly()), "warning"),
+                card(messageBundle.getMessage("summary.candidateOnly"), String.valueOf(summary.candidateOnly()), "warning"),
+                card(messageBundle.getMessage("summary.score"),
+                        deltaText(summary.baseScore(), summary.candidateScore()), null),
+                card(messageBundle.getMessage("summary.accuracy"),
+                        deltaText(summary.baseAccuracy(), summary.candidateAccuracy()), null));
     }
 
-    private Span card(String title, String value, String partClass) {
-        Span span = new Span(title + ": " + value);
-        span.addClassNames("badge");
-        if (partClass != null) {
-            span.getElement().getThemeList().add(partClass.equals("delta-up") ? "success" : "error");
+    private VerticalLayout card(String title, String value, String status) {
+        Span titleSpan = new Span(title);
+        titleSpan.getStyle()
+                .set("color", "var(--lumo-secondary-text-color)")
+                .set("font-size", "var(--lumo-font-size-s)");
+        Span valueSpan = new Span(value);
+        valueSpan.getStyle()
+                .set("font-size", "var(--lumo-font-size-l)")
+                .set("font-weight", "700")
+                .set("font-variant-numeric", "tabular-nums");
+
+        VerticalLayout card = new VerticalLayout(titleSpan, valueSpan);
+        card.setPadding(true);
+        card.setSpacing(false);
+        card.setWidth("13em");
+        card.getStyle()
+                .set("background", "var(--lumo-contrast-5pct)")
+                .set("border-radius", "var(--lumo-border-radius-l)");
+        if (status != null) {
+            card.getStyle().set("border-left", "4px solid var(--lumo-%s-color)".formatted(status));
         }
-        return span;
+        return card;
     }
 
-    private static String deltaText(Double base, Double cand) {
-        if (base == null || cand == null) {
+    private String configOptionLabel(ConfigOption option) {
+        String description = !option.description().isBlank()
+                ? shorten(option.description())
+                : messageBundle.getMessage("config.unlabeled");
+        String messageKey = option.runCount() == 1 ? "configOption.oneRun" : "configOption.manyRuns";
+        return messageBundle.formatMessage(
+                messageKey, option.version(), description, option.fingerprint(), option.runCount());
+    }
+
+    private static String deltaText(Double base, Double candidate) {
+        if (base == null || candidate == null) {
             return "—";
         }
-        double d = cand - base;
-        String arrow = d > 0.0001 ? " ▲" : d < -0.0001 ? " ▼" : "";
-        return "%.2f → %.2f (%+.2f)%s".formatted(base, cand, d, arrow);
+        double delta = candidate - base;
+        String arrow = delta > 0.0001 ? " ▲" : delta < -0.0001 ? " ▼" : "";
+        return "%.2f → %.2f (%+.2f)%s".formatted(base, candidate, delta, arrow);
     }
 
-    private static String fmt(double v) {
-        return "%.2f".formatted(v);
+    private static String formatMetric(double value) {
+        return "%.2f".formatted(value);
     }
 
-    private static String signed(double v) {
-        return "%+.2f".formatted(v);
+    private static String signed(double value) {
+        return "%+.2f".formatted(value);
     }
 
     private static String shorten(String text) {
-        if (text == null) {
-            return "";
-        }
         String oneLine = text.replaceAll("\\s+", " ").trim();
-        return oneLine.length() > MAX_QUESTION_LABEL ? oneLine.substring(0, MAX_QUESTION_LABEL) + "…" : oneLine;
+        return oneLine.length() > MAX_QUESTION_LABEL
+                ? oneLine.substring(0, MAX_QUESTION_LABEL) + "…"
+                : oneLine;
     }
 }

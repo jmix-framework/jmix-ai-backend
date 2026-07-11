@@ -6,20 +6,22 @@ import io.jmix.core.DataManager;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import java.time.format.DateTimeFormatter;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.OptionalDouble;
+import java.util.Set;
+import java.util.UUID;
 
-/**
- * Aggregates answer-check results: the score/accuracy trend across runs (Check runs screen)
- * and the averaged per-config comparison (Compare runs screen).
- */
 @Component
 public class CheckAnalyticsService {
 
-    private static final DateTimeFormatter LABEL_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
+    static final String LEGACY_COHORT = "legacy";
 
     private final DataManager dataManager;
 
@@ -27,158 +29,267 @@ public class CheckAnalyticsService {
         this.dataManager = dataManager;
     }
 
-    public record RunInfo(String label, double score, double accuracy) {
+    public record RunInfo(@Nullable OffsetDateTime createdDate, String version, String config,
+                          double score, @Nullable Double accuracy) {
+    }
+
+    public record Overview(List<RunInfo> runs, int completedRuns, int configCount,
+                           @Nullable Double latestScore, @Nullable Double latestAccuracy) {
     }
 
     public record CategoryScore(String category, double base, double compare) {
     }
 
-    public record CheckDelta(String question, String category, double base, double compare, double delta) {
+    public record CheckDelta(String question, String category, double base, double compare, double delta,
+                             String referenceAnswer, String baselineActualAnswer,
+                             String candidateActualAnswer) {
     }
 
-    public record ComparisonSummary(int improved, int regressed, int unchanged,
-                                    Double baseScore, Double candidateScore,
-                                    Double baseAccuracy, Double candidateAccuracy) {
+    public record ComparisonResult(List<CheckDelta> deltas, int baselineOnly, int candidateOnly) {
     }
 
-    /** A selectable comparison target: one config on one Jmix version, backed by all its runs. */
-    public record ConfigOption(String config, String label, double meanScore, double meanAccuracy) {
+    public record ComparisonSummary(int common, int improved, int regressed, int unchanged,
+                                    int baselineOnly, int candidateOnly,
+                                    @Nullable Double baseScore, @Nullable Double candidateScore,
+                                    @Nullable Double baseAccuracy, @Nullable Double candidateAccuracy) {
     }
 
-    /**
-     * Distinct config x version pairs across all finished runs, each aggregating its runs, so the
-     * user compares a meaningful noise-averaged config rather than two arbitrary single runs.
-     */
+    public record ConfigOption(String key, String description, String version, String fingerprint, int runCount,
+                               double meanScore, @Nullable Double meanAccuracy) {
+    }
+
+    record QuestionAggregate(double sum, int count, String category, String referenceAnswer,
+                             String latestActualAnswer) {
+
+        QuestionAggregate add(Check check) {
+            return new QuestionAggregate(
+                    sum + score(check),
+                    count + 1,
+                    defaultString(check.getCategory()),
+                    defaultString(check.getReferenceAnswer()),
+                    defaultString(check.getActualAnswer()));
+        }
+
+        double average() {
+            return count == 0 ? 0.0 : sum / count;
+        }
+    }
+
+    public Overview loadOverview() {
+        List<CheckRun> runs = loadFinishedRuns();
+        List<RunInfo> runInfos = runs.stream()
+                .map(run -> new RunInfo(
+                        run.getCreatedDate(),
+                        versionId(run),
+                        displayConfigLabel(run),
+                        run.getScore(),
+                        run.getAccuracy()))
+                .toList();
+        int configCount = (int) runs.stream()
+                .map(CheckAnalyticsService::configurationKey)
+                .distinct()
+                .count();
+        CheckRun latest = runs.isEmpty() ? null : runs.get(runs.size() - 1);
+        return new Overview(
+                runInfos,
+                runs.size(),
+                configCount,
+                latest != null ? latest.getScore() : null,
+                latest != null ? latest.getAccuracy() : null);
+    }
+
     public List<ConfigOption> configOptions() {
         List<ConfigOption> options = new ArrayList<>();
         groupRunsByConfig().forEach((key, group) -> {
-            double meanScore = group.stream().mapToDouble(r -> r.getScore() != null ? r.getScore() : 0.0).average().orElse(0.0);
-            double meanAcc = group.stream().mapToDouble(r -> r.getAccuracy() != null ? r.getAccuracy() : 0.0).average().orElse(0.0);
-            String[] p = key.split("\\|\\|", 2);
-            String label = "[%s] %s  (%d run%s)".formatted(p[1], shortConfig(p[0]), group.size(), group.size() == 1 ? "" : "s");
-            options.add(new ConfigOption(key, label, round(meanScore), round(meanAcc)));
+            CheckRun sample = group.get(group.size() - 1);
+            double meanScore = group.stream()
+                    .map(CheckRun::getScore)
+                    .filter(Objects::nonNull)
+                    .mapToDouble(Double::doubleValue)
+                    .average()
+                    .orElse(0.0);
+            OptionalDouble accuracy = group.stream()
+                    .map(CheckRun::getAccuracy)
+                    .filter(Objects::nonNull)
+                    .mapToDouble(Double::doubleValue)
+                    .average();
+            Double meanAccuracy = accuracy.isPresent() ? accuracy.getAsDouble() : null;
+            options.add(new ConfigOption(
+                    key,
+                    displayConfigLabel(sample),
+                    versionId(sample),
+                    configFingerprint(sample),
+                    group.size(),
+                    round(meanScore),
+                    meanAccuracy != null ? round(meanAccuracy) : null));
         });
-        options.sort(java.util.Comparator.comparing(ConfigOption::config));
+        options.sort(Comparator.comparing(ConfigOption::description).thenComparing(ConfigOption::version));
         return options;
     }
 
     private Map<String, List<CheckRun>> groupRunsByConfig() {
-        List<CheckRun> runs = dataManager.load(CheckRun.class).query("e.score is not null").list();
         Map<String, List<CheckRun>> groups = new LinkedHashMap<>();
-        for (CheckRun run : runs) {
-            if (run.getScore() == null) {
-                continue;
-            }
-            String key = configKey(run.getConfigLabel()) + "||" + versionId(run);
-            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(run);
+        for (CheckRun run : loadFinishedRuns()) {
+            groups.computeIfAbsent(groupKey(run), key -> new ArrayList<>()).add(run);
         }
         return groups;
     }
 
-    private static String versionId(CheckRun run) {
-        return run.getJmixVersion() != null ? run.getJmixVersion().getId() : "?";
+    private List<CheckRun> loadFinishedRuns() {
+        return dataManager.load(CheckRun.class)
+                .query("e.score is not null order by e.createdDate, e.id")
+                .list();
     }
 
-    private Map<String, double[]> aggregateQuestions(@Nullable ConfigOption option, Map<String, String> categoryOut) {
-        Map<String, double[]> perQuestion = new LinkedHashMap<>();
+    static String groupKey(CheckRun run) {
+        String parameters = run.getParameters();
+        return versionId(run) + "||" + cohortKey(run) + "||"
+                + (parameters != null ? "1" + parameters : "0");
+    }
+
+    static String configurationKey(CheckRun run) {
+        String parameters = run.getParameters();
+        return versionId(run) + "||"
+                + (parameters != null ? "1" + parameters : "0");
+    }
+
+    static String configFingerprint(CheckRun run) {
+        return CheckRunner.shortSha256(groupKey(run));
+    }
+
+    private static String cohortKey(CheckRun run) {
+        String cohort = CheckRunner.extractCohortKey(run.getConfigLabel());
+        return cohort != null ? cohort : LEGACY_COHORT;
+    }
+
+    private static String versionId(CheckRun run) {
+        return run.getJmixVersion() != null ? run.getJmixVersion().getId() : "";
+    }
+
+    private Map<String, QuestionAggregate> aggregateQuestions(
+            @Nullable ConfigOption option, Map<String, List<CheckRun>> runsByConfig) {
+        Map<String, QuestionAggregate> perQuestion = new LinkedHashMap<>();
         if (option == null) {
             return perQuestion;
         }
-        List<CheckRun> runs = groupRunsByConfig().getOrDefault(option.config(), List.of());
-        for (CheckRun run : runs) {
-            for (Check check : loadChecks(run.getId().toString())) {
-                String q = check.getQuestion() != null ? check.getQuestion() : "?";
-                double[] agg = perQuestion.computeIfAbsent(q, k -> new double[2]);
-                agg[0] += score(check);
-                agg[1] += 1;
-                categoryOut.putIfAbsent(q, check.getCategory() != null ? check.getCategory() : "?");
-            }
+        List<CheckRun> runs = runsByConfig.getOrDefault(option.key(), List.of());
+        for (Check check : loadChecks(runs)) {
+            String question = defaultString(check.getQuestion());
+            perQuestion.compute(question, (key, aggregate) ->
+                    (aggregate != null ? aggregate : emptyAggregate()).add(check));
         }
         return perQuestion;
     }
 
-    /** Per-question averaged deltas between two config options (candidate - baseline). */
-    public List<CheckDelta> compareConfigs(@Nullable ConfigOption base, @Nullable ConfigOption candidate) {
-        Map<String, String> category = new LinkedHashMap<>();
-        Map<String, double[]> b = aggregateQuestions(base, category);
-        Map<String, double[]> c = aggregateQuestions(candidate, category);
+    private static QuestionAggregate emptyAggregate() {
+        return new QuestionAggregate(0.0, 0, "", "", "");
+    }
 
-        java.util.Set<String> questions = new java.util.LinkedHashSet<>();
-        questions.addAll(b.keySet());
-        questions.addAll(c.keySet());
+    public ComparisonResult compareConfigs(@Nullable ConfigOption base, @Nullable ConfigOption candidate) {
+        Map<String, List<CheckRun>> runsByConfig = groupRunsByConfig();
+        return compareQuestions(
+                aggregateQuestions(base, runsByConfig),
+                aggregateQuestions(candidate, runsByConfig));
+    }
 
-        List<CheckDelta> deltas = new ArrayList<>();
-        for (String q : questions) {
-            double bs = avg(b.get(q));
-            double cs = avg(c.get(q));
-            deltas.add(new CheckDelta(q, category.getOrDefault(q, "?"), round(bs), round(cs), round(cs - bs)));
+    static ComparisonResult compareQuestions(Map<String, QuestionAggregate> baseline,
+                                              Map<String, QuestionAggregate> candidate) {
+        Set<String> common = new LinkedHashSet<>(baseline.keySet());
+        common.retainAll(candidate.keySet());
+
+        List<CheckDelta> deltas = new ArrayList<>(common.size());
+        for (String question : common) {
+            QuestionAggregate base = baseline.get(question);
+            QuestionAggregate compare = candidate.get(question);
+            double baseScore = base.average();
+            double candidateScore = compare.average();
+            deltas.add(new CheckDelta(
+                    question,
+                    firstNonBlank(compare.category(), base.category()),
+                    round(baseScore),
+                    round(candidateScore),
+                    round(candidateScore - baseScore),
+                    firstNonBlank(compare.referenceAnswer(), base.referenceAnswer()),
+                    base.latestActualAnswer(),
+                    compare.latestActualAnswer()));
         }
-        deltas.sort(java.util.Comparator.comparingDouble(CheckDelta::delta));
-        return deltas;
+        deltas.sort(Comparator.comparingDouble(CheckDelta::delta));
+        return new ComparisonResult(
+                List.copyOf(deltas),
+                baseline.size() - common.size(),
+                candidate.size() - common.size());
     }
 
     public List<CategoryScore> categoryCompareConfigs(List<CheckDelta> deltas) {
-        Map<String, double[]> agg = new LinkedHashMap<>();
-        for (CheckDelta d : deltas) {
-            double[] a = agg.computeIfAbsent(d.category(), k -> new double[3]);
-            a[0] += d.base();
-            a[1] += d.compare();
-            a[2] += 1;
+        Map<String, double[]> aggregate = new LinkedHashMap<>();
+        for (CheckDelta delta : deltas) {
+            double[] values = aggregate.computeIfAbsent(delta.category(), key -> new double[3]);
+            values[0] += delta.base();
+            values[1] += delta.compare();
+            values[2] += 1;
         }
         List<CategoryScore> result = new ArrayList<>();
-        agg.forEach((cat, a) -> result.add(new CategoryScore(cat, round(a[0] / a[2]), round(a[1] / a[2]))));
-        result.sort(java.util.Comparator.comparing(CategoryScore::category));
+        aggregate.forEach((category, values) -> result.add(new CategoryScore(
+                category,
+                round(values[0] / values[2]),
+                round(values[1] / values[2]))));
+        result.sort(Comparator.comparing(CategoryScore::category));
         return result;
     }
 
     public ComparisonSummary summarizeConfigs(@Nullable ConfigOption base, @Nullable ConfigOption candidate,
-                                              List<CheckDelta> deltas) {
-        int improved = (int) deltas.stream().filter(d -> d.delta() > 0.0001).count();
-        int regressed = (int) deltas.stream().filter(d -> d.delta() < -0.0001).count();
-        return new ComparisonSummary(improved, regressed, deltas.size() - improved - regressed,
-                base != null ? base.meanScore() : null, candidate != null ? candidate.meanScore() : null,
-                base != null ? base.meanAccuracy() : null, candidate != null ? candidate.meanAccuracy() : null);
+                                              ComparisonResult comparison) {
+        List<CheckDelta> deltas = comparison.deltas();
+        int improved = (int) deltas.stream().filter(delta -> delta.delta() > 0.0001).count();
+        int regressed = (int) deltas.stream().filter(delta -> delta.delta() < -0.0001).count();
+        return new ComparisonSummary(
+                deltas.size(),
+                improved,
+                regressed,
+                deltas.size() - improved - regressed,
+                comparison.baselineOnly(),
+                comparison.candidateOnly(),
+                base != null ? base.meanScore() : null,
+                candidate != null ? candidate.meanScore() : null,
+                base != null ? base.meanAccuracy() : null,
+                candidate != null ? candidate.meanAccuracy() : null);
     }
 
-    private static double avg(@Nullable double[] sumCount) {
-        return sumCount == null || sumCount[1] == 0 ? 0.0 : sumCount[0] / sumCount[1];
-    }
-
-    /** Grouping key for a run's config: the full description (shortened only for display). */
-    private static String configKey(@Nullable String label) {
-        return label != null && !label.isBlank() ? label : "unlabeled";
-    }
-
-    /** All finished runs oldest-first, labelled with date and config, using the stored score/accuracy. */
-    public List<RunInfo> loadRuns() {
-        return dataManager.load(CheckRun.class)
-                .query("e.score is not null order by e.createdDate")
-                .list().stream()
-                .map(run -> new RunInfo(
-                        buildLabel(run),
-                        run.getScore() != null ? run.getScore() : 0.0,
-                        run.getAccuracy() != null ? run.getAccuracy() : 0.0))
+    private List<Check> loadChecks(List<CheckRun> runs) {
+        List<UUID> runIds = runs.stream()
+                .map(CheckRun::getId)
                 .toList();
-    }
-
-    private String buildLabel(CheckRun run) {
-        String date = run.getCreatedDate() != null ? run.getCreatedDate().format(LABEL_FORMAT) : "?";
-        return date + " [" + versionId(run) + "] " + shortConfig(configKey(run.getConfigLabel()));
-    }
-
-    private static String shortConfig(String label) {
-        return label.length() > 30 ? label.substring(0, 30) + "…" : label;
-    }
-
-    private List<Check> loadChecks(String runId) {
+        if (runIds.isEmpty()) {
+            return List.of();
+        }
         return dataManager.load(Check.class)
-                .query("e.checkRun.id = :runId")
-                .parameter("runId", java.util.UUID.fromString(runId))
+                .query("e.checkRun.id in :runIds order by e.checkRun.createdDate, e.checkRun.id, e.id")
+                .parameter("runIds", runIds)
                 .list();
     }
 
     private static double score(Check check) {
         return check.getScore() != null ? check.getScore() : 0.0;
+    }
+
+    static String displayConfigLabel(CheckRun run) {
+        String label = CheckRunner.stripCohortSuffix(run.getConfigLabel());
+        if (label == null || label.isBlank()) {
+            label = CheckRunner.extractConfigLabel(run.getParameters());
+        }
+        return configLabel(label);
+    }
+
+    private static String configLabel(@Nullable String label) {
+        return label != null && !label.isBlank() ? label : "";
+    }
+
+    private static String defaultString(@Nullable String value) {
+        return value != null ? value : "";
+    }
+
+    private static String firstNonBlank(String preferred, String fallback) {
+        return !preferred.isBlank() ? preferred : fallback;
     }
 
     private static double round(double value) {

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:charts="http://jmix.io/schema/charts/ui"
+      title="msg://checkRunAnalyticsView.title">
+    <layout>
+        <scroller width="100%" height="100%">
+            <vbox width="100%" padding="true" spacing="true">
+                <span text="msg://overview.description"/>
+                <hbox id="summaryCards" width="100%" spacing="true"/>
+                <charts:chart id="trendChart" width="100%" height="28em" minHeight="20em">
+                    <charts:title text="msg://trend.title"/>
+                    <charts:tooltip trigger="AXIS"/>
+                    <charts:legend bottom="0"/>
+                    <charts:xAxes>
+                        <charts:xAxis type="CATEGORY">
+                            <charts:axisLabel rotate="30"/>
+                        </charts:xAxis>
+                    </charts:xAxes>
+                    <charts:yAxes>
+                        <charts:yAxis type="VALUE" min="0" max="1" name="msg://score.axis"/>
+                    </charts:yAxes>
+                    <charts:series>
+                        <charts:line name="msg://score.series" smooth="1" connectNulls="false"/>
+                        <charts:line name="msg://accuracy.series" smooth="1" connectNulls="false"/>
+                    </charts:series>
+                </charts:chart>
+            </vbox>
+        </scroller>
+    </layout>
+</view>

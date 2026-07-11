@@ -4,18 +4,18 @@
       title="msg://checkRunComparisonView.title">
     <layout>
         <scroller width="100%" height="100%">
-        <vbox width="100%" padding="true" spacing="true">
+            <vbox width="100%" padding="true" spacing="true">
+                <span text="msg://comparison.description"/>
 
-            <hbox width="100%" spacing="true" alignItems="END">
-                <comboBox id="baselineRunField" label="msg://baselineRun.label" width="24em"/>
-                <comboBox id="candidateRunField" label="msg://candidateRun.label" width="24em"/>
-                <checkbox id="regressionsOnlyField" label="msg://regressionsOnly.label"/>
-            </hbox>
+                <hbox width="100%" spacing="true" alignItems="END">
+                    <comboBox id="baselineRunField" label="msg://baselineRun.label" width="28em"/>
+                    <comboBox id="candidateRunField" label="msg://candidateRun.label" width="28em"/>
+                    <checkbox id="regressionsOnlyField" label="msg://regressionsOnly.label"/>
+                </hbox>
 
-            <hbox id="summaryCards" width="100%" spacing="true"/>
+                <hbox id="summaryCards" width="100%" spacing="true"/>
 
-            <hbox width="100%" height="24em" spacing="true">
-                <charts:chart id="categoryChart" width="100%" height="100%" minWidth="20em">
+                <charts:chart id="categoryChart" width="100%" height="22em" minHeight="18em">
                     <charts:title text="msg://category.title"/>
                     <charts:legend bottom="0"/>
                     <charts:tooltip trigger="AXIS">
@@ -25,15 +25,15 @@
                         <charts:xAxis type="CATEGORY"/>
                     </charts:xAxes>
                     <charts:yAxes>
-                        <charts:yAxis type="VALUE" min="0" max="1"/>
+                        <charts:yAxis type="VALUE" min="0" max="1" name="msg://score.axis"/>
                     </charts:yAxes>
                     <charts:series>
-                        <charts:bar name="baseline"/>
-                        <charts:bar name="candidate"/>
+                        <charts:bar name="msg://baseline.series"/>
+                        <charts:bar name="msg://candidate.series"/>
                     </charts:series>
                 </charts:chart>
 
-                <charts:chart id="deltaChart" width="100%" height="100%" minWidth="20em">
+                <charts:chart id="deltaChart" width="100%" height="25em" minHeight="20em">
                     <charts:title text="msg://delta.title" subtext="msg://delta.subtitle"/>
                     <charts:tooltip trigger="AXIS">
                         <charts:axisPointer type="SHADOW"/>
@@ -43,26 +43,25 @@
                     </charts:dataZoom>
                     <charts:xAxes>
                         <charts:xAxis type="CATEGORY">
-                            <charts:axisLabel rotate="45" interval="0"/>
+                            <charts:axisLabel rotate="35" interval="0"/>
                         </charts:xAxis>
                     </charts:xAxes>
                     <charts:yAxes>
-                        <charts:yAxis type="VALUE"/>
+                        <charts:yAxis type="VALUE" name="msg://delta.axis"/>
                     </charts:yAxes>
                     <charts:series>
-                        <charts:bar name="up" stack="delta">
+                        <charts:bar name="msg://improved.series" stack="delta">
                             <charts:itemStyle color="#2E7D32"/>
                         </charts:bar>
-                        <charts:bar name="down" stack="delta">
+                        <charts:bar name="msg://regressed.series" stack="delta">
                             <charts:itemStyle color="#C62828"/>
                         </charts:bar>
                     </charts:series>
                 </charts:chart>
-            </hbox>
 
-            <vbox id="resultsBox" width="100%" spacing="true"/>
-
-        </vbox>
+                <span text="msg://details.hint"/>
+                <vbox id="resultsBox" width="100%" spacing="true"/>
+            </vbox>
         </scroller>
     </layout>
 </view>
