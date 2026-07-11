@@ -24,7 +24,7 @@ Jmix AI Backend application uses PgVector for vector storage and a PostgreSQL da
 
 It answers questions about the Jmix framework using Retrieval Augmented Generation (RAG). The chat is available through the API and the admin UI. 
 
-The main chat functionality is implemented in the `ChatImpl` Spring bean. It makes three tools available to the LLM: `DocsTool`, `UiSamplesTool` and `TrainingsTool`. Each tool retrieves information from the vector store according to the LLM's requests.
+The main chat functionality is implemented in the `ChatImpl` Spring bean. Its retrieval tools are `DocsTool`, `UiSamplesTool`, `TrainingsTool` and `JavaApiTool`; each can be enabled or disabled in the active parameters. Each tool retrieves information from the vector store according to the LLM's requests.
 
 After retrieving documents from the vector store, each tool filters them using a post-retrieval filtering algorithm and applies a reranking algorithm to the remaining documents. The reranked documents are then passed to the LLM.
 
@@ -81,10 +81,16 @@ mentioned in the system prompt; it defaults to `v2`.
 
 ## Search API
 
-The `POST /api/search` endpoint runs the retrieval tools (without the answering LLM) and returns context7-like snippets, ordered by relevance across all tools:
+The `POST /api/search` endpoint keeps the original response contract for existing clients. It accepts
+`query` and the optional `jmix_version` (`v2` or `v3`, default `v2`) and returns `id`, `title` and
+`content` fields in the legacy format: a response-local generated ID, the full document text as the
+title and Spring AI formatted content.
+
+The `POST /api/v2/search` endpoint runs the retrieval tools without the answering LLM and returns
+context7-like snippets ordered by relevance across all tools:
 
 ```
-POST /api/search HTTP/1.1
+POST /api/v2/search HTTP/1.1
 Content-Type: application/json
 
 {
@@ -94,7 +100,11 @@ Content-Type: application/json
 }
 ```
 
-Each result contains `id`, `title`, `source` (URL) and `content` (the snippet text with a verbatim code block). The optional `jmix_version` field (`v2` or `v3`, default `v2`) selects the corpus. The optional `tokens` field limits the total size of the returned snippets; omit it to get all retrieved documents. The endpoint is configured by the active search parameters record.
+Each v2 result contains `id`, `title`, `source` and `content`. The optional `jmix_version` field
+selects the corpus. The optional `tokens` field accepts values from 1 to 100000 and applies an
+approximate, best-effort response budget using four characters per token. At least the most relevant
+result is returned, so that first result may exceed a small budget. Omit `tokens` to return all
+retrieved documents. Both endpoints are configured by the active search parameters record.
 
 ## Admin UI
 
@@ -106,7 +116,7 @@ The admin UI is available at `http://localhost:8081` and provides the following 
     
 - **Vector store** management. This view shows the vector store contents and allows you to find documents by metadata, add, remove and update documents. If you click the "Update" button, the current record will be updated from its source. If you click one of the "Update" dropdown items, all relevant documents will be updated.
 
-- **Answer checks**. The **Check definitions** view allows you to define questions and reference answers for validating the chat responses. The **Check runs** view allows you to run the set of checks for a particular parameters record and view the results. 
+- **Answer checks**. The **Check definitions** view allows you to define questions and reference answers for validating the chat responses. The **Check runs** view executes and shows individual runs, while **Analytics** contains the quality overview and configuration comparison screens.
 
 ## Development
 
