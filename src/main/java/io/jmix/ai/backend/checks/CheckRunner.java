@@ -10,16 +10,29 @@ import io.jmix.core.Id;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class CheckRunner {
+
+    static final String EVALUATOR_VERSION = "semantic-v3";
+    private static final int CONFIG_LABEL_MAX_LENGTH = 255;
+    private static final int SHORT_HASH_LENGTH = 12;
+    private static final Pattern COHORT_SUFFIX = Pattern.compile(
+            " \\[cohort:([a-z0-9]+(?:-[a-z0-9]+)*)]$");
 
     private final DataManager dataManager;
     private final Chat chat;
@@ -41,10 +54,12 @@ public class CheckRunner {
 
     public void runChecks(Id<CheckRun> checkRunId) {
         CheckRun checkRun = dataManager.load(checkRunId).one();
-        if (checkRun.getConfigLabel() == null) {
-            checkRun.setConfigLabel(extractConfigLabel(checkRun.getParameters()));
-        }
         List<CheckDef> checkDefs = dataManager.load(CheckDef.class).query("e.active = true").list();
+        String humanLabel = stripCohortSuffix(checkRun.getConfigLabel());
+        if (humanLabel == null || humanLabel.isBlank()) {
+            humanLabel = extractConfigLabel(checkRun.getParameters());
+        }
+        checkRun.setConfigLabel(withCohortSuffix(humanLabel, buildCohortKey(checkDefs)));
         if (checkDefs.isEmpty()) {
             checkRun.setScore(0.0);
             dataManager.save(checkRun);
@@ -108,7 +123,7 @@ public class CheckRunner {
                 logStringBuilder.append("\n\n");
 
             double score = externalEvaluator.evaluateSemantic(
-                    checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
+                    checkDef.getQuestion(), checkDef.getAnswer(), actualAnswer, logStringBuilder::append);
 
             return buildCheck(checkDef, actualAnswer, score, logStringBuilder.toString());
         } catch (Exception e) {
@@ -155,6 +170,86 @@ public class CheckRunner {
             }
         }
         return null;
+    }
+
+    static String buildCohortKey(List<CheckDef> checkDefs) {
+        List<String> definitions = checkDefs.stream()
+                .map(CheckRunner::canonicalDefinition)
+                .sorted(Comparator.naturalOrder())
+                .toList();
+        MessageDigest digest = sha256();
+        for (String definition : definitions) {
+            byte[] bytes = definition.getBytes(StandardCharsets.UTF_8);
+            digest.update(Integer.toString(bytes.length).getBytes(StandardCharsets.US_ASCII));
+            digest.update((byte) ':');
+            digest.update(bytes);
+        }
+        return EVALUATOR_VERSION + "-" + shortHex(digest.digest());
+    }
+
+    static String withCohortSuffix(String label, String cohortKey) {
+        String humanLabel = stripCohortSuffix(label);
+        if (humanLabel == null) {
+            humanLabel = "";
+        }
+        String suffix = " [cohort:" + cohortKey + "]";
+        int maxHumanLength = CONFIG_LABEL_MAX_LENGTH - suffix.length();
+        if (maxHumanLength < 0) {
+            throw new IllegalArgumentException("Cohort key is too long");
+        }
+        if (humanLabel.length() > maxHumanLength) {
+            humanLabel = humanLabel.substring(0, maxHumanLength);
+        }
+        return humanLabel + suffix;
+    }
+
+    static String extractCohortKey(String label) {
+        if (label == null) {
+            return null;
+        }
+        Matcher matcher = COHORT_SUFFIX.matcher(label);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    static String stripCohortSuffix(String label) {
+        String result = label;
+        while (result != null) {
+            Matcher matcher = COHORT_SUFFIX.matcher(result);
+            if (!matcher.find()) {
+                break;
+            }
+            result = result.substring(0, matcher.start());
+        }
+        return result;
+    }
+
+    static String shortSha256(String value) {
+        MessageDigest digest = sha256();
+        digest.update(value.getBytes(StandardCharsets.UTF_8));
+        return shortHex(digest.digest());
+    }
+
+    private static String canonicalDefinition(CheckDef checkDef) {
+        return canonicalField(checkDef.getId() != null ? checkDef.getId().toString() : null)
+                + canonicalField(checkDef.getCategory())
+                + canonicalField(checkDef.getQuestion())
+                + canonicalField(checkDef.getAnswer());
+    }
+
+    private static String canonicalField(String value) {
+        return value == null ? "-1:" : value.length() + ":" + value;
+    }
+
+    private static MessageDigest sha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    private static String shortHex(byte[] hash) {
+        return HexFormat.of().formatHex(hash, 0, SHORT_HASH_LENGTH / 2);
     }
 
     private String getAnswer(String question, String parameters, JmixVersion jmixVersion, Consumer<String> logger) {

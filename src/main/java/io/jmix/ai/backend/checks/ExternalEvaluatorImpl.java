@@ -35,7 +35,14 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     private static final double LANGUAGE_MISMATCH_MAX_SCORE = 0.2;
 
     private static final String SYSTEM_PROMPT = """
-            You evaluate whether an actual answer matches a reference answer.
+            You evaluate whether an actual answer correctly answers the user's question. The
+            reference answer is factual guidance, not a template whose wording or length must be
+            reproduced. Treat factual claims explicitly stated in the reference as authoritative:
+            do not reject the same mechanism in the actual answer based on unsupported assumptions
+            about framework internals. Alternative correct mechanisms are still acceptable. Do not
+            penalize an additional factual detail solely because the reference omits it; penalize
+            it only when it contradicts the reference or is unambiguously false. If uncertain,
+            ignore that detail instead of guessing.
 
             FIRST decide the reference type:
             - REFUSAL: the reference declines to help, states the topic is out of scope, or redirects
@@ -53,12 +60,17 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
               out-of-scope content.
             For a REFUSAL reference always set "languageMatch" to true — language is irrelevant to a decline.
 
-            If the reference is CONTENT, score semantic match in range [0,1]:
-            - Semantic correctness vs reference: 60%%
-            - Completeness of key points: 30%%
-            - Penalize contradictions/hallucinations/irrelevant content: 10%%
-            For a CONTENT reference, if the actual answer is not in the same language as the reference,
-            apply a strong penalty.
+            If the reference is CONTENT, judge only what the user's question asks:
+            - Do not penalize omission of examples, background, optional configuration or follow-up
+              advice from the reference when the question did not request it.
+            - Accept a shorter answer and alternative correct wording or API when it fully answers
+              the question. Exact identifiers and signatures matter when the question asks for them.
+            - Penalize missing required facts, contradictions, invented APIs and irrelevant content.
+            - Use only these scores: 1.0 = fully correct; 0.9 = correct with a minor non-material
+              issue; 0.7 = partially correct or missing a required fact; 0.3 = mostly incorrect;
+              0.0 = incorrect, empty, or an inappropriate refusal.
+            For a CONTENT reference, if the actual answer is not in the same language as the user's
+            question, apply a strong penalty.
 
             Return ONLY valid JSON without markdown fences:
             {
@@ -102,11 +114,14 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     }
 
     @Override
-    public double evaluateSemantic(String referenceAnswer, String actualAnswer, @Nullable Consumer<String> logger) {
+    public double evaluateSemantic(String question, String referenceAnswer, String actualAnswer,
+                                   @Nullable Consumer<String> logger) {
         try {
             Prompt prompt = new Prompt(List.of(
                     new SystemMessage(SYSTEM_PROMPT),
-                    new UserMessage("Reference answer:\n" + referenceAnswer + "\n\nActual answer:\n" + actualAnswer)
+                    new UserMessage("User question:\n" + question
+                            + "\n\nReference answer:\n" + referenceAnswer
+                            + "\n\nActual answer:\n" + actualAnswer)
             ));
 
             ChatResponse response = chatModel.call(prompt);
@@ -149,10 +164,24 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     }
 
     static double normalizeScore(EvaluationResult result) {
+        double score = nearestContentScore(result.score());
         if (!result.languageMatch()) {
-            return Math.min(result.score(), LANGUAGE_MISMATCH_MAX_SCORE);
+            return Math.min(score, LANGUAGE_MISMATCH_MAX_SCORE);
         }
-        return result.score();
+        return score;
+    }
+
+    private static double nearestContentScore(double score) {
+        if (score >= 0.95) {
+            return 1.0;
+        }
+        if (score >= 0.8) {
+            return 0.9;
+        }
+        if (score >= 0.5) {
+            return 0.7;
+        }
+        return score >= 0.15 ? 0.3 : 0.0;
     }
 
     private static String extractJsonObject(String text) {

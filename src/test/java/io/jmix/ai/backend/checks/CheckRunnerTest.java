@@ -181,7 +181,8 @@ public class CheckRunnerTest {
     private static class TestExternalEvaluator implements ExternalEvaluator {
 
         @Override
-        public double evaluateSemantic(String referenceAnswer, String actualAnswer, Consumer<String> logger) {
+        public double evaluateSemantic(String question, String referenceAnswer, String actualAnswer,
+                                       Consumer<String> logger) {
             if (referenceAnswer.equals(actualAnswer))
                 return 1.0;
             else
