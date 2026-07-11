@@ -43,6 +43,17 @@ class SearchResultsFormatterTest {
     }
 
     @Test
+    void largeTokenBudgetDoesNotOverflow() {
+        Document first = doc("1", "x".repeat(4000), Map.of());
+        Document second = doc("2", "y".repeat(4000), Map.of());
+
+        assertThat(SearchResultsFormatter.applyTokenBudget(
+                List.of(first, second), Integer.MAX_VALUE))
+                .extracting(Document::getId)
+                .containsExactly("1", "2");
+    }
+
+    @Test
     void extractsTitleFromSnippetText() {
         Document snippet = doc("1", "Path: Flow UI > Button\n\nTITLE: Create a Button\nDESCRIPTION: d\nSOURCE: s", Map.of());
         assertThat(SearchResultsFormatter.extractTitle(snippet)).isEqualTo("Create a Button");

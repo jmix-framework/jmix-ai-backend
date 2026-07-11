@@ -76,6 +76,8 @@ class RerankerTest {
         assertThat(results).singleElement().extracting(result -> result.document().getId()).isEqualTo("1");
 
         UserMessage userMessage = reranker.capturedPrompt.getUserMessage();
+        assertThat(reranker.capturedPrompt.getSystemMessage().getText())
+                .contains("exact XML element", "candidate explicitly supports", "requested fact");
         assertThat(userMessage.getText()).contains("\"index\":1");
         assertThat(userMessage.getText()).contains("abcde");
         assertThat(userMessage.getText()).doesNotContain("abcdef");

@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore.snippets;
 
+import io.jmix.ai.backend.entity.EnrichmentCache;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import org.junit.jupiter.api.Test;
@@ -10,12 +11,17 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class SnippetizerEnricherTest {
@@ -31,16 +37,23 @@ class SnippetizerEnricherTest {
     private static class TestSnippetizer extends SnippetizerEnricher {
         final ChatModel chatModel;
         Prompt capturedPrompt;
+        final List<Prompt> capturedPrompts = new ArrayList<>();
 
         TestSnippetizer(ChatModel chatModel) {
-            super("test-model", "low", 4, "test-key", mock(EnrichmentCacheRepository.class));
+            this(chatModel, mock(EnrichmentCacheRepository.class));
+        }
+
+        TestSnippetizer(ChatModel chatModel, EnrichmentCacheRepository enrichmentCacheRepository) {
+            super("test-model", "low", 4, "test-key",
+                    Duration.ofSeconds(1), Duration.ofSeconds(1), enrichmentCacheRepository);
             this.chatModel = chatModel;
         }
 
         @Override
-        protected ChatModel buildChatModel() {
+        protected ChatModel createChatModel() {
             return prompt -> {
                 capturedPrompt = prompt;
+                capturedPrompts.add(prompt);
                 return chatModel.call(prompt);
             };
         }
@@ -58,7 +71,7 @@ class SnippetizerEnricherTest {
                 """));
         TestSnippetizer snippetizer = new TestSnippetizer(chatModel);
 
-        List<Snippet> snippets = snippetizer.snippetize(PAGE, PAGE.getText());
+        List<Snippet> snippets = snippetizer.snippetize(PAGE, DocsHtmlConverter.toPlainText(PAGE.getText()));
 
         assertThat(snippets).hasSize(2);
         assertThat(snippets.get(0).title()).isEqualTo("Create a Button");
@@ -100,7 +113,136 @@ class SnippetizerEnricherTest {
 
     @Test
     void modelKeyIncludesReasoningEffort() {
-        assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:p2");
+        assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:p3");
+        assertThat(new TestSnippetizer(mock(ChatModel.class)).getGenerationKey())
+                .isEqualTo("test-model:low:p3:verbatim-code-coverage-v1");
+    }
+
+    @Test
+    void snippetize_RejectsCodeThatIsNotPresentInSource() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
+                {"snippets": [{"title": "Invented", "description": "Not grounded.",
+                  "language": "xml", "code": "<button text=\\"Invented\\"/>"}]}
+                """));
+
+        List<Snippet> snippets = new TestSnippetizer(chatModel).snippetize(
+                PAGE, DocsHtmlConverter.toPlainText(PAGE.getText()));
+
+        assertThat(snippets).isNull();
+    }
+
+    @Test
+    void resolveAll_RegeneratesCachedSnippetWithModifiedCode() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
+                {"snippets": [{"title": "Button", "description": "Grounded.",
+                  "language": "xml", "code": "<button text=\\"OK\\"/>"}]}
+                """));
+        EnrichmentCacheRepository cacheRepository = mock(EnrichmentCacheRepository.class);
+        EnrichmentCache cached = new EnrichmentCache();
+        cached.setContentHash("hash1");
+        TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
+        cached.setDescription(snippetizer.toJson(List.of(
+                new Snippet("Invented", "Cached.", "xml", "<button text=\"Invented\"/>", "source"))));
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
+                "test-model:low:p3")).thenReturn(Optional.of(cached));
+
+        try {
+            Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
+                    document -> DocsHtmlConverter.toPlainText(document.getText()));
+
+            assertThat(result.get(PAGE.getId())).singleElement()
+                    .extracting(Snippet::code)
+                    .isEqualTo("<button text=\"OK\"/>");
+        } finally {
+            snippetizer.shutdownExecutor();
+        }
+    }
+
+    @Test
+    void resolveAll_ReusesValidCachedSnippetWithoutCallingModel() {
+        ChatModel chatModel = mock(ChatModel.class);
+        EnrichmentCacheRepository cacheRepository = mock(EnrichmentCacheRepository.class);
+        TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
+        EnrichmentCache cached = new EnrichmentCache();
+        cached.setContentHash("hash1");
+        cached.setDescription(snippetizer.toJson(List.of(
+                new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>", "source"))));
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
+                "test-model:low:p3")).thenReturn(Optional.of(cached));
+
+        try {
+            Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
+                    document -> DocsHtmlConverter.toPlainText(document.getText()));
+
+            assertThat(result.get(PAGE.getId())).singleElement()
+                    .extracting(Snippet::code)
+                    .isEqualTo("<button text=\"OK\"/>");
+            verifyNoInteractions(chatModel);
+        } finally {
+            snippetizer.shutdownExecutor();
+        }
+    }
+
+    @Test
+    void verbatimValidationRejectsEmptySnippetList() {
+        assertThat(SnippetizerEnricher.containsOnlyVerbatimCode(List.of(), "source")).isFalse();
+    }
+
+    @Test
+    void splitContent_PreservesEveryCharacterAndPrefersParagraphBoundaries() {
+        String content = "first paragraph\n\n" + "x".repeat(35) + "\nlast line";
+
+        List<String> parts = SnippetizerEnricher.splitContent(content, 20);
+
+        assertThat(parts).allSatisfy(part -> assertThat(part.length()).isLessThanOrEqualTo(20));
+        assertThat(String.join("", parts)).isEqualTo(content);
+        assertThat(parts.get(0)).endsWith("\n\n");
+    }
+
+    @Test
+    void snippetize_ProcessesTailBeyondSingleRequestLimitWithoutLosingInput() {
+        String content = "Head paragraph.\n\n".repeat(4_000) + "TAIL_MARKER";
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenAnswer(invocation -> {
+            Prompt prompt = invocation.getArgument(0);
+            boolean tail = prompt.getUserMessage().getText().contains("TAIL_MARKER");
+            return chatResponse("""
+                    {"snippets": [{"title": "%s", "description": "Processed.", "language": "", "code": ""}]}
+                    """.formatted(tail ? "Tail" : "Head"));
+        });
+        TestSnippetizer snippetizer = new TestSnippetizer(chatModel);
+
+        List<Snippet> snippets = snippetizer.snippetize(PAGE, content);
+
+        assertThat(snippetizer.capturedPrompts).hasSizeGreaterThan(1);
+        assertThat(snippets).extracting(Snippet::title).contains("Tail");
+        String submittedContent = snippetizer.capturedPrompts.stream()
+                .map(prompt -> prompt.getUserMessage().getText())
+                .map(text -> text.substring(text.indexOf("Page content:\n") + "Page content:\n".length()))
+                .collect(Collectors.joining());
+        assertThat(submittedContent).isEqualTo(content);
+        assertThat(snippetizer.capturedPrompts).allSatisfy(prompt -> {
+            String text = prompt.getUserMessage().getText();
+            String part = text.substring(text.indexOf("Page content:\n") + "Page content:\n".length());
+            assertThat(part.length()).isLessThanOrEqualTo(SnippetizerEnricher.MAX_INPUT_CHARS);
+        });
+    }
+
+    @Test
+    void snippetize_DiscardsPartialResultWhenOnePartFails() {
+        String content = "x".repeat(SnippetizerEnricher.MAX_INPUT_CHARS * 2) + "TAIL";
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class)))
+                .thenReturn(chatResponse("""
+                        {"snippets": [{"title": "Head", "description": "Processed.", "language": "", "code": ""}]}
+                        """))
+                .thenThrow(new RuntimeException("tail failed"));
+        TestSnippetizer snippetizer = new TestSnippetizer(chatModel);
+
+        assertThat(snippetizer.snippetize(PAGE, content)).isNull();
+        assertThat(snippetizer.capturedPrompts).hasSize(2);
     }
 
     private static ChatResponse chatResponse(String content) {

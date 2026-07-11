@@ -18,8 +18,9 @@ import java.util.Map;
 
 /**
  * Parallel corpus to {@link UiSamplesIngester}: the same UI samples converted into small
- * context7-like snippets by an LLM ({@link SnippetizerEnricher}). Samples for which generation
- * fails fall back to the whole-sample document.
+ * context7-like snippets by an LLM ({@link SnippetizerEnricher}). Each successfully enriched
+ * sample also keeps lossless source coverage chunks; failed generation keeps only retryable
+ * deterministic fallback chunks.
  */
 @Component
 public class UiSamplesSnippetsIngester extends UiSamplesIngester {
@@ -49,7 +50,7 @@ public class UiSamplesSnippetsIngester extends UiSamplesIngester {
 
     @Override
     protected String currentGenerationKey() {
-        return snippetizer.getModelKey();
+        return snippetizer.getGenerationKey();
     }
 
     @Override
@@ -60,8 +61,8 @@ public class UiSamplesSnippetsIngester extends UiSamplesIngester {
         for (Document document : documents) {
             List<Snippet> snippets = snippetsByDoc.get(document.getId());
             if (snippets == null) {
-                log.warn("Falling back to whole-sample document for {}", document.getMetadata().get("url"));
-                chunkDocs.addAll(super.splitToChunks(List.of(document)));
+                log.warn("Falling back to deterministic chunking for {}", document.getMetadata().get("url"));
+                chunkDocs.addAll(createFallbackChunks(document));
                 continue;
             }
             for (Snippet snippet : snippets) {
@@ -74,7 +75,31 @@ public class UiSamplesSnippetsIngester extends UiSamplesIngester {
                 }
                 chunkDocs.add(createDocument(text, metadata));
             }
+            chunkDocs.addAll(createSourceChunks(document, true));
         }
         return chunkDocs;
+    }
+
+    private List<Document> createFallbackChunks(Document document) {
+        return createSourceChunks(document, false);
+    }
+
+    private List<Document> createSourceChunks(Document document, boolean coverage) {
+        List<Document> chunks = new ArrayList<>();
+        for (String part : SnippetizerEnricher.splitContent(
+                document.getText(), SnippetizerEnricher.MAX_COVERAGE_CHARS)) {
+            Map<String, Object> metadata = new HashMap<>(document.getMetadata());
+            metadata.remove("enriched");
+            if (coverage) {
+                metadata.put("coverage", "true");
+                metadata.put("generationKey", currentGenerationKey());
+            } else {
+                metadata.remove("coverage");
+                metadata.remove("generationKey");
+            }
+            metadata.put("size", part.length());
+            chunks.add(createDocument(part, metadata));
+        }
+        return chunks;
     }
 }

@@ -7,6 +7,7 @@ import io.jmix.ai.backend.entity.EnrichmentCache;
 import io.jmix.ai.backend.vectorstore.AbstractOpenAiEnricher;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
+import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +32,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Splits ingested pages (documentation, UI samples) into small self-contained context7-like
@@ -41,10 +44,13 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
 
     private static final Logger log = LoggerFactory.getLogger(SnippetizerEnricher.class);
 
-    private static final int MAX_INPUT_CHARS = 60_000;
+    static final int MAX_INPUT_CHARS = 60_000;
+    static final int MAX_COVERAGE_CHARS = 8_000;
 
     // bump when the snippetization prompt changes so cached snippets are regenerated
-    private static final String PROMPT_VERSION = "p2";
+    private static final String PROMPT_VERSION = "p3";
+    // bump when validation or the stored snippet format changes; cached LLM output can still be reused
+    private static final String CORPUS_FORMAT_VERSION = "verbatim-code-coverage-v1";
 
     private static final String SYSTEM_PROMPT = """
             You convert a page of Jmix framework documentation into small self-contained snippets for a code-search index.
@@ -61,6 +67,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
               self-contained and copy-pasteable.
             - "language": java, xml, groovy, kotlin, sql, properties or plaintext. Use "" when "code" is empty.
             - Cover ALL distinct topics of the page; typically 2-8 snippets per page.
+            - For a numbered page part, cover all distinct topics present in that part.
             - Write titles and descriptions in English.
             The input may contain HTML markup - ignore navigation, layout and formatting tags.
             """;
@@ -84,16 +91,20 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
 
     private final int parallelism;
     private final EnrichmentCacheRepository enrichmentCacheRepository;
+    private final ExecutorService executor;
 
     public SnippetizerEnricher(
             @Value("${snippets.enrichment.model}") String modelName,
             @Value("${snippets.enrichment.reasoning-effort:}") String reasoningEffort,
             @Value("${snippets.enrichment.parallelism}") int parallelism,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
+            @Value("${enrichment.openai.connect-timeout}") Duration connectTimeout,
+            @Value("${enrichment.openai.read-timeout}") Duration readTimeout,
             EnrichmentCacheRepository enrichmentCacheRepository) {
-        super(modelName, reasoningEffort, configuredApiKey, false);
+        super(modelName, reasoningEffort, configuredApiKey, false, connectTimeout, readTimeout);
         this.parallelism = Math.max(1, parallelism);
         this.enrichmentCacheRepository = enrichmentCacheRepository;
+        this.executor = Executors.newFixedThreadPool(this.parallelism);
     }
 
     @Override
@@ -104,6 +115,10 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     @Override
     public String getModelKey() {
         return super.getModelKey() + ":" + PROMPT_VERSION;
+    }
+
+    public String getGenerationKey() {
+        return getModelKey() + ":" + CORPUS_FORMAT_VERSION;
     }
 
     /**
@@ -117,15 +132,19 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     public Map<String, List<Snippet>> resolveAll(String type, List<Document> documents,
                                                  java.util.function.Function<Document, String> contentExtractor) {
         Map<String, List<Snippet>> result = new HashMap<>();
+        Map<String, String> contentByDocumentId = new HashMap<>();
         List<Document> pending = new ArrayList<>();
 
         for (Document document : documents) {
+            String content = contentExtractor.apply(document);
+            contentByDocumentId.put(document.getId(), content);
             String contentHash = (String) document.getMetadata().get("sourceHash");
             Optional<List<Snippet>> cached = enrichmentCacheRepository
                     .find(type, source(document), jmixVersion(document), getModelKey())
                     .filter(entry -> Objects.equals(contentHash, entry.getContentHash()))
                     .map(EnrichmentCache::getDescription)
-                    .map(this::fromJson);
+                    .map(this::fromJson)
+                    .filter(snippets -> containsOnlyVerbatimCode(snippets, content));
             if (cached.isPresent()) {
                 result.put(document.getId(), cached.get());
             } else {
@@ -137,26 +156,21 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
             return result;
         }
         log.info("Generating snippets for {} documents (parallelism {})", pending.size(), parallelism);
-        ExecutorService executor = Executors.newFixedThreadPool(Math.min(parallelism, pending.size()));
-        try {
-            List<Future<List<Snippet>>> futures = new ArrayList<>(pending.size());
-            for (Document document : pending) {
-                futures.add(executor.submit(() -> snippetize(document, contentExtractor.apply(document))));
+        List<Future<List<Snippet>>> futures = new ArrayList<>(pending.size());
+        for (Document document : pending) {
+            futures.add(executor.submit(() -> snippetize(document, contentByDocumentId.get(document.getId()))));
+        }
+        for (int i = 0; i < pending.size(); i++) {
+            Document document = pending.get(i);
+            List<Snippet> snippets = getResult(futures.get(i), source(document));
+            if (snippets != null && !snippets.isEmpty()) {
+                result.put(document.getId(), snippets);
+                enrichmentCacheRepository.save(type, source(document), jmixVersion(document), getModelKey(),
+                        (String) document.getMetadata().get("sourceHash"), toJson(snippets), "");
             }
-            for (int i = 0; i < pending.size(); i++) {
-                Document document = pending.get(i);
-                List<Snippet> snippets = getResult(futures.get(i), source(document));
-                if (snippets != null && !snippets.isEmpty()) {
-                    result.put(document.getId(), snippets);
-                    enrichmentCacheRepository.save(type, source(document), jmixVersion(document), getModelKey(),
-                            (String) document.getMetadata().get("sourceHash"), toJson(snippets), "");
-                }
-                if ((i + 1) % 100 == 0) {
-                    log.info("Snippetized {}/{} documents", i + 1, pending.size());
-                }
+            if ((i + 1) % 100 == 0) {
+                log.info("Snippetized {}/{} documents", i + 1, pending.size());
             }
-        } finally {
-            executor.shutdownNow();
         }
         return result;
     }
@@ -166,17 +180,30 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
      */
     @Nullable
     public List<Snippet> snippetize(Document document, @Nullable String content) {
-        String url = Objects.toString(document.getMetadata().get("url"), source(document));
-        String topic = Objects.toString(document.getMetadata().get("docPath"), "");
         if (content == null || content.isBlank()) {
             return null;
         }
-        if (content.length() > MAX_INPUT_CHARS) {
-            content = content.substring(0, MAX_INPUT_CHARS);
+        List<String> parts = splitContent(content, MAX_INPUT_CHARS);
+        List<Snippet> result = new ArrayList<>();
+        for (int i = 0; i < parts.size(); i++) {
+            List<Snippet> partSnippets = snippetizePart(document, parts.get(i), i + 1, parts.size());
+            if (partSnippets == null) {
+                return null;
+            }
+            result.addAll(partSnippets);
         }
-        String userMessage = "Page topic path: %s\nPage URL: %s\n\nPage content:\n%s".formatted(topic, url, content);
+        return result.isEmpty() ? null : List.copyOf(result);
+    }
+
+    @Nullable
+    private List<Snippet> snippetizePart(Document document, String content, int partNumber, int partCount) {
+        String url = Objects.toString(document.getMetadata().get("url"), source(document));
+        String topic = Objects.toString(document.getMetadata().get("docPath"), "");
+        String partInfo = partCount == 1 ? "" : "\nPage content part: %d/%d".formatted(partNumber, partCount);
+        String userMessage = "Page topic path: %s\nPage URL: %s%s\n\nPage content:\n%s"
+                .formatted(topic, url, partInfo, content);
         try {
-            ChatResponse response = buildChatModel().call(new Prompt(List.of(
+            ChatResponse response = chatModel().call(new Prompt(List.of(
                     new SystemMessage(SYSTEM_PROMPT),
                     new UserMessage(userMessage))));
             String text = getContent(response);
@@ -200,10 +227,71 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
                                     : StringUtils.defaultIfBlank(item.code().replace("```", ""), null),
                             url))
                     .toList();
-            return snippets.isEmpty() ? null : snippets;
+            if (snippets.isEmpty()) {
+                return null;
+            }
+            if (!containsOnlyVerbatimCode(snippets, content)) {
+                log.error("Snippetization invented or modified code for {}", url);
+                return null;
+            }
+            return snippets;
         } catch (Exception e) {
             log.error("Snippetization request failed for {}", url, e);
             return null;
+        }
+    }
+
+    static List<String> splitContent(String content, int maxChars) {
+        if (maxChars <= 0) {
+            throw new IllegalArgumentException("maxChars must be positive");
+        }
+        if (content.length() <= maxChars) {
+            return List.of(content);
+        }
+
+        List<String> parts = new ArrayList<>();
+        int start = 0;
+        while (start < content.length()) {
+            int hardEnd = Math.min(start + maxChars, content.length());
+            int end = hardEnd;
+            if (hardEnd < content.length()) {
+                int preferredStart = start + maxChars / 2;
+                int paragraphEnd = content.lastIndexOf("\n\n", hardEnd - 2);
+                if (paragraphEnd >= preferredStart) {
+                    end = paragraphEnd + 2;
+                } else {
+                    int lineEnd = content.lastIndexOf('\n', hardEnd - 1);
+                    if (lineEnd >= preferredStart) {
+                        end = lineEnd + 1;
+                    }
+                }
+            }
+            parts.add(content.substring(start, end));
+            start = end;
+        }
+        return parts;
+    }
+
+    static boolean containsOnlyVerbatimCode(@Nullable List<Snippet> snippets, @Nullable String sourceContent) {
+        if (snippets == null || snippets.isEmpty() || sourceContent == null) {
+            return false;
+        }
+        return snippets.stream()
+                .map(Snippet::code)
+                .filter(StringUtils::isNotBlank)
+                .allMatch(sourceContent::contains);
+    }
+
+    @PreDestroy
+    void shutdownExecutor() {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 

@@ -13,6 +13,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,6 +66,7 @@ class SnippetsIngestersTest {
 
     @Test
     void docsSnippets_ProducesSnippetDocumentsWithPathPrefix() {
+        when(snippetizer.getGenerationKey()).thenReturn("model:p3:verbatim-code-coverage-v1");
         Document page = docsPage();
         List<Snippet> snippets = List.of(
                 new Snippet("Create a Button", "How to declare a button.", "xml", "<button/>", "https://docs/v2/flow-ui/button.html"),
@@ -74,18 +76,25 @@ class SnippetsIngestersTest {
 
         List<Document> chunks = docsIngester.splitToChunks(List.of(page));
 
-        assertThat(chunks).hasSize(2);
+        assertThat(chunks).hasSize(3);
         assertThat(chunks.get(0).getText())
                 .startsWith("Path: Flow UI > Button\n\nTITLE: Create a Button")
                 .contains("<button/>");
         assertThat(chunks.get(0).getMetadata())
                 .containsEntry("enriched", "true")
+                .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
                 .containsEntry("type", "docs-snippets");
         assertThat(chunks.get(1).getText()).contains("TITLE: Button click handler");
+        assertThat(chunks.get(2).getText()).startsWith("Path: Flow UI > Button\n\n")
+                .contains("The button component allows users to trigger actions");
+        assertThat(chunks.get(2).getMetadata())
+                .containsEntry("coverage", "true")
+                .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                .doesNotContainKey("enriched");
     }
 
     @Test
-    void docsSnippets_FallsBackToRegularChunkingOnFailure() {
+    void docsSnippets_FallsBackToPlainTextChunkingOnFailure() {
         when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of());
 
         List<Document> chunks = docsIngester.splitToChunks(List.of(docsPage()));
@@ -95,7 +104,73 @@ class SnippetsIngestersTest {
     }
 
     @Test
+    void docsSnippets_CoverageIsBoundedAndReconstructsSource() {
+        String html = "<article class=\"doc\"><p>" + "x".repeat(20_000) + "TAIL</p></article>";
+        Document page = new Document("large-doc", html, Map.of(
+                "type", "docs-snippets",
+                "source", "large.html",
+                "sourceHash", "hash-large",
+                "jmixVersion", "v2",
+                "url", "https://docs/v2/large.html",
+                "docPath", "Large page"));
+        when(snippetizer.getGenerationKey()).thenReturn("model:p3:verbatim-code-coverage-v1");
+        when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of(
+                "large-doc", List.of(new Snippet("Large", "Summary.", null, null,
+                        "https://docs/v2/large.html"))));
+
+        List<Document> chunks = docsIngester.splitToChunks(List.of(page));
+
+        String prefix = "Path: Large page\n\n";
+        List<Document> coverage = chunks.stream()
+                .filter(chunk -> "true".equals(chunk.getMetadata().get("coverage")))
+                .toList();
+        assertThat(coverage).hasSizeGreaterThan(1).allSatisfy(chunk -> {
+            assertThat(chunk.getText()).startsWith(prefix);
+            assertThat(chunk.getText().length())
+                    .isLessThanOrEqualTo(SnippetizerEnricher.MAX_COVERAGE_CHARS);
+            assertThat(chunk.getMetadata())
+                    .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                    .doesNotContainKey("enriched");
+        });
+        assertThat(coverage.stream()
+                .map(Document::getText)
+                .map(text -> text.substring(prefix.length()))
+                .collect(Collectors.joining()))
+                .isEqualTo(DocsHtmlConverter.toPlainText(html));
+    }
+
+    @Test
+    void docsSnippets_FallbackKeepsOversizedPlainText() {
+        String html = "<article class=\"doc\"><p>" + "x".repeat(35_000) + "TAIL</p></article>";
+        Document page = new Document("large-doc", html, Map.of(
+                "type", "docs-snippets",
+                "source", "large.html",
+                "sourceHash", "hash-large",
+                "jmixVersion", "v2",
+                "url", "https://docs/v2/large.html",
+                "docPath", "Large page"));
+        when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of());
+
+        List<Document> chunks = docsIngester.splitToChunks(List.of(page));
+
+        String prefix = "Path: Large page\n\n";
+        assertThat(chunks).hasSizeGreaterThan(1)
+                .allSatisfy(chunk -> {
+                    assertThat(chunk.getText().length())
+                            .isLessThanOrEqualTo(SnippetizerEnricher.MAX_COVERAGE_CHARS);
+                    assertThat(chunk.getText()).startsWith(prefix);
+                    assertThat(chunk.getMetadata()).doesNotContainKeys("enriched", "generationKey");
+                });
+        String reconstructed = chunks.stream()
+                .map(Document::getText)
+                .map(text -> text.substring(prefix.length()))
+                .collect(Collectors.joining());
+        assertThat(reconstructed).isEqualTo(DocsHtmlConverter.toPlainText(html));
+    }
+
+    @Test
     void uiSamplesSnippets_ProducesSnippetDocuments() {
+        when(snippetizer.getGenerationKey()).thenReturn("model:p3:verbatim-code-coverage-v1");
         Document page = samplePage();
         when(snippetizer.resolveAll(eq("uisamples-snippets"), anyList(), any()))
                 .thenReturn(Map.of("sample-1", List.of(
@@ -103,9 +178,16 @@ class SnippetsIngestersTest {
 
         List<Document> chunks = uiSamplesIngester.splitToChunks(List.of(page));
 
-        assertThat(chunks).hasSize(1);
+        assertThat(chunks).hasSize(2);
         assertThat(chunks.get(0).getText()).startsWith("TITLE: Button sample");
-        assertThat(chunks.get(0).getMetadata()).containsEntry("enriched", "true");
+        assertThat(chunks.get(0).getMetadata())
+                .containsEntry("enriched", "true")
+                .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1");
+        assertThat(chunks.get(1).getText()).isEqualTo(page.getText());
+        assertThat(chunks.get(1).getMetadata())
+                .containsEntry("coverage", "true")
+                .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                .doesNotContainKey("enriched");
     }
 
     @Test
@@ -117,5 +199,60 @@ class SnippetsIngestersTest {
 
         assertThat(chunks).hasSize(1);
         assertThat(chunks.get(0).getText()).isEqualTo(page.getText());
+    }
+
+    @Test
+    void uiSamplesSnippets_OversizedCoverageIsBoundedAndReconstructsSource() {
+        String text = "Path: Samples > Large\n\n" + "x".repeat(35_000) + "TAIL";
+        Document page = new Document("large-sample", text, Map.of(
+                "type", "uisamples-snippets",
+                "source", "large-sample",
+                "sourceHash", "hash-large",
+                "jmixVersion", "v2",
+                "url", "https://us/v2/sample/large-sample"));
+        when(snippetizer.getGenerationKey()).thenReturn("model:p3:verbatim-code-coverage-v1");
+        when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of(
+                "large-sample", List.of(new Snippet(
+                        "Large sample", "Summary.", null, null,
+                        "https://us/v2/sample/large-sample"))));
+
+        List<Document> chunks = uiSamplesIngester.splitToChunks(List.of(page));
+
+        List<Document> coverage = chunks.stream()
+                .filter(chunk -> "true".equals(chunk.getMetadata().get("coverage")))
+                .toList();
+        assertThat(coverage).hasSizeGreaterThan(1).allSatisfy(chunk -> {
+            assertThat(chunk.getText().length())
+                    .isLessThanOrEqualTo(SnippetizerEnricher.MAX_COVERAGE_CHARS);
+            assertThat(chunk.getMetadata())
+                    .containsEntry("coverage", "true")
+                    .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                    .doesNotContainKey("enriched");
+        });
+        assertThat(coverage.stream().map(Document::getText).collect(Collectors.joining()))
+                .isEqualTo(text);
+    }
+
+    @Test
+    void uiSamplesSnippets_FallbackKeepsOversizedDocument() {
+        String text = "Path: Samples > Large\n\n" + "x".repeat(35_000) + "TAIL";
+        Document page = new Document("large-sample", text, Map.of(
+                "type", "uisamples-snippets",
+                "source", "large-sample",
+                "sourceHash", "hash-large",
+                "jmixVersion", "v2",
+                "url", "https://us/v2/sample/large-sample"));
+        when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of());
+
+        List<Document> chunks = uiSamplesIngester.splitToChunks(List.of(page));
+
+        assertThat(chunks).hasSizeGreaterThan(1)
+                .allSatisfy(chunk -> {
+                    assertThat(chunk.getText().length())
+                            .isLessThanOrEqualTo(SnippetizerEnricher.MAX_COVERAGE_CHARS);
+                    assertThat(chunk.getMetadata()).doesNotContainKeys("enriched", "generationKey");
+                });
+        assertThat(chunks.stream().map(Document::getText).collect(Collectors.joining()))
+                .isEqualTo(text);
     }
 }

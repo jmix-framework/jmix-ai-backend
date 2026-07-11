@@ -19,8 +19,9 @@ import java.util.Objects;
 
 /**
  * Parallel corpus to {@link DocsIngester}: the same documentation pages converted into small
- * context7-like snippets by an LLM ({@link SnippetizerEnricher}). Pages for which generation
- * fails fall back to the regular docs chunking, so the corpus always covers every page.
+ * context7-like snippets by an LLM ({@link SnippetizerEnricher}). Each successfully enriched page
+ * also keeps lossless plain-text coverage chunks; pages for which generation fails contain only
+ * retryable plain-text fallback chunks.
  */
 @Component
 public class DocsSnippetsIngester extends DocsIngester {
@@ -49,7 +50,7 @@ public class DocsSnippetsIngester extends DocsIngester {
 
     @Override
     protected String currentGenerationKey() {
-        return snippetizer.getModelKey();
+        return snippetizer.getGenerationKey();
     }
 
     @Override
@@ -61,8 +62,8 @@ public class DocsSnippetsIngester extends DocsIngester {
         for (Document document : documents) {
             List<Snippet> snippets = snippetsByDoc.get(document.getId());
             if (snippets == null) {
-                log.warn("Falling back to regular chunking for {}", document.getMetadata().get("url"));
-                chunkDocs.addAll(super.splitToChunks(List.of(document)));
+                log.warn("Falling back to plain-text chunking for {}", document.getMetadata().get("url"));
+                chunkDocs.addAll(createFallbackChunks(document));
                 continue;
             }
             String docPath = Objects.toString(document.getMetadata().get("docPath"), "");
@@ -77,7 +78,40 @@ public class DocsSnippetsIngester extends DocsIngester {
                 }
                 chunkDocs.add(createDocument(text, metadata));
             }
+            chunkDocs.addAll(createSourceChunks(document, true));
         }
         return chunkDocs;
+    }
+
+    private List<Document> createFallbackChunks(Document document) {
+        return createSourceChunks(document, false);
+    }
+
+    private List<Document> createSourceChunks(Document document, boolean coverage) {
+        String docPath = Objects.toString(document.getMetadata().get("docPath"), "");
+        String prefix = "Path: " + docPath + "\n\n";
+        String plainText = DocsHtmlConverter.toPlainText(document.getText());
+
+        List<Document> chunks = new ArrayList<>();
+        boolean repeatPrefix = prefix.length() < SnippetizerEnricher.MAX_COVERAGE_CHARS;
+        String content = repeatPrefix ? plainText : prefix + plainText;
+        int chunkSize = repeatPrefix
+                ? SnippetizerEnricher.MAX_COVERAGE_CHARS - prefix.length()
+                : SnippetizerEnricher.MAX_COVERAGE_CHARS;
+        for (String part : SnippetizerEnricher.splitContent(content, chunkSize)) {
+            String text = repeatPrefix ? prefix + part : part;
+            Map<String, Object> metadata = new HashMap<>(document.getMetadata());
+            metadata.remove("enriched");
+            if (coverage) {
+                metadata.put("coverage", "true");
+                metadata.put("generationKey", currentGenerationKey());
+            } else {
+                metadata.remove("coverage");
+                metadata.remove("generationKey");
+            }
+            metadata.put("size", text.length());
+            chunks.add(createDocument(text, metadata));
+        }
+        return chunks;
     }
 }

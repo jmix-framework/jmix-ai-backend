@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -58,8 +59,10 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
             @Value("${javaapi.enrichment.enabled}") boolean enabled,
             @Value("${javaapi.enrichment.model}") String modelName,
             @Value("${javaapi.enrichment.reasoning-effort:}") String reasoningEffort,
-            @Value("${spring.ai.openai.api-key:}") String configuredApiKey) {
-        super(modelName, reasoningEffort, configuredApiKey, enabled);
+            @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
+            @Value("${enrichment.openai.connect-timeout}") Duration connectTimeout,
+            @Value("${enrichment.openai.read-timeout}") Duration readTimeout) {
+        super(modelName, reasoningEffort, configuredApiKey, enabled, connectTimeout, readTimeout);
         this.enabled = enabled;
     }
 
@@ -84,7 +87,7 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
     @Nullable
     public Enrichment enrich(String cardText) {
         try {
-            ChatResponse response = buildChatModel().call(new Prompt(List.of(
+            ChatResponse response = chatModel().call(new Prompt(List.of(
                     new SystemMessage(SYSTEM_PROMPT),
                     new UserMessage(cardText))));
             String content = getContent(response);

@@ -48,42 +48,62 @@ public class JavaApiCardRenderer {
     }
 
     /**
-     * Splits a formatted card into parts not exceeding {@code maxSize}, repeating the header
-     * (TITLE..CODE fence) in each part. Cards small enough are returned as a single element.
+     * Splits a formatted card without dropping source text, repeating the header
+     * (TITLE..CODE fence) in each part when it fits. Every returned part stays within
+     * {@code maxSize}.
      */
     public static List<String> splitCard(String cardText, int maxSize) {
+        if (maxSize <= 0) {
+            throw new IllegalArgumentException("maxSize must be positive");
+        }
         if (cardText.length() <= maxSize) {
             return List.of(cardText);
         }
         String fenceStart = "CODE:\n```";
         int codeIdx = cardText.indexOf(fenceStart);
         if (codeIdx < 0) {
-            // no code section to split by, hard cut
-            return List.of(cardText.substring(0, maxSize));
+            return splitText(cardText, maxSize);
         }
-        int bodyStart = cardText.indexOf('\n', codeIdx + fenceStart.length()) + 1;
         String footer = "\n```";
+        int bodyLineBreak = cardText.indexOf('\n', codeIdx + fenceStart.length());
+        if (bodyLineBreak < 0 || !cardText.endsWith(footer)) {
+            return splitText(cardText, maxSize);
+        }
+        int bodyStart = bodyLineBreak + 1;
         String header = cardText.substring(0, bodyStart);
         String body = cardText.substring(bodyStart, cardText.length() - footer.length());
 
         int budget = maxSize - header.length() - footer.length();
-        List<String> parts = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        for (String line : body.split("\n", -1)) {
-            if (line.length() > budget) {
-                line = line.substring(0, budget);
-            }
-            if (!current.isEmpty() && current.length() + line.length() + 1 > budget) {
-                parts.add(header + current + footer);
-                current.setLength(0);
-            }
-            if (!current.isEmpty()) {
-                current.append('\n');
-            }
-            current.append(line);
+        if (budget <= 0) {
+            return splitText(cardText, maxSize);
         }
-        if (!current.isEmpty()) {
-            parts.add(header + current + footer);
+        List<String> parts = new ArrayList<>();
+        for (String bodyPart : splitText(body, budget)) {
+            parts.add(header + bodyPart + footer);
+        }
+        return parts;
+    }
+
+    private static List<String> splitText(String text, int maxSize) {
+        if (text.length() <= maxSize) {
+            return List.of(text);
+        }
+        List<String> parts = new ArrayList<>();
+        int start = 0;
+        while (start < text.length()) {
+            int hardEnd = Math.min(start + maxSize, text.length());
+            int end = hardEnd;
+            if (hardEnd < text.length()) {
+                int lineEnd = text.lastIndexOf('\n', hardEnd - 1);
+                if (lineEnd >= start) {
+                    end = lineEnd + 1;
+                }
+            }
+            if (end == start) {
+                end = hardEnd;
+            }
+            parts.add(text.substring(start, end));
+            start = end;
         }
         return parts;
     }

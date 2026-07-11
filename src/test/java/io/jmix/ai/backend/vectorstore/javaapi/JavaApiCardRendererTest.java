@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,9 +65,35 @@ public class JavaApiCardRendererTest {
         String originalBody = formatted.substring(header.length(), formatted.length() - "\n```".length());
         String joinedBody = parts.stream()
                 .map(p -> p.substring(header.length(), p.length() - "\n```".length()))
-                .reduce((a, b) -> a + "\n" + b)
-                .orElse("");
+                .collect(Collectors.joining());
         assertThat(joinedBody).isEqualTo(originalBody);
+    }
+
+    @Test
+    void testSplitCardDoesNotTruncateLongLine() {
+        String code = "x".repeat(10_000);
+        String formatted = new Snippet("Title", "Description.", "java", code, URL).format();
+        String header = formatted.substring(0, formatted.indexOf("```java\n") + "```java\n".length());
+
+        List<String> parts = JavaApiCardRenderer.splitCard(formatted, 1_000);
+
+        assertThat(parts).hasSizeGreaterThan(1)
+                .allSatisfy(part -> assertThat(part.length()).isLessThanOrEqualTo(1_000));
+        String reconstructedCode = parts.stream()
+                .map(part -> part.substring(header.length(), part.length() - "\n```".length()))
+                .collect(Collectors.joining());
+        assertThat(reconstructedCode).isEqualTo(code);
+    }
+
+    @Test
+    void testSplitCardSplitsWholeCardWhenHeaderExceedsLimit() {
+        String formatted = new Snippet("Title", "d".repeat(1_000), "java", "int value = 1;", URL).format();
+
+        List<String> parts = JavaApiCardRenderer.splitCard(formatted, 500);
+
+        assertThat(parts).hasSizeGreaterThan(1)
+                .allSatisfy(part -> assertThat(part.length()).isLessThanOrEqualTo(500));
+        assertThat(String.join("", parts)).isEqualTo(formatted);
     }
 
     private String loadResource(String name) throws IOException {

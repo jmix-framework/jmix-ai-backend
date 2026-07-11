@@ -25,7 +25,11 @@ import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
 public abstract class AbstractRagTool {
 
     /** Upper bound on how many snippets the model may request in a single tool call. */
-    private static final int MAX_RESULTS_CAP = 15;
+    private static final int MAX_RESULTS_CAP = 50;
+    private static final String MAX_RESULTS_DESCRIPTION =
+            "Optional: how many snippets to return (1-" + MAX_RESULTS_CAP
+                    + "). Omit to use the configured default. The tool description states the "
+                    + "approximate token size of one snippet.";
 
     protected final String toolName;
     protected final VectorStore vectorStore;
@@ -69,6 +73,12 @@ public abstract class AbstractRagTool {
         // allows A/B testing an alternative corpus (e.g. docs-snippets) with the same tool
         type = parametersReader.getString(getToolRootKey() + ".vectorType", type);
         description = parametersReader.getString(getToolRootKey() + ".description");
+        Integer averageDocumentTokens = parametersReader.getInteger(
+                getToolRootKey() + ".averageDocumentTokens", null);
+        if (averageDocumentTokens != null && averageDocumentTokens > 0) {
+            description += " A typical returned snippet is about %d tokens."
+                    .formatted(averageDocumentTokens);
+        }
         similarityThreshold = parametersReader.getDouble(getToolRootKey() + ".similarityThreshold");
         topK = parametersReader.getInt(getToolRootKey() + ".topK");
         topReranked = parametersReader.getInt(getToolRootKey() + ".topReranked");
@@ -100,7 +110,7 @@ public abstract class AbstractRagTool {
     public String execute(
             @ToolParam(description = "Search query in English. For API questions use the class or member name (e.g. DataManager, FetchPlan.BASE); otherwise a short natural-language query.")
             String queryText,
-            @ToolParam(required = false, description = "Optional: how many snippets to return (1-" + MAX_RESULTS_CAP + "). Omit to use the default. Request more only when you need broader coverage — each snippet is not free (see the tool description for its typical token size).")
+            @ToolParam(required = false, description = MAX_RESULTS_DESCRIPTION)
             Integer maxResults) {
         if (maxResults == null || maxResults <= 0) {
             return executeSearch(queryText, similarityThreshold, topK, topReranked);
@@ -159,7 +169,6 @@ public abstract class AbstractRagTool {
                 filteredDocuments = documents.stream()
                         .filter(document ->
                                 minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                        .limit(topReranked)
                         .toList();
                 listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
             } else {

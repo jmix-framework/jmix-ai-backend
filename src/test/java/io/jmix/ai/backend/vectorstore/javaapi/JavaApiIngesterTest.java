@@ -5,6 +5,7 @@ import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.core.TimeSource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +17,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -52,6 +54,11 @@ class JavaApiIngesterTest {
                 vectorStore, timeSource, vectorStoreRepository, enricher, enrichmentCacheRepository);
     }
 
+    @AfterEach
+    void tearDown() {
+        ingester.shutdownEnrichmentExecutor();
+    }
+
     private Document cardDocument() {
         return new Document("1", CARD.format(), Map.of(
                 "type", "javaapi",
@@ -68,7 +75,9 @@ class JavaApiIngesterTest {
 
         assertThat(chunks).hasSize(1);
         assertThat(chunks.get(0).getText()).isEqualTo(CARD.format());
-        assertThat(chunks.get(0).getMetadata()).doesNotContainKey("enriched");
+        assertThat(chunks.get(0).getMetadata())
+                .doesNotContainKey("enriched")
+                .containsEntry("generationKey", "card-v2");
         verify(enricher, never()).enrich(anyString());
     }
 
@@ -116,6 +125,24 @@ class JavaApiIngesterTest {
     }
 
     @Test
+    void splitToChunks_StampsSuccessfulEnrichmentWhenTextIsUnchanged() {
+        when(enricher.isEnabled()).thenReturn(true);
+        when(enricher.getModelKey()).thenReturn("test-model");
+        when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(enricher.enrich(anyString()))
+                .thenReturn(new JavaApiEnricher.Enrichment(CARD.description(), ""));
+
+        List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
+
+        assertThat(chunks).singleElement().satisfies(chunk -> {
+            assertThat(chunk.getText()).isEqualTo(CARD.format());
+            assertThat(chunk.getMetadata())
+                    .containsEntry("enriched", "true")
+                    .containsEntry("generationKey", "card-v2:test-model");
+        });
+    }
+
+    @Test
     void splitToChunks_FallsBackToDeterministicCardOnGenerationFailure() {
         when(enricher.isEnabled()).thenReturn(true);
         when(enricher.getModelKey()).thenReturn("test-model");
@@ -147,6 +174,25 @@ class JavaApiIngesterTest {
                 assertThat(chunk.getText()).contains("DESCRIPTION: Generated."));
         verify(enricher, times(4)).enrich(anyString());
         verify(enrichmentCacheRepository, times(4)).save(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void splitToChunks_UsesFourThousandCharacterTargetWithoutLosingBody() {
+        when(enricher.isEnabled()).thenReturn(false);
+        String code = "public void method() {}\n".repeat(500);
+        String formatted = new Snippet(CARD.title(), CARD.description(), "java", code, CARD.source()).format();
+        Document document = new Document("large", formatted, cardDocument().getMetadata());
+        String header = formatted.substring(0, formatted.indexOf("```java\n") + "```java\n".length());
+
+        List<Document> chunks = ingester.splitToChunks(List.of(document));
+
+        assertThat(chunks).hasSizeGreaterThan(1)
+                .allSatisfy(chunk -> assertThat(chunk.getText().length()).isLessThanOrEqualTo(4_000));
+        String reconstructedBody = chunks.stream()
+                .map(Document::getText)
+                .map(text -> text.substring(header.length(), text.length() - "\n```".length()))
+                .collect(Collectors.joining());
+        assertThat(reconstructedBody).isEqualTo(code);
     }
 
     @Test

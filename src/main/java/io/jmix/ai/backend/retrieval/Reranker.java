@@ -50,6 +50,10 @@ public class Reranker {
             - 1.0 means directly answers the query with strong supporting detail
             - 0.5 means partially relevant or useful background
             - 0.0 means irrelevant or misleading for this query
+            For a query about an exact XML element or attribute, API identifier, signature, or
+            relationship, give a high score only when the candidate explicitly supports the
+            requested fact. A document that is merely about the same broad topic is background,
+            not direct evidence.
             Prefer precision over recall.
             Return all candidates, even weak ones.
             """;

@@ -10,8 +10,11 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.openai.api.ResponseFormat;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.lang.Nullable;
+import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.Optional;
 
 /**
@@ -23,16 +26,28 @@ public abstract class AbstractOpenAiEnricher {
     private final String modelName;
     private final String reasoningEffort;
     private final OpenAiApi openAiApi;
+    private ChatModel chatModel;
 
     protected AbstractOpenAiEnricher(String modelName, String reasoningEffort,
-                                     String configuredApiKey, boolean requireApiKey) {
+                                     String configuredApiKey, boolean requireApiKey,
+                                     Duration connectTimeout, Duration readTimeout) {
         this.modelName = modelName;
         this.reasoningEffort = reasoningEffort;
         String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
         if (requireApiKey && StringUtils.isBlank(apiKey)) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
         }
-        this.openAiApi = StringUtils.isBlank(apiKey) ? null : OpenAiApi.builder().apiKey(apiKey).build();
+        if (StringUtils.isBlank(apiKey)) {
+            this.openAiApi = null;
+        } else {
+            SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+            requestFactory.setConnectTimeout(connectTimeout);
+            requestFactory.setReadTimeout(readTimeout);
+            this.openAiApi = OpenAiApi.builder()
+                    .apiKey(apiKey)
+                    .restClientBuilder(RestClient.builder().requestFactory(requestFactory))
+                    .build();
+        }
     }
 
     /** The structured-output schema the model must produce. */
@@ -43,10 +58,18 @@ public abstract class AbstractOpenAiEnricher {
         return StringUtils.isBlank(reasoningEffort) ? modelName : modelName + ":" + reasoningEffort;
     }
 
-    protected ChatModel buildChatModel() {
+    protected final synchronized ChatModel chatModel() {
         if (openAiApi == null) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
         }
+        if (chatModel == null) {
+            chatModel = createChatModel();
+        }
+        return chatModel;
+    }
+
+    /** Creates the immutable, thread-safe model lazily; one instance is reused by this enricher. */
+    protected ChatModel createChatModel() {
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .model(modelName)
                 .responseFormat(new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, outputConverter().getJsonSchema()));

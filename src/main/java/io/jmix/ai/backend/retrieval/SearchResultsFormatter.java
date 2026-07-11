@@ -45,9 +45,9 @@ public class SearchResultsFormatter {
         if (tokens == null || tokens <= 0) {
             return documents;
         }
-        int budgetChars = tokens * CHARS_PER_TOKEN;
+        long budgetChars = (long) tokens * CHARS_PER_TOKEN;
         List<Document> result = new ArrayList<>();
-        int usedChars = 0;
+        long usedChars = 0;
         for (Document document : documents) {
             int length = document.getText() != null ? document.getText().length() : 0;
             if (!result.isEmpty() && usedChars + length > budgetChars) {

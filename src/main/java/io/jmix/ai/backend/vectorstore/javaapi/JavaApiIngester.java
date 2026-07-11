@@ -7,6 +7,7 @@ import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.core.TimeSource;
+import jakarta.annotation.PreDestroy;
 import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -45,6 +47,8 @@ import java.util.stream.Collectors;
 public class JavaApiIngester extends AbstractIngester {
 
     private static final Logger log = LoggerFactory.getLogger(JavaApiIngester.class);
+    private static final int MAX_CARD_CHUNK_SIZE = 4_000;
+    private static final String CARD_FORMAT_VERSION = "card-v2";
 
     private final Map<JmixVersion, String> baseUrls = new EnumMap<>(JmixVersion.class);
     private final String classListPage;
@@ -58,6 +62,7 @@ public class JavaApiIngester extends AbstractIngester {
     private final JavaApiCardRenderer renderer = new JavaApiCardRenderer();
     private final JavaApiEnricher enricher;
     private final EnrichmentCacheRepository enrichmentCacheRepository;
+    private final ExecutorService enrichmentExecutor;
 
     public JavaApiIngester(
             @Value("${javaapi.v2.base-url:}") String v2BaseUrl,
@@ -88,6 +93,7 @@ public class JavaApiIngester extends AbstractIngester {
         this.enrichmentParallelism = Math.max(1, enrichmentParallelism);
         this.enricher = enricher;
         this.enrichmentCacheRepository = enrichmentCacheRepository;
+        this.enrichmentExecutor = Executors.newFixedThreadPool(this.enrichmentParallelism);
     }
 
     private void putBaseUrl(JmixVersion version, String baseUrl) {
@@ -109,7 +115,9 @@ public class JavaApiIngester extends AbstractIngester {
 
     @Override
     protected String currentGenerationKey() {
-        return enricher.isEnabled() ? enricher.getModelKey() : null;
+        return enricher.isEnabled()
+                ? CARD_FORMAT_VERSION + ":" + enricher.getModelKey()
+                : CARD_FORMAT_VERSION;
     }
 
     @Override
@@ -188,7 +196,7 @@ public class JavaApiIngester extends AbstractIngester {
 
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : enrichedDocuments) {
-            List<String> parts = JavaApiCardRenderer.splitCard(document.getText(), MAX_CHUNK_SIZE);
+            List<String> parts = JavaApiCardRenderer.splitCard(document.getText(), MAX_CARD_CHUNK_SIZE);
             if (parts.size() > 1) {
                 log.debug("Split card {} into {} parts", document.getMetadata().get("url"), parts.size());
             }
@@ -196,7 +204,7 @@ public class JavaApiIngester extends AbstractIngester {
                 Map<String, Object> metadataCopy = new HashMap<>(document.getMetadata());
                 metadataCopy.put("size", part.length());
                 // failed enrichment stays unstamped so the next update retries it
-                if (currentGenerationKey() != null && "true".equals(metadataCopy.get("enriched"))) {
+                if (!enricher.isEnabled() || "true".equals(metadataCopy.get("enriched"))) {
                     metadataCopy.put("generationKey", currentGenerationKey());
                 }
                 chunkDocs.add(createDocument(part, metadataCopy));
@@ -236,30 +244,38 @@ public class JavaApiIngester extends AbstractIngester {
 
         if (!pending.isEmpty()) {
             log.info("Generating enrichment for {} documents (parallelism {})", pending.size(), enrichmentParallelism);
-            ExecutorService executor = Executors.newFixedThreadPool(Math.min(enrichmentParallelism, pending.size()));
-            try {
-                List<Future<JavaApiEnricher.Enrichment>> futures = new ArrayList<>(pending.size());
-                for (PendingEnrichment item : pending) {
-                    futures.add(executor.submit(() -> enricher.enrich(item.card().format())));
+            List<Future<JavaApiEnricher.Enrichment>> futures = new ArrayList<>(pending.size());
+            for (PendingEnrichment item : pending) {
+                futures.add(enrichmentExecutor.submit(() -> enricher.enrich(item.card().format())));
+            }
+            for (int i = 0; i < pending.size(); i++) {
+                PendingEnrichment item = pending.get(i);
+                JavaApiEnricher.Enrichment enrichment = getEnrichment(futures.get(i), item.source());
+                if (enrichment != null) {
+                    // save on the caller thread: DataManager requires the caller's security context
+                    enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
+                            item.contentHash(), enrichment.description(), enrichment.example());
                 }
-                for (int i = 0; i < pending.size(); i++) {
-                    PendingEnrichment item = pending.get(i);
-                    JavaApiEnricher.Enrichment enrichment = getEnrichment(futures.get(i), item.source());
-                    if (enrichment != null) {
-                        // save on the caller thread: DataManager requires the caller's security context
-                        enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
-                                item.contentHash(), enrichment.description(), enrichment.example());
-                    }
-                    result.add(withEnrichment(item.document(), item.card(), enrichment));
-                    if ((i + 1) % 100 == 0) {
-                        log.info("Enriched {}/{} documents", i + 1, pending.size());
-                    }
+                result.add(withEnrichment(item.document(), item.card(), enrichment));
+                if ((i + 1) % 100 == 0) {
+                    log.info("Enriched {}/{} documents", i + 1, pending.size());
                 }
-            } finally {
-                executor.shutdownNow();
             }
         }
         return result;
+    }
+
+    @PreDestroy
+    void shutdownEnrichmentExecutor() {
+        enrichmentExecutor.shutdown();
+        try {
+            if (!enrichmentExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
+                enrichmentExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            enrichmentExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Nullable
@@ -277,7 +293,7 @@ public class JavaApiIngester extends AbstractIngester {
 
     private Document withEnrichment(Document document, Snippet card, @Nullable JavaApiEnricher.Enrichment enrichment) {
         String text = JavaApiEnricher.assembleCard(card, enrichment);
-        if (text.equals(document.getText())) {
+        if (enrichment == null) {
             return document;
         }
         Map<String, Object> metadata = new HashMap<>(document.getMetadata());

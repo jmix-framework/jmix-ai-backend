@@ -8,6 +8,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,14 +28,17 @@ class JavaApiEnricherTest {
     private static class TestEnricher extends JavaApiEnricher {
         final ChatModel chatModel;
         Prompt capturedPrompt;
+        int modelBuilds;
 
         TestEnricher(ChatModel chatModel) {
-            super(false, "test-model", "low", "test-key");
+            super(false, "test-model", "low", "test-key",
+                    Duration.ofSeconds(1), Duration.ofSeconds(1));
             this.chatModel = chatModel;
         }
 
         @Override
-        protected ChatModel buildChatModel() {
+        protected ChatModel createChatModel() {
+            modelBuilds++;
             return prompt -> {
                 capturedPrompt = prompt;
                 return chatModel.call(prompt);
@@ -56,6 +60,20 @@ class JavaApiEnricherTest {
         assertThat(enrichment.description()).isEqualTo("Authorization-aware data access facade.");
         assertThat(enrichment.example()).contains("unconstrained()");
         assertThat(enricher.capturedPrompt.getUserMessage().getText()).contains("Interface DataManager");
+    }
+
+    @Test
+    void enrich_ReusesOneChatModel() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
+                {"description": "Description.", "example": ""}
+                """));
+        TestEnricher enricher = new TestEnricher(chatModel);
+
+        enricher.enrich(CARD.format());
+        enricher.enrich(CARD.format());
+
+        assertThat(enricher.modelBuilds).isEqualTo(1);
     }
 
     @Test
