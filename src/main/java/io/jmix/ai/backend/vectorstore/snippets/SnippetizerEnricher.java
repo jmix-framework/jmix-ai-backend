@@ -48,7 +48,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     static final int MAX_COVERAGE_CHARS = 8_000;
 
     // bump when the snippetization prompt changes so cached snippets are regenerated
-    private static final String PROMPT_VERSION = "p3";
+    private static final String PROMPT_VERSION = "p4";
     // bump when validation or the stored snippet format changes; cached LLM output can still be reused
     private static final String CORPUS_FORMAT_VERSION = "verbatim-code-coverage-v1";
 
@@ -65,6 +65,12 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
               or the full XML tag with its attributes - never the bare method body without its annotation.
               If a usage needs both a declaration and its handler, keep them in the SAME snippet so it is
               self-contained and copy-pasteable.
+            - When the code uses one variant of an API that has alternatives (an overload, a builder
+              entry point, a combination of attributes), name that exact variant in the description and
+              state the practical effect that makes it the right choice - especially what it wires up
+              automatically (e.g. an overload accepting an existing UI component that links it
+              automatically, versus a generic overload that needs manual glue code). Describe the
+              user-visible outcome as well as the mechanism, so goal-phrased searches find the snippet.
             - "language": java, xml, groovy, kotlin, sql, properties or plaintext. Use "" when "code" is empty.
             - Cover ALL distinct topics of the page; typically 2-8 snippets per page.
             - For a numbered page part, cover all distinct topics present in that part.

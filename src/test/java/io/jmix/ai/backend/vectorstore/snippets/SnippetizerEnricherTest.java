@@ -113,9 +113,9 @@ class SnippetizerEnricherTest {
 
     @Test
     void modelKeyIncludesReasoningEffort() {
-        assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:p3");
+        assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:p4");
         assertThat(new TestSnippetizer(mock(ChatModel.class)).getGenerationKey())
-                .isEqualTo("test-model:low:p3:verbatim-code-coverage-v1");
+                .isEqualTo("test-model:low:p4:verbatim-code-coverage-v1");
     }
 
     @Test
@@ -146,7 +146,7 @@ class SnippetizerEnricherTest {
         cached.setDescription(snippetizer.toJson(List.of(
                 new Snippet("Invented", "Cached.", "xml", "<button text=\"Invented\"/>", "source"))));
         when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
-                "test-model:low:p3")).thenReturn(Optional.of(cached));
+                "test-model:low:p4")).thenReturn(Optional.of(cached));
 
         try {
             Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
@@ -170,7 +170,7 @@ class SnippetizerEnricherTest {
         cached.setDescription(snippetizer.toJson(List.of(
                 new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>", "source"))));
         when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
-                "test-model:low:p3")).thenReturn(Optional.of(cached));
+                "test-model:low:p4")).thenReturn(Optional.of(cached));
 
         try {
             Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
