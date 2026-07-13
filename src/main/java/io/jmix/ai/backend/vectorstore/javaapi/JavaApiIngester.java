@@ -14,10 +14,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -27,7 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -48,7 +53,7 @@ public class JavaApiIngester extends AbstractIngester {
 
     private static final Logger log = LoggerFactory.getLogger(JavaApiIngester.class);
     private static final int MAX_CARD_CHUNK_SIZE = 4_000;
-    private static final String CARD_FORMAT_VERSION = "card-v2";
+    private static final String CARD_FORMAT_VERSION = "card-v3";
 
     private final Map<JmixVersion, String> baseUrls = new EnumMap<>(JmixVersion.class);
     private final String classListPage;
@@ -57,12 +62,19 @@ public class JavaApiIngester extends AbstractIngester {
     private final int limit;
     private final int enrichmentParallelism;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
     private final JavadocPageParser parser = new JavadocPageParser();
     private final JavaApiCardRenderer renderer = new JavaApiCardRenderer();
     private final JavaApiEnricher enricher;
     private final EnrichmentCacheRepository enrichmentCacheRepository;
     private final ExecutorService enrichmentExecutor;
+
+    private static RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(Duration.ofSeconds(30));
+        return new RestTemplate(requestFactory);
+    }
 
     public JavaApiIngester(
             @Value("${javaapi.v2.base-url:}") String v2BaseUrl,
@@ -107,10 +119,18 @@ public class JavaApiIngester extends AbstractIngester {
         return "javaapi";
     }
 
-    /** Only versions with a configured Javadoc base URL are ingested (no v3 Javadoc published yet). */
+    /** Only versions with a configured Javadoc base URL are ingested. */
     @Override
     public List<JmixVersion> getVersions() {
         return List.copyOf(baseUrls.keySet());
+    }
+
+    @Override
+    public String updateAll() {
+        if (baseUrls.isEmpty()) {
+            return "skipped: no Java API base URLs configured";
+        }
+        return super.updateAll();
     }
 
     @Override
@@ -146,16 +166,27 @@ public class JavaApiIngester extends AbstractIngester {
     }
 
     boolean isAllowedSource(String source) {
-        for (String banned : pathBlacklist) {
-            if (source.contains(banned)) {
-                return false;
-            }
+        if (isPathBlacklisted(source)) {
+            return false;
         }
         if (moduleWhitelist.isEmpty()) {
             return true;
         }
         String[] parts = source.split("/");
         return parts.length > 2 && moduleWhitelist.contains(parts[2]);
+    }
+
+    boolean isAllowedReference(String source, String href) {
+        try {
+            String resolvedPath = URI.create(source).resolve(href).getPath();
+            return !isPathBlacklisted(resolvedPath);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private boolean isPathBlacklisted(String path) {
+        return pathBlacklist.stream().anyMatch(path::contains);
     }
 
     @Override
@@ -175,7 +206,7 @@ public class JavaApiIngester extends AbstractIngester {
             return null;
         }
 
-        JavadocClassDoc classDoc = parser.parse(html);
+        JavadocClassDoc classDoc = parser.parse(html, href -> isAllowedReference(source, href));
         if (classDoc.typeSignature().isBlank()) {
             log.warn("Not a class page, skipping: {}", url);
             return null;
@@ -185,7 +216,6 @@ public class JavaApiIngester extends AbstractIngester {
 
         Map<String, Object> metadata = createMetadata(source, cardText, version);
         metadata.put("url", url);
-        metadata.put("className", classDoc.fullyQualifiedName());
 
         return createDocument(cardText, metadata);
     }
@@ -244,22 +274,41 @@ public class JavaApiIngester extends AbstractIngester {
 
         if (!pending.isEmpty()) {
             log.info("Generating enrichment for {} documents (parallelism {})", pending.size(), enrichmentParallelism);
-            List<Future<JavaApiEnricher.Enrichment>> futures = new ArrayList<>(pending.size());
-            for (PendingEnrichment item : pending) {
-                futures.add(enrichmentExecutor.submit(() -> enricher.enrich(item.card().format())));
-            }
-            for (int i = 0; i < pending.size(); i++) {
-                PendingEnrichment item = pending.get(i);
-                JavaApiEnricher.Enrichment enrichment = getEnrichment(futures.get(i), item.source());
-                if (enrichment != null) {
-                    // save on the caller thread: DataManager requires the caller's security context
-                    enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
-                            item.contentHash(), enrichment.description(), enrichment.example());
+            CompletionService<JavaApiEnricher.Enrichment> completed =
+                    new ExecutorCompletionService<>(enrichmentExecutor);
+            Map<Future<JavaApiEnricher.Enrichment>, PendingEnrichment> inFlight = new HashMap<>();
+            int next = 0;
+            int completedCount = 0;
+            try {
+                while (next < pending.size() && inFlight.size() < enrichmentParallelism) {
+                    PendingEnrichment item = pending.get(next++);
+                    inFlight.put(completed.submit(() -> enricher.enrich(item.card().format())), item);
                 }
-                result.add(withEnrichment(item.document(), item.card(), enrichment));
-                if ((i + 1) % 100 == 0) {
-                    log.info("Enriched {}/{} documents", i + 1, pending.size());
+
+                while (!inFlight.isEmpty()) {
+                    Future<JavaApiEnricher.Enrichment> future = completed.take();
+                    PendingEnrichment item = inFlight.remove(future);
+                    JavaApiEnricher.Enrichment enrichment = getEnrichment(future, item.source());
+                    if (enrichment != null) {
+                        // save on the caller thread: DataManager requires the caller's security context
+                        enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
+                                item.contentHash(), enrichment.description(), enrichment.example());
+                    }
+                    result.add(withEnrichment(item.document(), item.card(), enrichment));
+                    completedCount++;
+                    if (completedCount % 100 == 0) {
+                        log.info("Enriched {}/{} documents", completedCount, pending.size());
+                    }
+                    if (next < pending.size()) {
+                        PendingEnrichment nextItem = pending.get(next++);
+                        inFlight.put(completed.submit(() -> enricher.enrich(nextItem.card().format())), nextItem);
+                    }
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Enrichment interrupted", e);
+            } finally {
+                inFlight.keySet().forEach(future -> future.cancel(true));
             }
         }
         return result;
@@ -292,10 +341,10 @@ public class JavaApiIngester extends AbstractIngester {
     }
 
     private Document withEnrichment(Document document, Snippet card, @Nullable JavaApiEnricher.Enrichment enrichment) {
-        String text = JavaApiEnricher.assembleCard(card, enrichment);
         if (enrichment == null) {
             return document;
         }
+        String text = JavaApiEnricher.assembleCard(card, enrichment);
         Map<String, Object> metadata = new HashMap<>(document.getMetadata());
         metadata.put("enriched", "true");
         return createDocument(text, metadata);

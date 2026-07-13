@@ -95,6 +95,19 @@ class SearchControllersTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"v4", "2.8", "current"})
+    void v2EndpointRejectsUnknownJmixVersion(String version) {
+        SearchV2Controller controller = new SearchV2Controller(searchService);
+
+        assertThatThrownBy(() -> controller.search(
+                new SearchV2Controller.SearchRequest("query", version, null)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
+        verifyNoInteractions(searchService);
+    }
+
+    @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"", " ", "\t\n"})
     void v2EndpointRejectsBlankQuery(String query) {

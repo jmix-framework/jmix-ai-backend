@@ -379,6 +379,7 @@
     "_entityName": "CheckDef",
     "id": "9149bb5d-ff38-4975-9461-81fb7143d427",
     "active": true,
+    "jmixVersion": "v2",
     "category": "release",
     "question": "Name three notable changes introduced in Jmix 2.8: one data-model change, one Flow UI change, and one observability change.",
     "answer": "Accept any documented Jmix 2.8 change that fits each requested area. Data-model or database-mapping examples include @ElementCollection support and explicit MariaDB UUID char(36) mapping. Flow UI examples include sidePanelLayout, SideDialog, nested custom icons, facets and facet API changes, or kebab-case routes for framework views. Observability examples include Micrometer Observation-based tracing or framework metrics. One correct 2.8 example per area is sufficient."
@@ -403,6 +404,7 @@
     "_entityName": "CheckDef",
     "id": "3e8863e5-7193-4a08-a76f-47ff26777d88",
     "active": true,
+    "jmixVersion": "v2",
     "category": "retrieval",
     "question": "Does Jmix 2.8 Flow UI support a `<dialog>` element in a view XML descriptor? If not, how should a dialog be created?",
     "answer": "No. Flow UI has no standard <dialog> element in its view XML schema. Create an ad-hoc dialog programmatically with Dialogs, or open a view in a dialog with DialogWindows."
@@ -563,6 +565,7 @@
     "_entityName": "CheckDef",
     "id": "ea4a94f2-5413-42cc-9c16-615ac1a1b5f3",
     "active": true,
+    "jmixVersion": "v2",
     "category": "api bait",
     "question": "How do I make a dataGrid refresh its rows automatically using the autoRefresh attribute in Jmix 2.8?",
     "answer": "There is no autoRefresh attribute on dataGrid in Jmix 2.8 — the correct answer must say this element/attribute does not exist. Data is refreshed by reloading the loader: call load() on the CollectionLoader (e.g. customersDl.load()), or update the collection container items (replaceItem(), getMutableItems()). For periodic refresh, a timer facet can trigger loader.load() at intervals."
@@ -571,6 +574,7 @@
     "_entityName": "CheckDef",
     "id": "d573185f-afd0-4da3-8c71-888574d8bce1",
     "active": true,
+    "jmixVersion": "v2",
     "category": "api bait",
     "question": "Как в Jmix 2.8 подписаться на изменение значения поля через аннотацию @OnValueChange?",
     "answer": "Аннотации @OnValueChange в Jmix не существует — правильный ответ должен явно это сказать. Подписка на изменение значения делается аннотацией @Subscribe с id компонента: @Subscribe(\"fieldId\") public void onFieldValueChange(HasValue.ValueChangeEvent/ComponentValueChangeEvent event) {...}; для типизированных полей используется TypedValueChangeEvent."
@@ -603,6 +607,7 @@
     "_entityName": "CheckDef",
     "id": "83cd6d77-5f14-43f9-aa2a-76bcc5119bbc",
     "active": true,
+    "jmixVersion": "v2",
     "category": "negative knowledge",
     "question": "Which application.properties key disables soft deletion globally for all entities in Jmix 2.8?",
     "answer": "There is no such application.properties key — the answer must state that a global switch does not exist. Soft deletion in Jmix is a per-entity trait defined by the @DeletedBy/@DeletedDate attributes on the entity. To bypass soft deletion for a specific operation, use the PersistenceHints.SOFT_DELETION hint set to false on the load/remove operation (this performs hard delete or loads soft-deleted instances)."
@@ -619,6 +624,7 @@
     "_entityName": "CheckDef",
     "id": "5b9620aa-0142-42cb-b98c-77674c4ab2c7",
     "active": true,
+    "jmixVersion": "v2",
     "category": "signature",
     "question": "What overloads does UnconstrainedDataManager.load() have in Jmix 2.8 and what does each return?",
     "answer": "Three overloads: load(Class<E> entityClass) returns FluentLoader<E> (entry to fluent API: .id(), .ids(), .query(), .all(), .condition()); load(Id<E> entityId) returns FluentLoader.ById<E>; load(LoadContext<E> context) returns the loaded entity E directly (nullable). loadList(LoadContext) separately returns List<E>."

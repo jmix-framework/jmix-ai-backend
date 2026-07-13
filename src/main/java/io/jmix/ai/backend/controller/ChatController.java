@@ -8,6 +8,7 @@ import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
 import io.jmix.ai.backend.parameters.ParametersRepository;
+import io.jmix.core.UuidProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,7 +20,6 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
-import java.util.Objects;
 
 @RestController
 public class ChatController {
@@ -71,8 +71,12 @@ public class ChatController {
             version = JmixVersion.V2;
         }
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
-        return chat.requestStream(request.text(), parameters.getContent(), request.conversationId(), version)
+        String conversationId = request.conversationId() != null
+                ? request.conversationId() : UuidProvider.createUuid().toString();
+        Flux<StreamEventDto> events = chat.requestStream(
+                        request.text(), parameters.getContent(), conversationId, version)
                 .mapNotNull(holder -> StreamEventDto.fromModel(holder.value()));
+        return Flux.concat(Flux.just(new StreamEventDto.Conversation(conversationId)), events);
     }
 
     private void validateRequest(Request request) {

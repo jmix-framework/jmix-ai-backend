@@ -37,9 +37,9 @@
                 <charts:yAxis type="VALUE"/>
             </charts:yAxes>
             <charts:series>
-                <charts:bar name="v2"/>
-                <charts:bar name="v3"/>
-                <charts:bar name="shared"/>
+                <charts:bar name="msg://coverage.v2"/>
+                <charts:bar name="msg://coverage.v3"/>
+                <charts:bar name="msg://coverage.shared"/>
             </charts:series>
         </charts:chart>
         <details id="topicDetails" summaryText="msg://topicCoverage.title"
@@ -58,10 +58,10 @@
                 </charts:xAxis>
             </charts:xAxes>
             <charts:yAxes>
-                <charts:yAxis type="VALUE" name="tokens"/>
+                <charts:yAxis type="VALUE" name="msg://tokens.label"/>
             </charts:yAxes>
             <charts:series>
-                <charts:bar name="tokens">
+                <charts:bar name="msg://tokens.label">
                     <charts:itemStyle color="#5B8FF9"/>
                 </charts:bar>
             </charts:series>
@@ -74,15 +74,15 @@
                 <charts:axisPointer type="SHADOW"/>
             </charts:tooltip>
             <charts:xAxes>
-                <charts:xAxis type="CATEGORY" name="tokens">
+                <charts:xAxis type="CATEGORY" name="msg://tokens.label">
                     <charts:axisLabel rotate="35" interval="0"/>
                 </charts:xAxis>
             </charts:xAxes>
             <charts:yAxes>
-                <charts:yAxis type="VALUE" name="snippets"/>
+                <charts:yAxis type="VALUE" name="msg://snippets.label"/>
             </charts:yAxes>
             <charts:series>
-                <charts:bar name="snippets">
+                <charts:bar name="msg://snippets.label">
                     <charts:itemStyle color="#5AD8A6"/>
                 </charts:bar>
             </charts:series>
@@ -102,6 +102,7 @@
         </hbox>
         <hbox id="buttonsPanel" classNames="buttons-panel">
             <comboButton id="updateButton" text="Update"/>
+            <button id="cleanupCacheButton" text="msg://cacheCleanup.button"/>
             <button id="readButton" action="vectorStoreDataGrid.readAction"/>
             <button id="removeButton" action="vectorStoreDataGrid.removeAction"/>
             <button id="removeAllButton" text="Remove All" themeNames="warning"/>

@@ -38,24 +38,47 @@ class CheckRunnerUnitTest {
         checkDef.setAnswer("Expected answer");
 
         Check check = new Check();
+        check.setId(UUID.randomUUID());
         Id<CheckRun> checkRunId = Id.of(checkRun);
         when(dataManager.load(checkRunId).one()).thenReturn(checkRun);
-        when(dataManager.load(CheckDef.class).query("e.active = true").list()).thenReturn(List.of(checkDef));
+        when(dataManager.load(CheckDef.class)
+                .query("e.active = true and (e.jmixVersion is null or e.jmixVersion = :jmixVersion)")
+                .parameter("jmixVersion", JmixVersion.V2.getId())
+                .list())
+                .thenReturn(List.of(checkDef));
         when(dataManager.create(Check.class)).thenReturn(check);
 
         Chat chat = (question, parameters, conversationId, version, logger) ->
                 new Chat.StructuredResponse("Actual answer", List.of(), null, 1, 1, 1);
         AtomicReference<String> evaluatedQuestion = new AtomicReference<>();
-        ExternalEvaluator evaluator = (question, referenceAnswer, actualAnswer, logger) -> {
-            evaluatedQuestion.set(question);
-            return 1.0;
+        ExternalEvaluator evaluator = new ExternalEvaluator() {
+            @Override
+            public String configurationSnapshot() {
+                return "semantic-v3|model=test-judge|temperature=0.0";
+            }
+
+            @Override
+            public double evaluateSemantic(String question, String referenceAnswer, String actualAnswer,
+                                           java.util.function.Consumer<String> logger) {
+                evaluatedQuestion.set(question);
+                return 1.0;
+            }
         };
 
-        new CheckRunner(dataManager, chat, evaluator, 1, 0.8).runChecks(checkRunId);
+        CheckRunner checkRunner = new CheckRunner(
+                dataManager, chat, evaluator, 1, 0.8);
+        try {
+            checkRunner.runChecks(checkRunId);
+        } finally {
+            checkRunner.shutdown();
+        }
 
         assertThat(evaluatedQuestion).hasValue(checkDef.getQuestion());
-        assertThat(checkRun.getConfigLabel()).isEqualTo(
-                CheckRunner.withCohortSuffix("test-config", CheckRunner.buildCohortKey(List.of(checkDef))));
+        assertThat(checkRun.getEvaluatorConfig())
+                .isEqualTo("semantic-v3|model=test-judge|temperature=0.0|passThreshold=0.8");
+        assertThat(checkRun.getConfigLabel()).isEqualTo("test-config");
+        assertThat(checkRun.getDefinitionFingerprint())
+                .isEqualTo(CheckRunner.buildDefinitionFingerprint(List.of(checkDef)));
         assertThat(checkRun.getScore()).isEqualTo(1.0);
         assertThat(checkRun.getAccuracy()).isEqualTo(1.0);
         assertThat(check.getCheckRun()).isSameAs(checkRun);

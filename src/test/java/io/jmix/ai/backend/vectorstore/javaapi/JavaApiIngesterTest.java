@@ -17,12 +17,21 @@ import org.springframework.ai.vectorstore.VectorStore;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class JavaApiIngesterTest {
@@ -77,7 +86,7 @@ class JavaApiIngesterTest {
         assertThat(chunks.get(0).getText()).isEqualTo(CARD.format());
         assertThat(chunks.get(0).getMetadata())
                 .doesNotContainKey("enriched")
-                .containsEntry("generationKey", "card-v2");
+                .containsEntry("generationKey", "card-v3");
         verify(enricher, never()).enrich(anyString());
     }
 
@@ -138,7 +147,7 @@ class JavaApiIngesterTest {
             assertThat(chunk.getText()).isEqualTo(CARD.format());
             assertThat(chunk.getMetadata())
                     .containsEntry("enriched", "true")
-                    .containsEntry("generationKey", "card-v2:test-model");
+                    .containsEntry("generationKey", "card-v3:test-model");
         });
     }
 
@@ -177,6 +186,42 @@ class JavaApiIngesterTest {
     }
 
     @Test
+    void splitToChunks_CancelsBoundedInFlightWorkWhenInterrupted() throws Exception {
+        when(enricher.isEnabled()).thenReturn(true);
+        when(enricher.getModelKey()).thenReturn("test-model");
+        when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
+        CountDownLatch started = new CountDownLatch(4);
+        CountDownLatch interrupted = new CountDownLatch(4);
+        when(enricher.enrich(anyString())).thenAnswer(invocation -> {
+            started.countDown();
+            try {
+                new CountDownLatch(1).await();
+                return null;
+            } catch (InterruptedException e) {
+                interrupted.countDown();
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        });
+        List<Document> documents = List.of(
+                cardDocument("1"), cardDocument("2"), cardDocument("3"), cardDocument("4"), cardDocument("5"));
+        ExecutorService caller = Executors.newSingleThreadExecutor();
+
+        try {
+            Future<List<Document>> update = caller.submit(() -> ingester.splitToChunks(documents));
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            verify(enricher, times(4)).enrich(anyString());
+
+            update.cancel(true);
+
+            assertThat(interrupted.await(5, TimeUnit.SECONDS)).isTrue();
+            verify(enricher, times(4)).enrich(anyString());
+        } finally {
+            caller.shutdownNow();
+        }
+    }
+
+    @Test
     void splitToChunks_UsesFourThousandCharacterTargetWithoutLosingBody() {
         when(enricher.isEnabled()).thenReturn(false);
         String code = "public void method() {}\n".repeat(500);
@@ -201,10 +246,37 @@ class JavaApiIngesterTest {
     }
 
     @Test
+    void updateAll_SkipsJavaApiWhenNoBaseUrlsAreConfigured() {
+        JavaApiIngester unconfiguredIngester = new JavaApiIngester(
+                "", "", "allclasses-index.html", "core", "/impl/,/antlr2/", 0, 4,
+                vectorStore, timeSource, vectorStoreRepository, enricher, enrichmentCacheRepository);
+        try {
+            assertThat(unconfiguredIngester.getVersions()).isEmpty();
+            assertThat(unconfiguredIngester.updateAll())
+                    .isEqualTo("skipped: no Java API base URLs configured");
+            verifyNoInteractions(vectorStore, timeSource, vectorStoreRepository);
+        } finally {
+            unconfiguredIngester.shutdownEnrichmentExecutor();
+        }
+    }
+
+    @Test
     void blacklistExcludesInternalPackages() {
         assertThat(ingester.isAllowedSource("io/jmix/core/DataManager.html")).isTrue();
         assertThat(ingester.isAllowedSource("io/jmix/core/impl/DataManagerImpl.html")).isFalse();
         assertThat(ingester.isAllowedSource("io/jmix/data/impl/jpql/antlr2/JPA2Parser.html")).isFalse();
         assertThat(ingester.isAllowedSource("io/jmix/reports/ReportRunner.html")).isFalse();
+    }
+
+    @Test
+    void blacklistExcludesInternalImplementingClassReferences() {
+        String source = "io/jmix/core/DataManager.html";
+
+        assertThat(ingester.isAllowedReference(source, "UnconstrainedDataManager.html")).isTrue();
+        assertThat(ingester.isAllowedReference(source, "impl/DataManagerImpl.html")).isFalse();
+    }
+
+    private Document cardDocument(String id) {
+        return new Document(id, CARD.format(), cardDocument().getMetadata());
     }
 }

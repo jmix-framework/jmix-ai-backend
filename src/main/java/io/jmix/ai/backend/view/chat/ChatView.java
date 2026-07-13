@@ -1,10 +1,11 @@
 package io.jmix.ai.backend.view.chat;
 
-import com.vaadin.flow.component.*;
+import com.vaadin.flow.component.ClickEvent;
+import com.vaadin.flow.component.DetachEvent;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.messages.MessageInput;
 import com.vaadin.flow.component.messages.MessageList;
 import com.vaadin.flow.component.messages.MessageListItem;
-import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
@@ -19,10 +20,8 @@ import io.jmix.flowui.Notifications;
 import io.jmix.flowui.component.select.JmixSelect;
 import io.jmix.flowui.component.valuepicker.EntityPicker;
 import io.jmix.flowui.facet.SettingsFacet;
-import io.jmix.flowui.facet.UrlQueryParametersFacet;
 import io.jmix.flowui.facet.ViewSettingsFacet;
 import io.jmix.flowui.facet.settings.ViewSettings;
-import io.jmix.flowui.facet.urlqueryparameters.AbstractUrlQueryParametersBinder;
 import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.view.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +33,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-
 
 @Route(value = "chat-view", layout = MainView.class)
 @ViewController(id = "ChatView")
@@ -55,7 +53,7 @@ public class ChatView extends StandardView {
     @ViewComponent
     private ViewSettingsFacet settings;
     @ViewComponent
-    private UrlQueryParametersFacet urlQueryParameters;
+    private MessageBundle messageBundle;
 
     private MessageList messageList;
     private MessageInput messageInput;
@@ -67,7 +65,6 @@ public class ChatView extends StandardView {
     public void onInit(final InitEvent event) {
         parametersPicker.setValue(parametersRepository.loadActive(ParametersTargetType.CHAT));
         jmixVersionField.setValue(JmixVersion.V2);
-        urlQueryParameters.registerBinder(new UrlBinder());
         updateConversationId();
 
         messageList = new MessageList();
@@ -112,7 +109,7 @@ public class ChatView extends StandardView {
                     scrollToBottom();
                 }))
                 .doOnError(e -> ui.access(() -> {
-                    notifications.show("Error: " + e.getMessage());
+                    notifications.show(messageBundle.formatMessage("stream.error", e.getMessage()));
                     messageInput.setEnabled(true);
                 }))
                 .doOnComplete(() -> ui.access(() -> messageInput.setEnabled(true)))
@@ -121,24 +118,42 @@ public class ChatView extends StandardView {
 
     private String renderStreamEvent(StreamingEvent holder) {
         String ts = formatTimestamp(holder.timestamp());
-        return switch (holder.value()) {
-            case EventStreamValueHolder.RequestInfo ri ->
-                    "%s Conversation ID: %s  \nModel: %s  \nUser prompt: %s\n\n---\n".formatted(ts, holder.conversationId(), ri.model(), ri.userPrompt());
-            case EventStreamValueHolder.ToolCallStart tc ->
-                    "\n\n%s **%s**: %s".formatted(ts, tc.tool(), tc.query());
-            case EventStreamValueHolder.ToolRetrieved tr -> "\n%s ".formatted(ts) + renderDocList("Retrieved", tr.documents(), tr.durationMs());
-            case EventStreamValueHolder.ToolReranked tr -> "\n%s ".formatted(ts) + renderDocList("Reranked", tr.documents(), tr.durationMs());
-            case EventStreamValueHolder.ToolCallEnd tc ->
-                    "  \n%s _%s done in %s_\n\n---\n".formatted(ts, tc.tool(), formatMs(tc.totalDurationMs()));
-            case EventStreamValueHolder.TokensStart ignored -> "";
-            case EventStreamValueHolder.Content c -> c.text();
-            case EventStreamValueHolder.TokensEnd ignored -> "";
-            case EventStreamValueHolder.SourcesStart ignored -> "\n\n---\n**Sources:**";
-            case EventStreamValueHolder.Metadata m -> "\n- [%s](%s)".formatted(m.source(), m.source());
-            case EventStreamValueHolder.RequestEnd re ->
-                    "\n\n---\n%s Received response in %d ms \\[promptTokens: %d, completionTokens: %d\\]"
-                            .formatted(ts, re.totalDurationMs(), re.promptTokens(), re.completionTokens());
-        };
+        EventStreamValueHolder event = holder.value();
+        if (event instanceof EventStreamValueHolder.RequestInfo requestInfo) {
+            return messageBundle.formatMessage("stream.requestInfo",
+                    ts, holder.conversationId(), requestInfo.model(), requestInfo.userPrompt());
+        }
+        if (event instanceof EventStreamValueHolder.ToolCallStart toolCall) {
+            return "\n\n%s **%s**: %s".formatted(ts, toolCall.tool(), toolCall.query());
+        }
+        if (event instanceof EventStreamValueHolder.ToolRetrieved retrieved) {
+            return "\n%s ".formatted(ts) + renderDocList(
+                    messageBundle.getMessage("stream.retrieved"),
+                    retrieved.documents(), retrieved.durationMs());
+        }
+        if (event instanceof EventStreamValueHolder.ToolReranked reranked) {
+            return "\n%s ".formatted(ts) + renderDocList(
+                    messageBundle.getMessage("stream.reranked"),
+                    reranked.documents(), reranked.durationMs());
+        }
+        if (event instanceof EventStreamValueHolder.ToolCallEnd toolCallEnd) {
+            return messageBundle.formatMessage(
+                    "stream.toolDone", ts, toolCallEnd.tool(), formatMs(toolCallEnd.totalDurationMs()));
+        }
+        if (event instanceof EventStreamValueHolder.Content content) {
+            return content.text();
+        }
+        if (event instanceof EventStreamValueHolder.SourcesStart) {
+            return messageBundle.getMessage("stream.sources");
+        }
+        if (event instanceof EventStreamValueHolder.Metadata metadata) {
+            return "\n- [%s](%s)".formatted(metadata.source(), metadata.source());
+        }
+        if (event instanceof EventStreamValueHolder.RequestEnd requestEnd) {
+            return messageBundle.formatMessage("stream.requestEnd",
+                    ts, requestEnd.totalDurationMs(), requestEnd.promptTokens(), requestEnd.completionTokens());
+        }
+        return "";
     }
 
     private static String renderDocList(String label, List<EventStreamValueHolder.DocScore> docs, long durationMs) {
@@ -161,14 +176,14 @@ public class ChatView extends StandardView {
     }
 
     private void addUserMessage(String text) {
-        var msg = new MessageListItem(text, Instant.now(), "You");
+        var msg = new MessageListItem(text, Instant.now(), messageBundle.getMessage("message.user"));
         msg.setUserColorIndex(0);
         items.add(msg);
         messageList.setItems(items);
     }
 
     private MessageListItem addBotMessage() {
-        var msg = new MessageListItem("", Instant.now(), "AI Assistant");
+        var msg = new MessageListItem("", Instant.now(), messageBundle.getMessage("message.assistant"));
         msg.setUserColorIndex(2);
         items.add(msg);
         messageList.setItems(items);
@@ -222,19 +237,5 @@ public class ChatView extends StandardView {
     private void settingsSaveSettingsDelegate(final SettingsFacet.SettingsContext<ViewSettings> settingsContext) {
         settingsContext.getSettings().put("jmixVersionField", "value", jmixVersionField.getValue().getId());
         settings.saveSettings();
-    }
-
-    private class UrlBinder extends AbstractUrlQueryParametersBinder {
-        public UrlBinder() {
-        }
-
-        @Override
-        public void updateState(QueryParameters queryParameters) {
-        }
-
-        @Override
-        public Component getComponent() {
-            return null;
-        }
     }
 }

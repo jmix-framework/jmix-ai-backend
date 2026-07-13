@@ -11,6 +11,7 @@ import org.springframework.ai.util.json.schema.JsonSchemaGenerator;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.lang.Nullable;
 import org.springframework.util.ReflectionUtils;
 
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
@@ -113,15 +114,16 @@ public abstract class AbstractRagTool {
             @ToolParam(required = false, description = MAX_RESULTS_DESCRIPTION)
             Integer maxResults) {
         if (maxResults == null || maxResults <= 0) {
-            return executeSearch(queryText, similarityThreshold, topK, topReranked);
+            return executeSearch(queryText, similarityThreshold, topK, topReranked, null);
         }
         int wanted = Math.min(maxResults, MAX_RESULTS_CAP);
         // widen the candidate pool so reranking still has room to choose the requested number
         int effectiveTopK = Math.max(topK, wanted * 2);
-        return executeSearch(queryText, similarityThreshold, effectiveTopK, wanted);
+        return executeSearch(queryText, similarityThreshold, effectiveTopK, wanted, wanted);
     }
 
-    protected String executeSearch(String queryText, double similarityThreshold, int topK, int topReranked) {
+    protected String executeSearch(String queryText, double similarityThreshold, int topK, int topReranked,
+                                   @Nullable Integer fallbackLimit) {
         long startTime = System.currentTimeMillis();
         listener.onToolCallStart(toolName, queryText);
 
@@ -166,10 +168,13 @@ public abstract class AbstractRagTool {
 
             if (rerankResults == null) {
                 listener.onLog("Reranking failed, filtering by minScore");
-                filteredDocuments = documents.stream()
+                var fallbackDocuments = documents.stream()
                         .filter(document ->
-                                minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                        .toList();
+                                minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore);
+                if (fallbackLimit != null) {
+                    fallbackDocuments = fallbackDocuments.limit(fallbackLimit);
+                }
+                filteredDocuments = fallbackDocuments.toList();
                 listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
             } else {
                 List<Reranker.Result> filteredRerankResults = rerankResults.stream()

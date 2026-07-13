@@ -1,9 +1,9 @@
 package io.jmix.ai.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
-import jakarta.validation.constraints.NotNull;
 
 /**
  * Public API representation of {@link EventStreamValueHolder}.
@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotNull;
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
+        @JsonSubTypes.Type(value = StreamEventDto.Conversation.class, name = "conversation"),
         @JsonSubTypes.Type(value = StreamEventDto.ToolCall.class, name = "tool_call"),
         @JsonSubTypes.Type(value = StreamEventDto.TokensStart.class, name = "tokens_start"),
         @JsonSubTypes.Type(value = StreamEventDto.Content.class, name = "content"),
@@ -19,6 +20,8 @@ import jakarta.validation.constraints.NotNull;
         @JsonSubTypes.Type(value = StreamEventDto.Metadata.class, name = "metadata")
 })
 public sealed interface StreamEventDto {
+
+    record Conversation(@JsonProperty("conversation_id") String conversationId) implements StreamEventDto {}
 
     record ToolCall(String tool) implements StreamEventDto {}
 
@@ -34,19 +37,25 @@ public sealed interface StreamEventDto {
 
     /** Maps internal StreamEvent to public DTO. Returns null for internal-only events. */
     static StreamEventDto fromModel(EventStreamValueHolder event) {
-        return switch (event) {
-            case EventStreamValueHolder.ToolCallStart tc -> new ToolCall(tc.tool());
-            case EventStreamValueHolder.TokensStart ignored -> new TokensStart();
-            case EventStreamValueHolder.Content c -> new Content(c.text());
-            case EventStreamValueHolder.TokensEnd ignored -> new TokensEnd();
-            case EventStreamValueHolder.SourcesStart ignored -> new SourcesStart();
-            case EventStreamValueHolder.Metadata m -> new Metadata(m.source());
-            // Internal-only events — filtered by Objects::nonNull in controller
-            case EventStreamValueHolder.RequestInfo ignored -> null;
-            case EventStreamValueHolder.ToolRetrieved ignored -> null;
-            case EventStreamValueHolder.ToolReranked ignored -> null;
-            case EventStreamValueHolder.ToolCallEnd ignored -> null;
-            case EventStreamValueHolder.RequestEnd ignored -> null;
-        };
+        if (event instanceof EventStreamValueHolder.ToolCallStart toolCall) {
+            return new ToolCall(toolCall.tool());
+        }
+        if (event instanceof EventStreamValueHolder.TokensStart) {
+            return new TokensStart();
+        }
+        if (event instanceof EventStreamValueHolder.Content content) {
+            return new Content(content.text());
+        }
+        if (event instanceof EventStreamValueHolder.TokensEnd) {
+            return new TokensEnd();
+        }
+        if (event instanceof EventStreamValueHolder.SourcesStart) {
+            return new SourcesStart();
+        }
+        if (event instanceof EventStreamValueHolder.Metadata metadata) {
+            return new Metadata(metadata.source());
+        }
+        // Internal-only events — filtered by Objects::nonNull in controller
+        return null;
     }
 }

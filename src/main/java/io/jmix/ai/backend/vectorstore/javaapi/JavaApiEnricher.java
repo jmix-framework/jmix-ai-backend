@@ -102,7 +102,7 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
             }
             return new Enrichment(
                     enrichment.description().trim(),
-                    enrichment.example() == null ? "" : enrichment.example().trim());
+                    stripMarkdownFences(enrichment.example()));
         } catch (Exception e) {
             log.error("Enrichment request failed", e);
             return null;
@@ -118,10 +118,18 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
             return card.format();
         }
         String code = card.code() == null ? "" : card.code();
-        if (!StringUtils.isBlank(enrichment.example())) {
-            code = code + "\n\n// Usage example:\n" + enrichment.example();
+        String example = stripMarkdownFences(enrichment.example());
+        if (!StringUtils.isBlank(example)) {
+            code = code + "\n\n// Usage example:\n" + example;
         }
         String description = enrichment.description().replaceAll("\\s+", " ").trim();
         return new Snippet(card.title(), description, card.language(), code, card.source()).format();
+    }
+
+    private static String stripMarkdownFences(@Nullable String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replaceAll("(?im)^\\s*```(?:java)?\\s*$", "").trim();
     }
 }

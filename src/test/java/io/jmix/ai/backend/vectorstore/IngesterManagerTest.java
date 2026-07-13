@@ -85,6 +85,18 @@ class IngesterManagerTest {
     }
 
     @Test
+    void shouldUpdateByTypeAndVersion() {
+        when(docsIngester.updateAll(JmixVersion.V2)).thenReturn("docs v2 result");
+
+        String result = ingesterManager.updateByTypeAndVersion("docs", JmixVersion.V2);
+
+        verify(docsIngester).updateAll(JmixVersion.V2);
+        verify(docsIngester, never()).updateAll(JmixVersion.V3);
+        verifyNoInteractions(anotherIngester);
+        assertThat(result).contains("docs", "v2", "docs v2 result");
+    }
+
+    @Test
     void shouldUpdateAllRunningEveryVersionForVersionedIngesters() {
         when(docsIngester.getVersions()).thenReturn(List.of(JmixVersion.V2, JmixVersion.V3));
         when(docsIngester.updateAll(JmixVersion.V2)).thenReturn("docs v2");

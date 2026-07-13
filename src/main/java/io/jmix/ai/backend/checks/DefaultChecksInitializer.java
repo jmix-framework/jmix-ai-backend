@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.ai.backend.entity.CheckDef;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.Resources;
 import io.jmix.core.UnconstrainedDataManager;
 import io.jmix.core.security.Authenticated;
@@ -71,6 +72,7 @@ public class DefaultChecksInitializer {
         CheckDef entity = dataManager.create(CheckDef.class);
         entity.setId(definition.id());
         entity.setActive(definition.active());
+        entity.setJmixVersion(definition.jmixVersion());
         entity.setCategory(definition.category());
         entity.setQuestion(definition.question());
         entity.setAnswer(definition.answer());
@@ -100,6 +102,7 @@ public class DefaultChecksInitializer {
                 missing.add(new DefaultCheck(
                         id,
                         node.path("active").asBoolean(false),
+                        jmixVersion(node, id),
                         text(node, "category"),
                         text(node, "question"),
                         text(node, "answer")));
@@ -113,6 +116,19 @@ public class DefaultChecksInitializer {
         return value != null && !value.isNull() ? value.asText() : null;
     }
 
-    record DefaultCheck(UUID id, Boolean active, String category, String question, String answer) {
+    private static JmixVersion jmixVersion(JsonNode node, UUID checkId) {
+        String id = text(node, "jmixVersion");
+        if (id == null) {
+            return null;
+        }
+        JmixVersion version = JmixVersion.fromId(id);
+        if (version == null) {
+            throw new IllegalArgumentException("Unknown Jmix version '" + id + "' for default check " + checkId);
+        }
+        return version;
+    }
+
+    record DefaultCheck(UUID id, Boolean active, JmixVersion jmixVersion,
+                        String category, String question, String answer) {
     }
 }

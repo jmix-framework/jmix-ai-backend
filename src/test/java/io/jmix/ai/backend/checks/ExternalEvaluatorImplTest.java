@@ -16,6 +16,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ExternalEvaluatorImplTest {
 
     @Test
+    void exposesConfigurationSnapshotFromEvaluatorSettings() {
+        ExternalEvaluatorImpl evaluator = new ExternalEvaluatorImpl(
+                "gpt-test", 0.25, "test-api-key");
+
+        assertThat(evaluator.configurationSnapshot())
+                .isEqualTo("semantic-v3|model=gpt-test|temperature=0.25");
+    }
+
+    @Test
     void parseEvaluationResponse_ParsesAndClampsScore() throws Exception {
         ExternalEvaluatorImpl.EvaluationResult result = ExternalEvaluatorImpl.parseEvaluationResponse("""
                 {"score": 1.3, "verdict": "PASS", "rationale": "close enough", "languageMatch": true}
@@ -74,15 +83,16 @@ class ExternalEvaluatorImplTest {
     }
 
     @Test
-    void evaluateSemantic_ReturnsZeroWhenModelFails() {
+    void evaluateSemantic_PropagatesModelFailure() {
         ChatModel chatModel = mock(ChatModel.class);
         ArgumentCaptor<Prompt> promptCaptor = ArgumentCaptor.forClass(Prompt.class);
         when(chatModel.call(promptCaptor.capture())).thenThrow(new RuntimeException("boom"));
         ExternalEvaluatorImpl evaluator = new ExternalEvaluatorImpl(chatModel);
 
-        double score = evaluator.evaluateSemantic("question", "ref", "actual", null);
-
-        assertThat(score).isEqualTo(0.0);
+        assertThatThrownBy(() -> evaluator.evaluateSemantic("question", "ref", "actual", null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Semantic evaluator failed")
+                .hasRootCauseMessage("boom");
         assertThat(promptCaptor.getValue().getSystemMessage().getText())
                 .contains("Treat factual claims explicitly stated in the reference as authoritative")
                 .contains("Alternative correct mechanisms are still acceptable")

@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -94,6 +95,30 @@ class AbstractRagToolTest {
     }
 
     @Test
+    void searchFiltersBySelectedCorpusTypeAndJmixVersion() {
+        ParametersReader reader = reader(Map.of(
+                "vectorType", "docs-snippets",
+                "topK", 10,
+                "topReranked", 3));
+        DocsTool tool = tool(reader, new ArrayList<>());
+        List<Document> candidates = prepareCandidates(1);
+        when(reranker.rerank("query", candidates, 3, reader))
+                .thenReturn(List.of(new Reranker.Result(candidates.get(0), 1.0)));
+
+        tool.execute("query", null);
+
+        org.mockito.ArgumentCaptor<SearchRequest> requestCaptor =
+                org.mockito.ArgumentCaptor.forClass(SearchRequest.class);
+        verify(vectorStore).similaritySearch(requestCaptor.capture());
+        FilterExpressionBuilder fb = new FilterExpressionBuilder();
+        assertThat(requestCaptor.getValue().getFilterExpression()).isEqualTo(
+                fb.and(
+                        fb.eq("type", "docs-snippets"),
+                        fb.eq("jmixVersion", JmixVersion.V2.getId()))
+                        .build());
+    }
+
+    @Test
     void maxResultsIsCappedAtFiftyAndWidensCandidatePool() {
         ParametersReader reader = reader(Map.of("topK", 10, "topReranked", 3));
         DocsTool tool = tool(reader, new ArrayList<>());
@@ -119,6 +144,21 @@ class AbstractRagToolTest {
 
         assertThat(retrievedDocuments).containsExactlyElementsOf(candidates);
         assertThat(result).isEqualTo("text-0\n\ntext-1\n\ntext-2\n\ntext-3\n\ntext-4");
+    }
+
+    @Test
+    void rerankerFallbackRespectsExplicitMaxResults() {
+        ParametersReader reader = reader(Map.of("topK", 4, "topReranked", 2));
+        List<Document> retrievedDocuments = new ArrayList<>();
+        DocsTool tool = tool(reader, retrievedDocuments);
+        List<Document> candidates = prepareCandidates(6);
+        when(reranker.rerank("query", candidates, 3, reader)).thenReturn(null);
+
+        String result = tool.execute("query", 3);
+
+        verifySearchTopK(6);
+        assertThat(retrievedDocuments).containsExactlyElementsOf(candidates.subList(0, 3));
+        assertThat(result).isEqualTo("text-0\n\ntext-1\n\ntext-2");
     }
 
     private ParametersReader reader(Map<String, Object> overrides) {

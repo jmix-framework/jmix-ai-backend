@@ -152,12 +152,15 @@ public class VectorStoreRepository {
     }
 
     public void delete(Collection<VectorStoreEntity> collection) {
-        if (collection.isEmpty()) {
+        deleteIds(collection.stream().map(VectorStoreEntity::getId).toList());
+    }
+
+    public void deleteIds(Collection<UUID> ids) {
+        if (ids.isEmpty()) {
             return;
         }
-        String placeholders = collection.stream().map(e -> "?").collect(Collectors.joining(","));
-        Object[] ids = collection.stream().map(VectorStoreEntity::getId).toArray();
-        jdbcTemplate.update("DELETE FROM vector_store WHERE id IN (" + placeholders + ")", ids);
+        String placeholders = ids.stream().map(id -> "?").collect(Collectors.joining(","));
+        jdbcTemplate.update("DELETE FROM vector_store WHERE id IN (" + placeholders + ")", ids.toArray());
     }
 
     public void delete(@Nullable String filterString) {

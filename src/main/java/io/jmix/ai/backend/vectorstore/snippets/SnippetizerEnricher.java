@@ -28,7 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -50,7 +52,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     // bump when the snippetization prompt changes so cached snippets are regenerated
     private static final String PROMPT_VERSION = "p4";
     // bump when validation or the stored snippet format changes; cached LLM output can still be reused
-    private static final String CORPUS_FORMAT_VERSION = "verbatim-code-coverage-v1";
+    private static final String CORPUS_FORMAT_VERSION = "verbatim-code-coverage-v2";
 
     private static final String SYSTEM_PROMPT = """
             You convert a page of Jmix framework documentation into small self-contained snippets for a code-search index.
@@ -162,21 +164,42 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
             return result;
         }
         log.info("Generating snippets for {} documents (parallelism {})", pending.size(), parallelism);
-        List<Future<List<Snippet>>> futures = new ArrayList<>(pending.size());
-        for (Document document : pending) {
-            futures.add(executor.submit(() -> snippetize(document, contentByDocumentId.get(document.getId()))));
-        }
-        for (int i = 0; i < pending.size(); i++) {
-            Document document = pending.get(i);
-            List<Snippet> snippets = getResult(futures.get(i), source(document));
-            if (snippets != null && !snippets.isEmpty()) {
-                result.put(document.getId(), snippets);
-                enrichmentCacheRepository.save(type, source(document), jmixVersion(document), getModelKey(),
-                        (String) document.getMetadata().get("sourceHash"), toJson(snippets), "");
+        CompletionService<List<Snippet>> completed = new ExecutorCompletionService<>(executor);
+        Map<Future<List<Snippet>>, Document> inFlight = new HashMap<>();
+        int next = 0;
+        int completedCount = 0;
+        try {
+            while (next < pending.size() && inFlight.size() < parallelism) {
+                Document document = pending.get(next++);
+                inFlight.put(completed.submit(
+                        () -> snippetize(document, contentByDocumentId.get(document.getId()))), document);
             }
-            if ((i + 1) % 100 == 0) {
-                log.info("Snippetized {}/{} documents", i + 1, pending.size());
+
+            while (!inFlight.isEmpty()) {
+                Future<List<Snippet>> future = completed.take();
+                Document document = inFlight.remove(future);
+                List<Snippet> snippets = getResult(future, source(document));
+                if (snippets != null && !snippets.isEmpty()) {
+                    result.put(document.getId(), snippets);
+                    enrichmentCacheRepository.save(type, source(document), jmixVersion(document), getModelKey(),
+                            (String) document.getMetadata().get("sourceHash"), toJson(snippets), "");
+                }
+                completedCount++;
+                if (completedCount % 100 == 0) {
+                    log.info("Snippetized {}/{} documents", completedCount, pending.size());
+                }
+                if (next < pending.size()) {
+                    Document nextDocument = pending.get(next++);
+                    inFlight.put(completed.submit(
+                            () -> snippetize(nextDocument, contentByDocumentId.get(nextDocument.getId()))),
+                            nextDocument);
+                }
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Snippetization interrupted", e);
+        } finally {
+            inFlight.keySet().forEach(future -> future.cancel(true));
         }
         return result;
     }
@@ -225,7 +248,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
             List<Snippet> snippets = parsed.snippets().stream()
                     .filter(item -> !StringUtils.isBlank(item.title()) && !StringUtils.isBlank(item.description()))
                     .map(item -> new Snippet(
-                            item.title().trim(),
+                            normalizeTitle(item.title()),
                             item.description().replaceAll("\\s+", " ").trim(),
                             StringUtils.defaultIfBlank(item.language(), null),
                             // markdown fences inside code would break the snippet's own code fence
@@ -333,10 +356,21 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     @Nullable
     List<Snippet> fromJson(String json) {
         try {
-            return OBJECT_MAPPER.readValue(json, SNIPPET_LIST_TYPE);
+            return OBJECT_MAPPER.readValue(json, SNIPPET_LIST_TYPE).stream()
+                    .map(snippet -> new Snippet(
+                            normalizeTitle(snippet.title()),
+                            snippet.description(),
+                            snippet.language(),
+                            snippet.code(),
+                            snippet.source()))
+                    .toList();
         } catch (Exception e) {
             log.error("Failed to deserialize cached snippets", e);
             return null;
         }
+    }
+
+    private static String normalizeTitle(String title) {
+        return title.replaceAll("\\s+", " ").trim();
     }
 }

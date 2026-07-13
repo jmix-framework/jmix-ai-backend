@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.DoubleStream;
 
 @Component
 public class CheckAnalyticsService {
@@ -42,7 +43,8 @@ public class CheckAnalyticsService {
 
     public record CheckDelta(String question, String category, double base, double compare, double delta,
                              String referenceAnswer, String baselineActualAnswer,
-                             String candidateActualAnswer) {
+                             String candidateActualAnswer, @Nullable Double baseAccuracy,
+                             @Nullable Double candidateAccuracy) {
     }
 
     public record ComparisonResult(List<CheckDelta> deltas, int baselineOnly, int candidateOnly) {
@@ -54,17 +56,23 @@ public class CheckAnalyticsService {
                                     @Nullable Double baseAccuracy, @Nullable Double candidateAccuracy) {
     }
 
-    public record ConfigOption(String key, String description, String version, String fingerprint, int runCount,
-                               double meanScore, @Nullable Double meanAccuracy) {
+    public record ConfigOption(String key, String description, String version, String comparisonCohort,
+                               String fingerprint, int runCount) {
     }
 
-    record QuestionAggregate(double sum, int count, String category, String referenceAnswer,
-                             String latestActualAnswer) {
+    record QuestionKey(String question, String referenceAnswer) {
+    }
 
-        QuestionAggregate add(Check check) {
+    record QuestionAggregate(double sum, int count, int passed, int accuracyCount,
+                             String category, String referenceAnswer, String latestActualAnswer) {
+
+        QuestionAggregate add(Check check, @Nullable Double passThreshold) {
+            double checkScore = score(check);
             return new QuestionAggregate(
-                    sum + score(check),
+                    sum + checkScore,
                     count + 1,
+                    passed + (passThreshold != null && checkScore >= passThreshold ? 1 : 0),
+                    accuracyCount + (passThreshold != null ? 1 : 0),
                     defaultString(check.getCategory()),
                     defaultString(check.getReferenceAnswer()),
                     defaultString(check.getActualAnswer()));
@@ -72,6 +80,10 @@ public class CheckAnalyticsService {
 
         double average() {
             return count == 0 ? 0.0 : sum / count;
+        }
+
+        @Nullable Double accuracy() {
+            return accuracyCount == 0 ? null : (double) passed / accuracyCount;
         }
     }
 
@@ -102,26 +114,13 @@ public class CheckAnalyticsService {
         List<ConfigOption> options = new ArrayList<>();
         groupRunsByConfig().forEach((key, group) -> {
             CheckRun sample = group.get(group.size() - 1);
-            double meanScore = group.stream()
-                    .map(CheckRun::getScore)
-                    .filter(Objects::nonNull)
-                    .mapToDouble(Double::doubleValue)
-                    .average()
-                    .orElse(0.0);
-            OptionalDouble accuracy = group.stream()
-                    .map(CheckRun::getAccuracy)
-                    .filter(Objects::nonNull)
-                    .mapToDouble(Double::doubleValue)
-                    .average();
-            Double meanAccuracy = accuracy.isPresent() ? accuracy.getAsDouble() : null;
             options.add(new ConfigOption(
                     key,
                     displayConfigLabel(sample),
                     versionId(sample),
+                    comparisonCohortKey(sample),
                     configFingerprint(sample),
-                    group.size(),
-                    round(meanScore),
-                    meanAccuracy != null ? round(meanAccuracy) : null));
+                    group.size()));
         });
         options.sort(Comparator.comparing(ConfigOption::description).thenComparing(ConfigOption::version));
         return options;
@@ -143,8 +142,18 @@ public class CheckAnalyticsService {
 
     static String groupKey(CheckRun run) {
         String parameters = run.getParameters();
-        return versionId(run) + "||" + cohortKey(run) + "||"
+        return comparisonCohortKey(run) + "||"
                 + (parameters != null ? "1" + parameters : "0");
+    }
+
+    static String comparisonCohortKey(CheckRun run) {
+        String fingerprint = definitionFingerprint(run);
+        String evaluatorConfig = run.getEvaluatorConfig();
+        String key = versionId(run) + "||" + fingerprint + "||" + nullableKey(evaluatorConfig);
+        if (LEGACY_COHORT.equals(fingerprint) || evaluatorConfig == null) {
+            key += "||" + nullableKey(run.getParameters());
+        }
+        return key;
     }
 
     static String configurationKey(CheckRun run) {
@@ -157,61 +166,106 @@ public class CheckAnalyticsService {
         return CheckRunner.shortSha256(groupKey(run));
     }
 
-    private static String cohortKey(CheckRun run) {
-        String cohort = CheckRunner.extractCohortKey(run.getConfigLabel());
-        return cohort != null ? cohort : LEGACY_COHORT;
+    private static String definitionFingerprint(CheckRun run) {
+        String fingerprint = run.getDefinitionFingerprint();
+        if (fingerprint != null && !fingerprint.isBlank()) {
+            return fingerprint;
+        }
+        String legacyFingerprint = CheckRunner.extractLegacyDefinitionFingerprint(run.getConfigLabel());
+        return legacyFingerprint != null ? legacyFingerprint : LEGACY_COHORT;
     }
 
     private static String versionId(CheckRun run) {
         return run.getJmixVersion() != null ? run.getJmixVersion().getId() : "";
     }
 
-    private Map<String, QuestionAggregate> aggregateQuestions(
+    private static String nullableKey(@Nullable String value) {
+        return value != null ? "1" + value : "0";
+    }
+
+    private Map<QuestionKey, QuestionAggregate> aggregateQuestions(
             @Nullable ConfigOption option, Map<String, List<CheckRun>> runsByConfig) {
-        Map<String, QuestionAggregate> perQuestion = new LinkedHashMap<>();
+        Map<QuestionKey, QuestionAggregate> perQuestion = new LinkedHashMap<>();
         if (option == null) {
             return perQuestion;
         }
         List<CheckRun> runs = runsByConfig.getOrDefault(option.key(), List.of());
+        Double passThreshold = passThreshold(runs);
         for (Check check : loadChecks(runs)) {
-            String question = defaultString(check.getQuestion());
-            perQuestion.compute(question, (key, aggregate) ->
-                    (aggregate != null ? aggregate : emptyAggregate()).add(check));
+            QuestionKey key = new QuestionKey(
+                    defaultString(check.getQuestion()), defaultString(check.getReferenceAnswer()));
+            perQuestion.compute(key, (ignored, aggregate) ->
+                    (aggregate != null ? aggregate : emptyAggregate()).add(check, passThreshold));
         }
         return perQuestion;
     }
 
     private static QuestionAggregate emptyAggregate() {
-        return new QuestionAggregate(0.0, 0, "", "", "");
+        return new QuestionAggregate(0.0, 0, 0, 0, "", "", "");
+    }
+
+    private static @Nullable Double passThreshold(List<CheckRun> runs) {
+        String marker = "|passThreshold=";
+        for (CheckRun run : runs) {
+            String evaluatorConfig = run.getEvaluatorConfig();
+            if (evaluatorConfig == null) {
+                continue;
+            }
+            int start = evaluatorConfig.indexOf(marker);
+            if (start < 0) {
+                continue;
+            }
+            start += marker.length();
+            int end = evaluatorConfig.indexOf('|', start);
+            String value = end >= 0
+                    ? evaluatorConfig.substring(start, end)
+                    : evaluatorConfig.substring(start);
+            try {
+                return Double.parseDouble(value);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     public ComparisonResult compareConfigs(@Nullable ConfigOption base, @Nullable ConfigOption candidate) {
+        if (!canCompare(base, candidate)) {
+            throw new IllegalArgumentException("Configurations belong to different evaluation cohorts");
+        }
         Map<String, List<CheckRun>> runsByConfig = groupRunsByConfig();
         return compareQuestions(
                 aggregateQuestions(base, runsByConfig),
                 aggregateQuestions(candidate, runsByConfig));
     }
 
-    static ComparisonResult compareQuestions(Map<String, QuestionAggregate> baseline,
-                                              Map<String, QuestionAggregate> candidate) {
-        Set<String> common = new LinkedHashSet<>(baseline.keySet());
+    public static boolean canCompare(@Nullable ConfigOption base, @Nullable ConfigOption candidate) {
+        return base == null || candidate == null
+                || Objects.equals(base.comparisonCohort(), candidate.comparisonCohort());
+    }
+
+    static ComparisonResult compareQuestions(Map<QuestionKey, QuestionAggregate> baseline,
+                                              Map<QuestionKey, QuestionAggregate> candidate) {
+        Set<QuestionKey> common = new LinkedHashSet<>(baseline.keySet());
         common.retainAll(candidate.keySet());
 
         List<CheckDelta> deltas = new ArrayList<>(common.size());
-        for (String question : common) {
-            QuestionAggregate base = baseline.get(question);
-            QuestionAggregate compare = candidate.get(question);
+        for (QuestionKey key : common) {
+            QuestionAggregate base = baseline.get(key);
+            QuestionAggregate compare = candidate.get(key);
             double baseScore = base.average();
             double candidateScore = compare.average();
             deltas.add(new CheckDelta(
-                    question,
+                    key.question(),
                     firstNonBlank(compare.category(), base.category()),
                     round(baseScore),
                     round(candidateScore),
                     round(candidateScore - baseScore),
                     firstNonBlank(compare.referenceAnswer(), base.referenceAnswer()),
                     base.latestActualAnswer(),
-                    compare.latestActualAnswer()));
+                    compare.latestActualAnswer(),
+                    base.accuracy(),
+                    compare.accuracy()));
         }
         deltas.sort(Comparator.comparingDouble(CheckDelta::delta));
         return new ComparisonResult(
@@ -237,8 +291,7 @@ public class CheckAnalyticsService {
         return result;
     }
 
-    public ComparisonSummary summarizeConfigs(@Nullable ConfigOption base, @Nullable ConfigOption candidate,
-                                              ComparisonResult comparison) {
+    public ComparisonSummary summarizeConfigs(ComparisonResult comparison) {
         List<CheckDelta> deltas = comparison.deltas();
         int improved = (int) deltas.stream().filter(delta -> delta.delta() > 0.0001).count();
         int regressed = (int) deltas.stream().filter(delta -> delta.delta() < -0.0001).count();
@@ -249,10 +302,25 @@ public class CheckAnalyticsService {
                 deltas.size() - improved - regressed,
                 comparison.baselineOnly(),
                 comparison.candidateOnly(),
-                base != null ? base.meanScore() : null,
-                candidate != null ? candidate.meanScore() : null,
-                base != null ? base.meanAccuracy() : null,
-                candidate != null ? candidate.meanAccuracy() : null);
+                averageScore(deltas.stream().mapToDouble(CheckDelta::base)),
+                averageScore(deltas.stream().mapToDouble(CheckDelta::compare)),
+                averageAccuracy(deltas.stream().map(CheckDelta::baseAccuracy).toList()),
+                averageAccuracy(deltas.stream().map(CheckDelta::candidateAccuracy).toList()));
+    }
+
+    private static @Nullable Double averageScore(DoubleStream scores) {
+        OptionalDouble average = scores.average();
+        return average.isPresent() ? round(average.getAsDouble()) : null;
+    }
+
+    private static @Nullable Double averageAccuracy(List<Double> accuracies) {
+        if (accuracies.isEmpty() || accuracies.contains(null)) {
+            return null;
+        }
+        return round(accuracies.stream()
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElseThrow());
     }
 
     private List<Check> loadChecks(List<CheckRun> runs) {
@@ -273,7 +341,7 @@ public class CheckAnalyticsService {
     }
 
     static String displayConfigLabel(CheckRun run) {
-        String label = CheckRunner.stripCohortSuffix(run.getConfigLabel());
+        String label = CheckRunner.stripLegacyCohortSuffix(run.getConfigLabel());
         if (label == null || label.isBlank()) {
             label = CheckRunner.extractConfigLabel(run.getParameters());
         }

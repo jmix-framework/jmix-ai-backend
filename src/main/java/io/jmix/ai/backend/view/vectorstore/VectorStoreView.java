@@ -10,9 +10,12 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
+import io.jmix.ai.backend.vectorstore.EnrichmentCacheCleanupService;
 import io.jmix.ai.backend.vectorstore.Ingester;
 import io.jmix.ai.backend.vectorstore.IngesterManager;
+import io.jmix.ai.backend.vectorstore.VectorStoreAnalyticsService;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.chartsflowui.component.Chart;
@@ -40,6 +43,7 @@ import io.jmix.flowui.util.RemoveOperation;
 import io.jmix.flowui.view.*;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -61,6 +65,10 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private Dialogs dialogs;
     @Autowired
     private VectorStoreRepository vectorStoreRepository;
+    @Autowired
+    private VectorStoreAnalyticsService vectorStoreAnalyticsService;
+    @Autowired
+    private EnrichmentCacheCleanupService enrichmentCacheCleanupService;
     @Autowired
     private Notifications notifications;
     @Autowired
@@ -86,6 +94,8 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private Chart tokenHistogramChart;
     @ViewComponent
     private HorizontalLayout tokenStatsCards;
+    @ViewComponent
+    private MessageBundle messageBundle;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -103,11 +113,9 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     private void buildTokenByTopic() {
-        List<MapDataItem> items = vectorStoreRepository.avgSnippetTokensByTopic().stream()
-                .filter(r -> r[0] != null && !((String) r[0]).isBlank())
-                .sorted((a, b) -> Integer.compare((int) b[1], (int) a[1]))
-                .limit(20)
-                .map(r -> new MapDataItem(Map.of("topic", r[0], "tokens", r[1])))
+        List<MapDataItem> items = vectorStoreAnalyticsService.loadTopTokenAverages().stream()
+                .map(average -> new MapDataItem(Map.of(
+                        "topic", average.topic(), "tokens", average.tokens())))
                 .toList();
         tokenByTopicChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(items))
@@ -115,44 +123,30 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     private void buildTokenDistribution() {
-        List<Integer> sizes = vectorStoreRepository.snippetTokenSizes();
+        VectorStoreAnalyticsService.TokenDistribution distribution =
+                vectorStoreAnalyticsService.loadTokenDistribution();
         tokenStatsCards.removeAll();
-        if (sizes.isEmpty()) {
+        if (distribution.statistics() == null) {
             tokenHistogramChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                     .withDataProvider(new ListChartItems<>(List.of()))
                     .withCategoryField("bucket").withValueFields("snippets")));
             return;
         }
-        List<Integer> sorted = sizes.stream().sorted().toList();
-        int n = sorted.size();
-        int min = sorted.get(0);
-        int max = sorted.get(n - 1);
-        double avg = sorted.stream().mapToInt(Integer::intValue).average().orElse(0);
-        double median = n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
-        double stddev = Math.sqrt(sorted.stream().mapToDouble(s -> (s - avg) * (s - avg)).sum() / n);
+        VectorStoreAnalyticsService.TokenStatistics statistics = distribution.statistics();
 
         tokenStatsCards.add(
-                statCard("count", String.valueOf(n)),
-                statCard("min", String.valueOf(min)),
-                statCard("median", "%.0f".formatted(median)),
-                statCard("avg", "%.0f".formatted(avg)),
-                statCard("max", String.valueOf(max)),
-                statCard("std dev", "%.0f".formatted(stddev)));
+                statCard(messageBundle.getMessage("stats.count"), String.valueOf(statistics.count())),
+                statCard(messageBundle.getMessage("stats.min"), String.valueOf(statistics.min())),
+                statCard(messageBundle.getMessage("stats.median"), "%.0f".formatted(statistics.median())),
+                statCard(messageBundle.getMessage("stats.average"), "%.0f".formatted(statistics.average())),
+                statCard(messageBundle.getMessage("stats.max"), String.valueOf(statistics.max())),
+                statCard(messageBundle.getMessage("stats.standardDeviation"),
+                        "%.0f".formatted(statistics.standardDeviation())));
 
-        // histogram: ~20 fixed-width buckets from min..max
-        int buckets = 20;
-        int range = Math.max(1, max - min);
-        int width = (int) Math.ceil(range / (double) buckets);
-        int[] counts = new int[buckets];
-        for (int s : sorted) {
-            int idx = Math.min(buckets - 1, (s - min) / width);
-            counts[idx]++;
-        }
-        List<MapDataItem> bars = new java.util.ArrayList<>();
-        for (int i = 0; i < buckets; i++) {
-            int start = min + i * width;
-            bars.add(new MapDataItem(Map.of("bucket", String.valueOf(start), "snippets", counts[i])));
-        }
+        List<MapDataItem> bars = distribution.buckets().stream()
+                .map(bucket -> new MapDataItem(Map.of(
+                        "bucket", String.valueOf(bucket.start()), "snippets", bucket.snippets())))
+                .toList();
         tokenHistogramChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(bars))
                 .withCategoryField("bucket").withValueFields("snippets")));
@@ -167,46 +161,27 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     private void buildTopicHeatmap() {
-        Map<String, int[]> byTopic = new java.util.LinkedHashMap<>();
-        for (Object[] row : vectorStoreRepository.countSnippetTopicByVersion()) {
-            String topic = (String) row[0];
-            String version = (String) row[1];
-            int count = (int) row[2];
-            if (topic == null || topic.isBlank()) {
-                continue;
-            }
-            int[] vv = byTopic.computeIfAbsent(topic, k -> new int[2]);
-            if ("v3".equalsIgnoreCase(version)) {
-                vv[1] += count;
-            } else {
-                vv[0] += count;
-            }
-        }
-
-        List<Map.Entry<String, int[]>> top = byTopic.entrySet().stream()
-                .sorted((a, b) -> Integer.compare(total(b.getValue()), total(a.getValue())))
-                .limit(24)
-                .toList();
-        int max = top.stream()
-                .flatMapToInt(e -> java.util.stream.IntStream.of(e.getValue()[0], e.getValue()[1]))
-                .max().orElse(1);
+        VectorStoreAnalyticsService.TopicCoverageSummary coverage =
+                vectorStoreAnalyticsService.loadTopTopicCoverage();
 
         Div grid = new Div();
         grid.getStyle().set("display", "grid")
                 .set("grid-template-columns", "minmax(11em, 20em) 5em 5em")
                 .set("gap", "3px").set("max-width", "34em").set("align-items", "stretch");
-        grid.add(headerCell("Topic", "left"), headerCell("Jmix 2", "center"), headerCell("Jmix 3", "center"));
-        for (Map.Entry<String, int[]> e : top) {
-            grid.add(topicLabelCell(e.getKey()), heatCell(e.getValue()[0], max), heatCell(e.getValue()[1], max));
+        grid.add(
+                headerCell(messageBundle.getMessage("topic.label"), "left"),
+                headerCell(messageBundle.getMessage("coverage.v2"), "center"),
+                headerCell(messageBundle.getMessage("coverage.v3"), "center"));
+        for (VectorStoreAnalyticsService.TopicCoverage topic : coverage.topics()) {
+            grid.add(
+                    topicLabelCell(topic.topic()),
+                    heatCell(topic.v2(), coverage.maxCount()),
+                    heatCell(topic.v3(), coverage.maxCount()));
         }
 
         topicHeatmapBox.removeAll();
         topicHeatmapBox.setPadding(false);
         topicHeatmapBox.add(grid);
-    }
-
-    private static int total(int[] vv) {
-        return vv[0] + vv[1];
     }
 
     private Div headerCell(String text, String align) {
@@ -241,50 +216,46 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     private void buildCoverage() {
-        Map<String, int[]> byType = new java.util.LinkedHashMap<>();
-        for (Object[] row : vectorStoreRepository.countByTypeAndVersion()) {
-            String type = (String) row[0];
-            String version = (String) row[1];
-            int count = (int) row[2];
-            if (type == null) {
-                continue;
-            }
-            // show the searchable snippet corpus, not the raw pre-snippet chunks
-            if ("docs".equals(type) || "uisamples".equals(type)) {
-                continue;
-            }
-            int[] vv = byType.computeIfAbsent(type, k -> new int[3]);
-            if ("v2".equalsIgnoreCase(version)) {
-                vv[0] += count;
-            } else if ("v3".equalsIgnoreCase(version)) {
-                vv[1] += count;
-            } else {
-                // version-agnostic corpora (e.g. trainings) are searchable under any version
-                vv[2] += count;
-            }
-        }
-        List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        byType.forEach((type, vv) -> rows.add(Map.of("corpus", type, "v2", vv[0], "v3", vv[1], "shared", vv[2])));
+        List<MapDataItem> items = vectorStoreAnalyticsService.loadCorpusCoverage().stream()
+                .map(coverage -> new MapDataItem(Map.of(
+                        "corpus", coverage.corpus(),
+                        "v2", coverage.v2(),
+                        "v3", coverage.v3(),
+                        "shared", coverage.shared())))
+                .toList();
         coverageChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
-                .withDataProvider(new ListChartItems<>(rows.stream().map(MapDataItem::new).toList()))
+                .withDataProvider(new ListChartItems<>(items))
                 .withCategoryField("corpus").withValueFields("v2", "v3", "shared")));
     }
 
     private void buildUpdateMenuItems() {
         for (Ingester ingester : ingesterManager.getIngesters()) {
-            addUpdateMenuItem(ingester.getType());
+            List<JmixVersion> versions = ingester.getVersions();
+            if (versions.isEmpty()) {
+                addUpdateMenuItem(ingester.getType(), null);
+            } else {
+                for (JmixVersion version : versions) {
+                    addUpdateMenuItem(ingester.getType(), version);
+                }
+            }
         }
         updateButton.addItem("all", "Update all data").addClickListener(clickEvent -> confirmAll());
     }
 
-    private void addUpdateMenuItem(String type) {
-        updateButton.addItem(type, "Update " + type).addClickListener(clickEvent ->
+    private void addUpdateMenuItem(String type, @Nullable JmixVersion version) {
+        String itemId = version == null ? type : type + "-" + version.getId();
+        String label = version == null
+                ? "Update " + type
+                : "Update " + type + " (" + version.getId() + ")";
+        updateButton.addItem(itemId, label).addClickListener(clickEvent ->
                 dialogs.createOptionDialog()
                         .withHeader("Confirm")
-                        .withText("Update all data of type '%s'?".formatted(type))
+                        .withText(version == null
+                                ? "Update all data of type '%s'?".formatted(type)
+                                : "Update %s (%s)?".formatted(type, version.getId()))
                         .withActions(
                                 new DialogAction(DialogAction.Type.YES).withHandler(e ->
-                                        updateInBackground(new UpdateByTypeTask(type))),
+                                        updateInBackground(new UpdateByTypeAndVersionTask(type, version))),
                                 new DialogAction(DialogAction.Type.NO)
                         )
                         .open());
@@ -338,6 +309,26 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         dialogs.createBackgroundTaskDialog(task)
                 .withHeader("Updating vector store data")
                 .withText("Please wait...")
+                .open();
+    }
+
+    @Subscribe(id = "cleanupCacheButton", subject = "clickListener")
+    public void onCleanupCacheButtonClick(final ClickEvent<JmixButton> event) {
+        dialogs.createOptionDialog()
+                .withHeader(messageBundle.getMessage("cacheCleanup.confirmHeader"))
+                .withText(messageBundle.getMessage("cacheCleanup.confirmText"))
+                .withActions(
+                        new DialogAction(DialogAction.Type.YES).withHandler(e ->
+                                cleanupCacheInBackground()),
+                        new DialogAction(DialogAction.Type.NO)
+                )
+                .open();
+    }
+
+    private void cleanupCacheInBackground() {
+        dialogs.createBackgroundTaskDialog(new CleanupCacheTask())
+                .withHeader(messageBundle.getMessage("cacheCleanup.runningHeader"))
+                .withText(messageBundle.getMessage("cacheCleanup.runningText"))
                 .open();
     }
 
@@ -431,17 +422,22 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         }
     }
 
-    private class UpdateByTypeTask extends UpdateTask {
+    private class UpdateByTypeAndVersionTask extends UpdateTask {
 
         private final String type;
+        @Nullable
+        private final JmixVersion version;
 
-        private UpdateByTypeTask(String type) {
+        private UpdateByTypeAndVersionTask(String type, @Nullable JmixVersion version) {
             this.type = type;
+            this.version = version;
         }
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return ingesterManager.updateByType(type);
+            return version == null
+                    ? ingesterManager.updateByType(type)
+                    : ingesterManager.updateByTypeAndVersion(type, version);
         }
     }
 
@@ -456,6 +452,33 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
             return ingesterManager.updateByEntity(entity);
+        }
+    }
+
+    private class CleanupCacheTask extends BackgroundTask<Integer, EnrichmentCacheCleanupService.CleanupResult> {
+
+        private CleanupCacheTask() {
+            super(60, TimeUnit.MINUTES);
+        }
+
+        @Override
+        public EnrichmentCacheCleanupService.CleanupResult run(TaskLifeCycle<Integer> taskLifeCycle) {
+            return enrichmentCacheCleanupService.cleanup();
+        }
+
+        @Override
+        public void done(EnrichmentCacheCleanupService.CleanupResult result) {
+            notifications.show(messageBundle.formatMessage(
+                    "cacheCleanup.success",
+                    result.deletedEntries(),
+                    result.deletedGenerations(),
+                    result.skippedScopes()));
+        }
+
+        @Override
+        public boolean handleException(Exception ex) {
+            defaultUiExceptionHandler.handle(ex);
+            return true;
         }
     }
 

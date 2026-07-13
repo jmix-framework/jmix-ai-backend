@@ -111,6 +111,19 @@ class RerankerTest {
     }
 
     @Test
+    void rerank_ReturnsNullWhenConvertedResponseIsNull() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("null"));
+
+        TestReranker reranker = new TestReranker(chatModel);
+        List<Document> documents = List.of(new Document("1", "doc", Map.of("source", "one")));
+
+        List<Reranker.Result> results = reranker.rerank("query", documents, 1, new ParametersReader(Map.of()));
+
+        assertThat(results).isNull();
+    }
+
+    @Test
     void rerank_ReturnsNullWhenResponseContainsInvalidIndices() {
         ChatModel chatModel = mock(ChatModel.class);
         when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""

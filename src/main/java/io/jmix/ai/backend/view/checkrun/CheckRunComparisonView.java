@@ -61,28 +61,61 @@ public class CheckRunComparisonView extends StandardView {
     private VerticalLayout resultsBox;
 
     private final Grid<CheckDelta> diffGrid = new Grid<>(CheckDelta.class, false);
+    private List<ConfigOption> configOptions = List.of();
+    private boolean updatingCandidateOptions;
 
     @Subscribe
     public void onInit(final InitEvent event) {
-        List<ConfigOption> options = analyticsService.configOptions();
-        baselineRunField.setItems(options);
-        candidateRunField.setItems(options);
+        configOptions = analyticsService.configOptions();
+        baselineRunField.setItems(configOptions);
         baselineRunField.setItemLabelGenerator(this::configOptionLabel);
         candidateRunField.setItemLabelGenerator(this::configOptionLabel);
         baselineRunField.setHelperText(messageBundle.getMessage("baselineRun.helperText"));
         candidateRunField.setHelperText(messageBundle.getMessage("candidateRun.helperText"));
         summaryCards.getStyle().set("flex-wrap", "wrap");
 
-        if (!options.isEmpty()) {
-            baselineRunField.setValue(options.get(0));
-            candidateRunField.setValue(options.size() > 1 ? options.get(1) : options.get(0));
+        if (!configOptions.isEmpty()) {
+            baselineRunField.setValue(configOptions.get(0));
+            updateCandidateOptions(configOptions.get(0));
         }
 
         buildDiffGrid();
-        baselineRunField.addValueChangeListener(change -> refresh());
-        candidateRunField.addValueChangeListener(change -> refresh());
+        baselineRunField.addValueChangeListener(change -> {
+            updatingCandidateOptions = true;
+            try {
+                updateCandidateOptions(change.getValue());
+            } finally {
+                updatingCandidateOptions = false;
+            }
+            refresh();
+        });
+        candidateRunField.addValueChangeListener(change -> {
+            if (!updatingCandidateOptions) {
+                refresh();
+            }
+        });
         regressionsOnlyField.addValueChangeListener(change -> refresh());
         refresh();
+    }
+
+    private void updateCandidateOptions(ConfigOption baseline) {
+        List<ConfigOption> compatible = baseline == null ? List.of() : configOptions.stream()
+                .filter(option -> CheckAnalyticsService.canCompare(baseline, option))
+                .toList();
+        ConfigOption current = candidateRunField.getValue();
+        candidateRunField.setItems(compatible);
+        if (compatible.isEmpty()) {
+            candidateRunField.clear();
+            return;
+        }
+        if (current != null && compatible.contains(current)) {
+            candidateRunField.setValue(current);
+        } else {
+            candidateRunField.setValue(compatible.stream()
+                    .filter(option -> !option.key().equals(baseline.key()))
+                    .findFirst()
+                    .orElse(compatible.get(0)));
+        }
     }
 
     private void buildDiffGrid() {
@@ -158,7 +191,7 @@ public class CheckRunComparisonView extends StandardView {
         ConfigOption candidate = candidateRunField.getValue();
         ComparisonResult comparison = analyticsService.compareConfigs(base, candidate);
         CheckAnalyticsService.ComparisonSummary summary =
-                analyticsService.summarizeConfigs(base, candidate, comparison);
+                analyticsService.summarizeConfigs(comparison);
 
         renderSummary(summary);
 

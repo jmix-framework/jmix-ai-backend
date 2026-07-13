@@ -53,7 +53,7 @@ All ingesters implement the `Ingester` interface and are invoked through the `In
 
 The chat parameters are stored in the database using the `Parameters` entity. They are used by the application through the `ParametersRepository` interface. 
 
-The `Parameters` instance includes the YAML configuration that specifies parameters for the LLM, reranker, tools and post-retrieval filtering. You can create multiple instances of the `Parameters` entity and use them for different chat sessions to test different configurations. One instance should be marked as active to be used in the API calls. 
+The `Parameters` instance includes the YAML configuration that specifies parameters for the LLM, reranker, tools and post-retrieval filtering. You can create multiple instances of the `Parameters` entity and use them for different chat sessions to test different configurations. One instance should be marked as active to be used in the API calls.
 
 ### Answer checks
 

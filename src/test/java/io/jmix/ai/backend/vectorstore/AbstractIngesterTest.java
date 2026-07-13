@@ -7,6 +7,8 @@ import io.jmix.core.UuidProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -23,10 +25,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -125,19 +126,20 @@ class AbstractIngesterTest {
     @Test
     void shouldUpdateAllDocuments() {
         List<String> sources = List.of("source1", "source2");
-        Document doc1 = new Document("1", "content1", Map.of("source", "source1"));
-        Document doc2 = new Document("2", "content2", Map.of("source", "source2"));
+        Document doc1 = new Document("1", "content1", Map.of("source", "source1", "sourceHash", "hash1"));
+        Document doc2 = new Document("2", "content2", Map.of("source", "source2", "sourceHash", "hash2"));
         List<Document> chunks = List.of(
-                new Document("3", "chunk1", Map.of()),
-                new Document("4", "chunk2", Map.of())
+                new Document("3", "chunk1", Map.of("type", "test", "source", "source1")),
+                new Document("4", "chunk2", Map.of("type", "test", "source", "source1")),
+                new Document("5", "chunk3", Map.of("type", "test", "source", "source2"))
         );
         
         doReturn(sources).when(ingester).loadSources(null);
         doReturn(0).when(ingester).getSourceLimit();
         doReturn(doc1).when(ingester).loadDocument("source1", null);
         doReturn(doc2).when(ingester).loadDocument("source2", null);
-        doReturn(true).when(ingester).checkContent(any(), isNull());
         doReturn(chunks).when(ingester).splitToChunks(List.of(doc1, doc2));
+        when(vectorStoreRepository.loadList(anyString())).thenReturn(List.of());
         when(timeSource.currentTimeMillis()).thenReturn(1000L, 5000L);
 
         String result = ingester.updateAll();
@@ -146,8 +148,30 @@ class AbstractIngesterTest {
         verify(ingester).loadSources(null);
         verify(ingester).loadDocument("source1", null);
         verify(ingester).loadDocument("source2", null);
-        verify(vectorStore).add(chunks);
-        assertThat(result).isEqualTo("loaded: 2, added: 2 documents in 2 chunks");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Document>> chunksCaptor = ArgumentCaptor.forClass(List.class);
+        verify(vectorStore).add(chunksCaptor.capture());
+        assertThat(chunksCaptor.getValue()).allSatisfy(chunk ->
+                assertThat(chunk.getMetadata()).containsKeys("ingestionId", "ingestionChunkCount"));
+        assertThat(chunksCaptor.getValue())
+                .filteredOn(chunk -> "source1".equals(chunk.getMetadata().get("source")))
+                .allSatisfy(chunk -> assertThat(chunk.getMetadata()).containsEntry("ingestionChunkCount", 2));
+        assertThat(chunksCaptor.getValue())
+                .filteredOn(chunk -> "source2".equals(chunk.getMetadata().get("source")))
+                .allSatisfy(chunk -> assertThat(chunk.getMetadata()).containsEntry("ingestionChunkCount", 1));
+        assertThat(result).isEqualTo("loaded: 2, added: 2 documents in 3 chunks");
+    }
+
+    @Test
+    void shouldRequireVersionForVersionScopedUpdate() {
+        TestIngester versionedIngester = new TestIngester(
+                vectorStore, timeSource, vectorStoreRepository, true);
+
+        assertThatThrownBy(versionedIngester::updateAll)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Jmix version is required to update version-scoped ingester 'test'");
+
+        verifyNoInteractions(vectorStore, vectorStoreRepository);
     }
 
     @Test
@@ -157,24 +181,25 @@ class AbstractIngesterTest {
         entity.setMetadata("""
                         {
                             "type": "test",
-                            "source": "source1"
+                            "source": "source1",
+                            "sourceHash": "oldHash"
                         }
                         """
                 );
         
-        Document document = new Document("1", "content", Map.of("sourceHash", "hash1"));
-        List<Document> chunks = List.of(new Document("2", "chunk", Map.of()));
+        Document document = new Document("1", "content", Map.of("source", "source1", "sourceHash", "hash1"));
+        List<Document> chunks = List.of(new Document("2", "chunk", Map.of("type", "test", "source", "source1")));
 
-        doReturn("source1").when(ingester).getSource(entity);
-        doReturn(document).when(ingester).loadDocument(eq("source1"), isNull());
-        doReturn(false).when(ingester).isContentSame(document, entity);
+        doReturn(document).when(ingester).loadDocument("source1", null);
         doReturn(chunks).when(ingester).splitToChunks(List.of(document));
+        when(vectorStoreRepository.loadList(anyString())).thenReturn(List.of(entity));
 
         String result = ingester.update(entity);
         
         verify(ingester).prepareUpdate();
-        verify(ingester).deleteExistingEntities(entity);
-        verify(vectorStore).add(chunks);
+        InOrder inOrder = inOrder(vectorStore, vectorStoreRepository);
+        inOrder.verify(vectorStore).add(anyList());
+        inOrder.verify(vectorStoreRepository).deleteIds(List.of(entity.getId()));
         assertThat(result).isEqualTo("updated 1 document");
     }
 
@@ -185,29 +210,112 @@ class AbstractIngesterTest {
         entity.setMetadata("""
                         {
                             "type": "test",
-                            "source": "source1"
+                            "source": "source1",
+                            "sourceHash": "hash1"
                         }
                         """);
         
-        Document document = new Document("1", "content", Map.of("sourceHash", "hash1"));
+        Document document = new Document("1", "content", Map.of("source", "source1", "sourceHash", "hash1"));
         
-        doReturn("source1").when(ingester).getSource(entity);
-        doReturn(document).when(ingester).loadDocument(eq("source1"), isNull());
-        doReturn(true).when(ingester).isContentSame(document, entity);
+        doReturn(document).when(ingester).loadDocument("source1", null);
+        when(vectorStoreRepository.loadList(anyString())).thenReturn(List.of(entity));
         
         String result = ingester.update(entity);
         
         verify(ingester).prepareUpdate();
-        verify(ingester, never()).deleteExistingEntities(any());
+        verify(vectorStoreRepository, never()).deleteIds(anyList());
+        verify(vectorStoreRepository, never()).delete(anyString());
         verify(vectorStore, never()).add(anyList());
         assertThat(result).isEqualTo("no changes");
+    }
+
+    @Test
+    void shouldKeepPreviousGenerationAndRemovePartialNewGenerationWhenAddFails() {
+        VectorStoreEntity entity = entity("source1", "oldHash");
+        Document document = new Document("1", "content", Map.of("source", "source1", "sourceHash", "newHash"));
+        Document chunk = new Document("2", "chunk", Map.of("type", "test", "source", "source1"));
+
+        doReturn(document).when(ingester).loadDocument("source1", null);
+        doReturn(List.of(chunk)).when(ingester).splitToChunks(List.of(document));
+        when(vectorStoreRepository.loadList(anyString())).thenReturn(List.of(entity));
+        doThrow(new IllegalStateException("vector store unavailable")).when(vectorStore).add(anyList());
+
+        assertThatThrownBy(() -> ingester.update(entity))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("vector store unavailable");
+
+        verify(vectorStoreRepository, never()).deleteIds(anyList());
+        verify(vectorStoreRepository).delete(argThat((String filter) ->
+                filter.contains("type == 'test'") && filter.contains("ingestionId == '")));
+    }
+
+    @Test
+    void shouldKeepPreviousGenerationWhenNoChunksWereGenerated() {
+        VectorStoreEntity entity = entity("source1", "oldHash");
+        Document document = new Document("1", "content", Map.of("source", "source1", "sourceHash", "newHash"));
+
+        doReturn(document).when(ingester).loadDocument("source1", null);
+        doReturn(List.of()).when(ingester).splitToChunks(List.of(document));
+        when(vectorStoreRepository.loadList(anyString())).thenReturn(List.of(entity));
+
+        assertThat(ingester.update(entity)).isEqualTo("not updated: no chunks generated");
+
+        verify(vectorStore, never()).add(anyList());
+        verify(vectorStoreRepository, never()).deleteIds(anyList());
+        verify(vectorStoreRepository, never()).delete(anyString());
+    }
+
+    @Test
+    void shouldUpdateOtherSourcesWhenOneSourceGeneratesNoChunks() {
+        VectorStoreEntity firstOld = entity("source1", "oldHash1");
+        VectorStoreEntity secondOld = entity("source2", "oldHash2");
+        Document first = new Document(
+                "1", "content1", Map.of("source", "source1", "sourceHash", "newHash1"));
+        Document second = new Document(
+                "2", "content2", Map.of("source", "source2", "sourceHash", "newHash2"));
+        Document firstChunk = new Document(
+                "3", "chunk1", Map.of("type", "test", "source", "source1"));
+
+        doReturn(List.of("source1", "source2")).when(ingester).loadSources(null);
+        doReturn(first).when(ingester).loadDocument("source1", null);
+        doReturn(second).when(ingester).loadDocument("source2", null);
+        doReturn(List.of(firstChunk)).when(ingester).splitToChunks(List.of(first, second));
+        when(vectorStoreRepository.loadList("type == 'test' && source == 'source1'"))
+                .thenReturn(List.of(firstOld));
+        when(vectorStoreRepository.loadList("type == 'test' && source == 'source2'"))
+                .thenReturn(List.of(secondOld));
+
+        String result = ingester.updateAll();
+
+        verify(vectorStore).add(anyList());
+        verify(vectorStoreRepository).deleteIds(List.of(firstOld.getId()));
+        verify(vectorStoreRepository, never()).deleteIds(List.of(secondOld.getId()));
+        assertThat(result).isEqualTo("loaded: 2, added: 1 documents in 1 chunks");
+    }
+
+    private VectorStoreEntity entity(String source, String sourceHash) {
+        VectorStoreEntity entity = new VectorStoreEntity();
+        entity.setId(UUID.randomUUID());
+        entity.setMetadata("""
+                {
+                    "type": "test",
+                    "source": "%s",
+                    "sourceHash": "%s"
+                }
+                """.formatted(source, sourceHash));
+        return entity;
     }
 
     // Test implementation of AbstractIngester
     private static class TestIngester extends AbstractIngester {
         
         public TestIngester(VectorStore vectorStore, TimeSource timeSource, VectorStoreRepository vectorStoreRepository) {
-            super(vectorStore, timeSource, vectorStoreRepository, false);
+            this(vectorStore, timeSource, vectorStoreRepository, false);
+        }
+
+        public TestIngester(VectorStore vectorStore, TimeSource timeSource,
+                            VectorStoreRepository vectorStoreRepository, boolean versionScoped) {
+            super(vectorStore, timeSource, vectorStoreRepository, versionScoped);
         }
 
         @Override

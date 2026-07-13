@@ -43,6 +43,10 @@ public class SearchV2Controller {
         }
 
         JmixVersion version = JmixVersion.fromId(request.jmixVersion());
+        if (version == null && StringUtils.isNotBlank(request.jmixVersion())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Unknown Jmix version: " + request.jmixVersion());
+        }
         if (version == null) {
             version = JmixVersion.V2;
         }

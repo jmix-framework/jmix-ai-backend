@@ -141,6 +141,10 @@ public class Reranker {
             log.error("Failed to parse rerank response: {}", content, e);
             return null;
         }
+        if (rerankResponse == null) {
+            log.error("Rerank response was null");
+            return null;
+        }
 
         List<Result> results = mapResults(rerankResponse, candidates, documents, topN);
         if (results == null) {

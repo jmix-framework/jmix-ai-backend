@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
+import static io.jmix.ai.backend.retrieval.Utils.getDistinctDocuments;
 import static org.apache.commons.lang3.StringUtils.abbreviate;
 
 @Component
@@ -170,10 +171,11 @@ public class ChatImpl implements Chat {
                     ctx.chatModel().getDefaultOptions(), abbreviate(userPrompt, 200)));
 
             ChatResponse chatResponse = ctx.request().call().chatResponse();
+            List<Document> distinctDocuments = getDistinctDocuments(ctx.retrievedDocuments());
 
             if (chatResponse == null) {
                 addLogMessage(log, logMessages, "No response received from the chat model");
-                return new StructuredResponse("", logMessages, ctx.retrievedDocuments(), 0, 0, 0);
+                return new StructuredResponse("", logMessages, distinctDocuments, 0, 0, 0);
             }
             String responseText = Objects.requireNonNullElse(getContentFromChatResponse(chatResponse), "");
             var usage = chatResponse.getMetadata().getUsage();
@@ -184,7 +186,7 @@ public class ChatImpl implements Chat {
             addLogMessage(log, logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
                     responseTime, promptTokens, completionTokens, abbreviate(responseText, 100)));
 
-            return new StructuredResponse(responseText, logMessages, ctx.retrievedDocuments(),
+            return new StructuredResponse(responseText, logMessages, distinctDocuments,
                     promptTokens, completionTokens, (int) responseTime);
         } finally {
             MDC.remove("cid");
@@ -224,9 +226,10 @@ public class ChatImpl implements Chat {
      */
     @Override
     public Flux<StreamingEvent> requestStream(String userPrompt,
-                                                      String parametersYaml,
-                                                      @Nullable String conversationId,
-                                                      @Nullable JmixVersion jmixVersion) {
+                                              String parametersYaml,
+                                              @Nullable String conversationId,
+                                              @Nullable JmixVersion jmixVersion) {
+        String cid = conversationId != null ? conversationId : UuidProvider.createUuid().toString();
         // Flux.defer = "don't run this code now, run it when someone subscribes".
         // This is how we move the blocking DB/tool setup off the caller's thread
         // onto streamingScheduler (applied in withDiagnostics via subscribeOn).
@@ -243,7 +246,6 @@ public class ChatImpl implements Chat {
             AtomicInteger promptTokensRef = new AtomicInteger();
             AtomicInteger completionTokensRef = new AtomicInteger();
             // -- Blocking setup: loads config from DB, creates OpenAI client, resolves tools --
-            String cid = conversationId != null ? conversationId : "";
             JmixVersion version = jmixVersion != null ? jmixVersion : JmixVersion.V2;
 
             // Pushes tool lifecycle events into the sink.
@@ -251,7 +253,7 @@ public class ChatImpl implements Chat {
             // so any logging during tool execution (e.g. Reranker) includes conversation id.
             ToolEventListener listener = createStreamingListener(toolCallSink, cid);
             ChatRequestContext ctx = prepareRequest(
-                    userPrompt, parametersYaml, conversationId, version, listener);
+                    userPrompt, parametersYaml, cid, version, listener);
 
             // Tool events (ToolCallStart, ToolRetrieved, etc.) are pushed into the sink
             // by the listener during Spring AI's synchronous tool execution.
@@ -310,7 +312,6 @@ public class ChatImpl implements Chat {
 
         // Wrap each event with conversationId for logging/persistence,
         // then apply cross-cutting diagnostics (console log + ChatLog save).
-        String cid = conversationId != null ? conversationId : "";
         return withDiagnostics(stream.map(event -> StreamingEvent.of(cid, event)));
     }
 
@@ -363,7 +364,7 @@ public class ChatImpl implements Chat {
      */
     private void persistChatLog(List<StreamingEvent> holders) {
         if (holders.isEmpty()) return;
-        String conversationId = holders.getFirst().conversationId();
+        String conversationId = holders.get(0).conversationId();
         List<String> logLines = new ArrayList<>();
         List<String> sourceUrls = new ArrayList<>();
         int promptTokens = 0;
@@ -372,26 +373,32 @@ public class ChatImpl implements Chat {
 
         for (StreamingEvent holder : holders) {
             String ts = formatTimestamp(holder.timestamp());
-            switch (holder.value()) {
-                case EventStreamValueHolder.RequestInfo ri ->
-                    logLines.add("%s Model: %s, User prompt: %s".formatted(ts, ri.model(), ri.userPrompt()));
-                case EventStreamValueHolder.ToolCallStart tc ->
-                        logLines.add("%s >>> Using %s: %s".formatted(ts, tc.tool(), tc.query()));
-                case EventStreamValueHolder.ToolRetrieved tr ->
-                        logLines.add("%s Found documents (%d) in %d ms: %s".formatted(ts, tr.documents().size(), tr.durationMs(), formatDocScores(tr.documents())));
-                case EventStreamValueHolder.ToolReranked tr ->
-                        logLines.add("%s Reranked documents (%d) in %d ms: %s".formatted(ts, tr.documents().size(), tr.durationMs(), formatDocScores(tr.documents())));
-                case EventStreamValueHolder.ToolCallEnd tc ->
-                        logLines.add("%s %s done in %d ms".formatted(ts, tc.tool(), tc.totalDurationMs()));
-                case EventStreamValueHolder.Metadata m -> sourceUrls.add(m.source());
-                case EventStreamValueHolder.RequestEnd re -> {
-                    promptTokens = re.promptTokens();
-                    completionTokens = re.completionTokens();
-                    totalDurationMs = re.totalDurationMs();
-                    logLines.add("%s Received response in %d ms [promptTokens: %d, completionTokens: %d]"
-                            .formatted(ts, re.totalDurationMs(), re.promptTokens(), re.completionTokens()));
-                }
-                default -> {}
+            EventStreamValueHolder event = holder.value();
+            if (event instanceof EventStreamValueHolder.RequestInfo requestInfo) {
+                logLines.add("%s Model: %s, User prompt: %s"
+                        .formatted(ts, requestInfo.model(), requestInfo.userPrompt()));
+            } else if (event instanceof EventStreamValueHolder.ToolCallStart toolCall) {
+                logLines.add("%s >>> Using %s: %s".formatted(ts, toolCall.tool(), toolCall.query()));
+            } else if (event instanceof EventStreamValueHolder.ToolRetrieved retrieved) {
+                logLines.add("%s Found documents (%d) in %d ms: %s".formatted(
+                        ts, retrieved.documents().size(), retrieved.durationMs(),
+                        formatDocScores(retrieved.documents())));
+            } else if (event instanceof EventStreamValueHolder.ToolReranked reranked) {
+                logLines.add("%s Reranked documents (%d) in %d ms: %s".formatted(
+                        ts, reranked.documents().size(), reranked.durationMs(),
+                        formatDocScores(reranked.documents())));
+            } else if (event instanceof EventStreamValueHolder.ToolCallEnd toolCallEnd) {
+                logLines.add("%s %s done in %d ms"
+                        .formatted(ts, toolCallEnd.tool(), toolCallEnd.totalDurationMs()));
+            } else if (event instanceof EventStreamValueHolder.Metadata metadata) {
+                sourceUrls.add(metadata.source());
+            } else if (event instanceof EventStreamValueHolder.RequestEnd requestEnd) {
+                promptTokens = requestEnd.promptTokens();
+                completionTokens = requestEnd.completionTokens();
+                totalDurationMs = requestEnd.totalDurationMs();
+                logLines.add("%s Received response in %d ms [promptTokens: %d, completionTokens: %d]"
+                        .formatted(ts, requestEnd.totalDurationMs(), requestEnd.promptTokens(),
+                                requestEnd.completionTokens()));
             }
         }
 
@@ -400,24 +407,25 @@ public class ChatImpl implements Chat {
                 promptTokens, completionTokens, (int) totalDurationMs);
     }
 
-    /** Logs significant stream events to console with conversation id. */
     /** Logs significant stream events to console. MDC "cid" is set by runWithConvId. */
     private void logEventToConsole(StreamingEvent holder) {
-        switch (holder.value()) {
-            case EventStreamValueHolder.RequestInfo ri ->
-                    log.info("Model: {}, User prompt: {}", ri.model(), abbreviate(ri.userPrompt(), 200));
-            case EventStreamValueHolder.ToolCallStart tc ->
-                    log.info(">>> Using {}: {}", tc.tool(), tc.query());
-            case EventStreamValueHolder.ToolRetrieved tr ->
-                    log.info("Found documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
-            case EventStreamValueHolder.ToolReranked tr ->
-                    log.info("Reranked documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
-            case EventStreamValueHolder.ToolCallEnd tc ->
-                    log.info("{} done in {} ms", tc.tool(), tc.totalDurationMs());
-            case EventStreamValueHolder.RequestEnd re ->
-                    log.info("Received response in {} ms [promptTokens: {}, completionTokens: {}]",
-                            re.totalDurationMs(), re.promptTokens(), re.completionTokens());
-            default -> {}
+        EventStreamValueHolder event = holder.value();
+        if (event instanceof EventStreamValueHolder.RequestInfo requestInfo) {
+            log.info("Model: {}, User prompt: {}",
+                    requestInfo.model(), abbreviate(requestInfo.userPrompt(), 200));
+        } else if (event instanceof EventStreamValueHolder.ToolCallStart toolCall) {
+            log.info(">>> Using {}: {}", toolCall.tool(), toolCall.query());
+        } else if (event instanceof EventStreamValueHolder.ToolRetrieved retrieved) {
+            log.info("Found documents ({}): {}",
+                    retrieved.documents().size(), formatDocScores(retrieved.documents()));
+        } else if (event instanceof EventStreamValueHolder.ToolReranked reranked) {
+            log.info("Reranked documents ({}): {}",
+                    reranked.documents().size(), formatDocScores(reranked.documents()));
+        } else if (event instanceof EventStreamValueHolder.ToolCallEnd toolCallEnd) {
+            log.info("{} done in {} ms", toolCallEnd.tool(), toolCallEnd.totalDurationMs());
+        } else if (event instanceof EventStreamValueHolder.RequestEnd requestEnd) {
+            log.info("Received response in {} ms [promptTokens: {}, completionTokens: {}]",
+                    requestEnd.totalDurationMs(), requestEnd.promptTokens(), requestEnd.completionTokens());
         }
     }
 
@@ -512,7 +520,7 @@ public class ChatImpl implements Chat {
         ));
     }
 
-    private ChatModel buildChatModel(ParametersReader parametersReader) {
+    ChatModel buildChatModel(ParametersReader parametersReader) {
         String openaiApiKey = System.getenv("OPENAI_API_KEY");
         if (StringUtils.isBlank(openaiApiKey)) {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");

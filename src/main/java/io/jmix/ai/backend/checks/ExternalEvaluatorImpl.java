@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalEvaluatorImpl.class);
+    private static final String EVALUATOR_VERSION = "semantic-v3";
     private static final Pattern JSON_OBJECT_PATTERN = Pattern.compile("\\{.*}", Pattern.DOTALL);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final double LANGUAGE_MISMATCH_MAX_SCORE = 0.2;
@@ -82,6 +83,7 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
             """;
 
     private final ChatModel chatModel;
+    private final String configurationSnapshot;
 
     @Autowired
     public ExternalEvaluatorImpl(
@@ -107,10 +109,17 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
                 .openAiApi(openAiApi)
                 .defaultOptions(options)
                 .build();
+        this.configurationSnapshot = configurationSnapshot(model, temperature);
     }
 
     ExternalEvaluatorImpl(ChatModel chatModel) {
         this.chatModel = chatModel;
+        this.configurationSnapshot = configurationSnapshot("test-model", 0.0);
+    }
+
+    @Override
+    public String configurationSnapshot() {
+        return configurationSnapshot;
     }
 
     @Override
@@ -142,7 +151,7 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
             if (logger != null) {
                 logger.accept("Semantic evaluator failed: " + e.getMessage());
             }
-            return 0.0;
+            throw new IllegalStateException("Semantic evaluator failed", e);
         }
     }
 
@@ -198,6 +207,10 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
     private static double clampScore(double score) {
         return Math.max(0.0, Math.min(1.0, score));
+    }
+
+    private static String configurationSnapshot(String model, double temperature) {
+        return "%s|model=%s|temperature=%s".formatted(EVALUATOR_VERSION, model, temperature);
     }
 
     private static @Nullable String getContent(@Nullable ChatResponse chatResponse) {

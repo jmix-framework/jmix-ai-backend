@@ -14,15 +14,22 @@ import org.springframework.lang.Nullable;
 
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 public abstract class AbstractIngester implements Ingester {
 
     // 30_000 (~16 text pages) is about 6000 tokens, which is less than the OpenAI limit (8192).
     public static final int MAX_CHUNK_SIZE = 30_000;
+    private static final String INGESTION_ID = "ingestionId";
+    private static final String INGESTION_CHUNK_COUNT = "ingestionChunkCount";
 
     private final Logger log = LoggerFactory.getLogger(AbstractIngester.class);
 
@@ -48,12 +55,16 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     @Override
-    public String updateAll() {
+    public synchronized String updateAll() {
+        if (versionScoped) {
+            throw new IllegalStateException(
+                    "Jmix version is required to update version-scoped ingester '" + getType() + "'");
+        }
         return doUpdateAll(null);
     }
 
     @Override
-    public String updateAll(JmixVersion version) {
+    public synchronized String updateAll(JmixVersion version) {
         return doUpdateAll(versionScoped ? version : null);
     }
 
@@ -66,21 +77,39 @@ public abstract class AbstractIngester implements Ingester {
         int limit = getSourceLimit();
         log.info("Found {} sources, loading {}", sources.size(), limit > 0 ? "first " + limit : "all");
 
-        List<Document> documents = sources.stream()
+        List<SourceUpdate> updates = new ArrayList<>();
+        sources.stream()
                 .limit(limit > 0 ? limit : sources.size())
                 .map(source -> loadDocument(source, version))
-                .filter(document -> checkContent(document, version))
-                .toList();
+                .filter(Objects::nonNull)
+                .map(document -> planUpdate(document, version))
+                .filter(Objects::nonNull)
+                .forEach(updates::add);
+
+        List<Document> documents = updates.stream().map(SourceUpdate::document).toList();
 
         log.debug("Splitting {} sources into chunks", documents.size());
-        List<Document> docChunks = splitToChunks(documents);
+        List<Document> docChunks = documents.isEmpty()
+                ? List.of()
+                : prepareChunks(splitToChunks(documents), updates);
+        Set<String> completedSources = docChunks.stream()
+                .map(this::getSourceFromDocument)
+                .collect(Collectors.toSet());
+        int skippedSources = updates.size() - completedSources.size();
+        if (skippedSources > 0) {
+            log.warn("No chunks generated for {} sources; keeping their previous chunks", skippedSources);
+        }
 
-        log.info("Adding {} documents to vector store", docChunks.size());
-        vectorStore.add(docChunks);
+        if (!docChunks.isEmpty()) {
+            log.info("Adding {} documents to vector store", docChunks.size());
+            addNewGeneration(docChunks);
+            deletePreviousGenerations(updates, completedSources);
+        }
 
         log.info("Done in {} sec", (timeSource.currentTimeMillis() - start) / 1000.0);
 
-        return "loaded: %d, added: %d documents in %d chunks".formatted(sources.size(), documents.size(), docChunks.size());
+        return "loaded: %d, added: %d documents in %d chunks"
+                .formatted(sources.size(), completedSources.size(), docChunks.size());
     }
 
     protected void prepareUpdate(@Nullable JmixVersion version) {
@@ -91,7 +120,7 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     @Override
-    public String update(VectorStoreEntity entity) {
+    public synchronized String update(VectorStoreEntity entity) {
         JmixVersion version = versionScoped
                 ? JmixVersion.fromId((String) entity.getMetadataMap().get("jmixVersion"))
                 : null;
@@ -108,47 +137,78 @@ public abstract class AbstractIngester implements Ingester {
             return "source not found: " + source;
         }
 
-        if (!isContentSame(document, entity)) {
-            deleteExistingEntities(entity);
-
+        SourceUpdate update = planUpdate(document, version);
+        if (update != null) {
             log.debug("Splitting document into chunks");
-            List<Document> chunks = splitToChunks(List.of(document));
+            List<Document> chunks = prepareChunks(splitToChunks(List.of(document)), List.of(update));
+            if (chunks.isEmpty()) {
+                return "not updated: no chunks generated";
+            }
 
             log.info("Adding document to vector store");
-            vectorStore.add(chunks);
+            addNewGeneration(chunks);
+            deletePreviousGenerations(List.of(update), Set.of(source));
             return "updated " + chunks.size() + " document";
         } else {
             return "no changes";
         }
     }
 
-    protected boolean checkContent(@Nullable Document document) {
-        return checkContent(document, null);
-    }
-
-    protected boolean checkContent(@Nullable Document document, @Nullable JmixVersion version) {
-        if (document == null) {
-            return false;
-        }
-
+    @Nullable
+    private SourceUpdate planUpdate(Document document, @Nullable JmixVersion version) {
         String source = getSourceFromDocument(document);
-
         List<VectorStoreEntity> entities = vectorStoreRepository.loadList(
                 buildFilterQuery(source, version)
         );
-
         if (entities.isEmpty()) {
-            return true;
+            return new SourceUpdate(document, List.of());
         }
 
-        boolean contentChanged = false;
+        List<VectorStoreEntity> completeGeneration = findCompleteGeneration(document, entities);
+        if (completeGeneration == null) {
+            return new SourceUpdate(document, entityIds(entities));
+        }
+
+        Set<UUID> retainedIds = completeGeneration.stream()
+                .map(VectorStoreEntity::getId)
+                .collect(Collectors.toSet());
+        List<VectorStoreEntity> redundant = entities.stream()
+                .filter(entity -> !retainedIds.contains(entity.getId()))
+                .toList();
+        if (!redundant.isEmpty()) {
+            log.info("Removing {} redundant chunks for {}", redundant.size(), source);
+            vectorStoreRepository.deleteIds(entityIds(redundant));
+        }
+        return null;
+    }
+
+    private static List<UUID> entityIds(List<VectorStoreEntity> entities) {
+        return entities.stream().map(VectorStoreEntity::getId).toList();
+    }
+
+    @Nullable
+    private List<VectorStoreEntity> findCompleteGeneration(
+            Document document, List<VectorStoreEntity> entities) {
+        Map<String, List<VectorStoreEntity>> byIngestion = new LinkedHashMap<>();
         for (VectorStoreEntity entity : entities) {
-            if (!isContentSame(document, entity)) {
-                vectorStoreRepository.delete(entity.getId());
-                contentChanged = true;
+            if (isContentSame(document, entity)) {
+                String ingestionId = Objects.toString(entity.getMetadataMap().get(INGESTION_ID), "");
+                byIngestion.computeIfAbsent(ingestionId, ignored -> new ArrayList<>()).add(entity);
             }
         }
-        return contentChanged;
+
+        for (Map.Entry<String, List<VectorStoreEntity>> entry : byIngestion.entrySet()) {
+            if (entry.getKey().isEmpty()) {
+                continue;
+            }
+            Object expectedValue = entry.getValue().get(0).getMetadataMap().get(INGESTION_CHUNK_COUNT);
+            if (expectedValue instanceof Number expected && entry.getValue().size() == expected.intValue()) {
+                return entry.getValue();
+            }
+        }
+
+        List<VectorStoreEntity> legacy = byIngestion.get("");
+        return currentGenerationKey() == null && legacy != null ? legacy : null;
     }
 
     protected Map<String, Object> createMetadata(String source, String textContent) {
@@ -212,13 +272,62 @@ public abstract class AbstractIngester implements Ingester {
         return null;
     }
 
-    protected void deleteExistingEntities(VectorStoreEntity entity) {
-        String source = getSource(entity);
-        JmixVersion version = versionScoped
-                ? JmixVersion.fromId((String) entity.getMetadataMap().get("jmixVersion"))
-                : null;
-        List<VectorStoreEntity> entities = vectorStoreRepository.loadList(buildFilterQuery(source, version));
-        vectorStoreRepository.delete(entities);
+    private List<Document> prepareChunks(List<Document> chunks, List<SourceUpdate> updates) {
+        if (chunks.isEmpty()) {
+            return List.of();
+        }
+
+        Set<String> expectedSources = updates.stream()
+                .map(SourceUpdate::document)
+                .map(this::getSourceFromDocument)
+                .collect(Collectors.toSet());
+        Map<String, Integer> chunkCounts = new HashMap<>();
+        for (Document chunk : chunks) {
+            String source = getSourceFromDocument(chunk);
+            if (source == null) {
+                throw new IllegalStateException("Generated chunk has no source metadata");
+            }
+            if (!expectedSources.contains(source)) {
+                throw new IllegalStateException("Generated chunk has unexpected source " + source);
+            }
+            if (!Objects.equals(getType(), chunk.getMetadata().get("type"))) {
+                throw new IllegalStateException("Generated chunk has invalid type metadata for " + source);
+            }
+            chunkCounts.merge(source, 1, Integer::sum);
+        }
+
+        String ingestionId = UuidProvider.createUuidV7().toString();
+        return chunks.stream().map(chunk -> {
+            Map<String, Object> metadata = new HashMap<>(chunk.getMetadata());
+            metadata.put(INGESTION_ID, ingestionId);
+            metadata.put(INGESTION_CHUNK_COUNT, chunkCounts.get(getSourceFromDocument(chunk)));
+            return chunk.mutate().metadata(metadata).build();
+        }).toList();
+    }
+
+    private void addNewGeneration(List<Document> chunks) {
+        String ingestionId = (String) chunks.get(0).getMetadata().get(INGESTION_ID);
+        try {
+            vectorStore.add(chunks);
+        } catch (RuntimeException | Error failure) {
+            try {
+                vectorStoreRepository.delete("type == '%s' && %s == '%s'"
+                        .formatted(getType(), INGESTION_ID, ingestionId));
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+                log.error("Failed to clean up incomplete ingestion {}", ingestionId, cleanupFailure);
+            }
+            throw failure;
+        }
+    }
+
+    private void deletePreviousGenerations(List<SourceUpdate> updates, Set<String> completedSources) {
+        for (SourceUpdate update : updates) {
+            if (completedSources.contains(getSourceFromDocument(update.document()))
+                    && !update.previousIds().isEmpty()) {
+                vectorStoreRepository.deleteIds(update.previousIds());
+            }
+        }
     }
 
     protected String computeHash(String content) {
@@ -247,4 +356,7 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     protected abstract List<Document> splitToChunks(List<Document> documents);
+
+    private record SourceUpdate(Document document, List<UUID> previousIds) {
+    }
 }

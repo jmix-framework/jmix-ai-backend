@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,65 +38,89 @@ class CheckAnalyticsServiceTest {
     }
 
     @Test
-    void cohortHashIsStableAcrossDefinitionOrderAndChangesWithDefinitionContent() {
+    void groupIdentityIncludesEvaluatorConfigAndSeparatesLegacyRuns() {
+        CheckRun legacy = checkRun("Config", "parameters");
+        CheckRun first = checkRun("Config", "parameters");
+        first.setEvaluatorConfig("semantic-v3|model=first|temperature=0.0|passThreshold=0.8");
+        CheckRun second = checkRun("Config", "parameters");
+        second.setEvaluatorConfig("semantic-v3|model=second|temperature=0.0|passThreshold=0.8");
+
+        assertThat(CheckAnalyticsService.groupKey(first))
+                .isNotEqualTo(CheckAnalyticsService.groupKey(second))
+                .isNotEqualTo(CheckAnalyticsService.groupKey(legacy));
+        assertThat(CheckAnalyticsService.configFingerprint(first))
+                .isNotEqualTo(CheckAnalyticsService.configFingerprint(second))
+                .isNotEqualTo(CheckAnalyticsService.configFingerprint(legacy));
+    }
+
+    @Test
+    void definitionFingerprintIsStableAcrossDefinitionOrderAndChangesWithDefinitionContent() {
         CheckDef first = checkDef(
                 "10000000-0000-0000-0000-000000000001", "data", "Question 1", "Answer 1");
         CheckDef second = checkDef(
                 "10000000-0000-0000-0000-000000000002", "ui", "Question 2", "Answer 2");
 
-        String forward = CheckRunner.buildCohortKey(List.of(first, second));
-        String reversed = CheckRunner.buildCohortKey(List.of(second, first));
+        String forward = CheckRunner.buildDefinitionFingerprint(List.of(first, second));
+        String reversed = CheckRunner.buildDefinitionFingerprint(List.of(second, first));
         second.setAnswer("Changed answer");
-        String changed = CheckRunner.buildCohortKey(List.of(first, second));
+        String changed = CheckRunner.buildDefinitionFingerprint(List.of(first, second));
 
-        assertThat(forward).startsWith(CheckRunner.EVALUATOR_VERSION + "-").isEqualTo(reversed);
+        assertThat(forward).startsWith("definitions-v1-").isEqualTo(reversed);
         assertThat(changed).isNotEqualTo(forward);
     }
 
     @Test
-    void cohortSuffixIsIdempotentAndKeepsConfigLabelWithinColumnLimit() {
-        String cohort = "semantic-v3-123456789abc";
+    void definitionFingerprintKeepsLegacyDigestWhenOnlyScopeMetadataChanges() {
+        CheckDef definition = checkDef(
+                "10000000-0000-0000-0000-000000000001", "data", "Question", "Answer");
+        definition.setJmixVersion(JmixVersion.V2);
+        String v2 = CheckRunner.buildDefinitionFingerprint(List.of(definition));
 
-        String once = CheckRunner.withCohortSuffix("x".repeat(300), cohort);
-        String twice = CheckRunner.withCohortSuffix(once, cohort);
+        definition.setJmixVersion(JmixVersion.V3);
 
-        assertThat(once).hasSize(255).isEqualTo(twice);
-        assertThat(CheckRunner.extractCohortKey(once)).isEqualTo(cohort);
-        assertThat(CheckRunner.stripCohortSuffix(once)).doesNotContain("[cohort:");
+        assertThat(CheckRunner.buildDefinitionFingerprint(List.of(definition))).isEqualTo(v2);
     }
 
     @Test
-    void groupIdentitySeparatesLegacyAndNamedCohortsWhileDisplayHidesSuffix() {
-        String parameters = "description: Same config\nmodel:\n  name: gpt-5";
-        CheckRun legacy = checkRun("Same config", parameters);
-        CheckRun firstCohort = checkRun(
-                CheckRunner.withCohortSuffix("Same config", "semantic-v3-aaaaaaaaaaaa"), parameters);
-        CheckRun secondCohort = checkRun(
-                CheckRunner.withCohortSuffix("Same config", "semantic-v3-bbbbbbbbbbbb"), parameters);
+    void historicalCohortSuffixCanBeReadAndRemoved() {
+        String fingerprint = "semantic-v3-123456789abc";
+        String label = legacyLabel("Config", fingerprint);
 
-        assertThat(CheckAnalyticsService.groupKey(legacy))
-                .contains("||" + CheckAnalyticsService.LEGACY_COHORT + "||")
-                .isNotEqualTo(CheckAnalyticsService.groupKey(firstCohort));
-        assertThat(CheckAnalyticsService.groupKey(firstCohort))
-                .isNotEqualTo(CheckAnalyticsService.groupKey(secondCohort));
-        assertThat(CheckAnalyticsService.configurationKey(legacy))
-                .isEqualTo(CheckAnalyticsService.configurationKey(firstCohort))
-                .isEqualTo(CheckAnalyticsService.configurationKey(secondCohort));
-        assertThat(CheckAnalyticsService.displayConfigLabel(firstCohort)).isEqualTo("Same config");
+        assertThat(CheckRunner.extractLegacyDefinitionFingerprint(label))
+                .isEqualTo("definitions-v1-123456789abc");
+        assertThat(CheckRunner.stripLegacyCohortSuffix(label)).isEqualTo("Config");
+    }
+
+    @Test
+    void historicalSuffixAndDedicatedFingerprintUseTheSameCohort() {
+        String parameters = "description: Same config\nmodel:\n  name: gpt-5";
+        String historicalFingerprint = "semantic-v3-aaaaaaaaaaaa";
+        String currentFingerprint = "definitions-v1-aaaaaaaaaaaa";
+        String evaluatorConfig = "semantic-v3|model=gpt-5-mini|temperature=0.0|passThreshold=0.8";
+        CheckRun historical = checkRun(legacyLabel("Same config", historicalFingerprint), parameters);
+        historical.setEvaluatorConfig(evaluatorConfig);
+        CheckRun current = checkRun("Same config", parameters);
+        current.setDefinitionFingerprint(currentFingerprint);
+        current.setEvaluatorConfig(evaluatorConfig);
+
+        assertThat(CheckAnalyticsService.groupKey(historical))
+                .isEqualTo(CheckAnalyticsService.groupKey(current));
+        assertThat(CheckAnalyticsService.displayConfigLabel(historical)).isEqualTo("Same config");
+        assertThat(CheckAnalyticsService.displayConfigLabel(current)).isEqualTo("Same config");
     }
 
     @Test
     void configFingerprintIsStableAndIncludesFullConfigAndCohort() {
         String parameters = "description: Same config\nmodel:\n  name: first";
-        CheckRun first = checkRun(
-                CheckRunner.withCohortSuffix("Same config", "semantic-v3-aaaaaaaaaaaa"), parameters);
-        CheckRun same = checkRun(
-                CheckRunner.withCohortSuffix("Same config", "semantic-v3-aaaaaaaaaaaa"), parameters);
+        CheckRun first = checkRun("Same config", parameters);
+        first.setDefinitionFingerprint("definitions-v1-aaaaaaaaaaaa");
+        CheckRun same = checkRun("Same config", parameters);
+        same.setDefinitionFingerprint("definitions-v1-aaaaaaaaaaaa");
         CheckRun changedConfig = checkRun(
-                CheckRunner.withCohortSuffix("Same config", "semantic-v3-aaaaaaaaaaaa"),
-                "description: Same config\nmodel:\n  name: second");
-        CheckRun changedCohort = checkRun(
-                CheckRunner.withCohortSuffix("Same config", "semantic-v3-bbbbbbbbbbbb"), parameters);
+                "Same config", "description: Same config\nmodel:\n  name: second");
+        changedConfig.setDefinitionFingerprint("definitions-v1-aaaaaaaaaaaa");
+        CheckRun changedCohort = checkRun("Same config", parameters);
+        changedCohort.setDefinitionFingerprint("definitions-v1-bbbbbbbbbbbb");
 
         assertThat(CheckAnalyticsService.configFingerprint(first))
                 .isEqualTo(CheckAnalyticsService.configFingerprint(same))
@@ -105,13 +130,19 @@ class CheckAnalyticsServiceTest {
 
     @Test
     void compareQuestionsUsesOnlyIntersectionAndKeepsLatestAnswers() {
-        Map<String, CheckAnalyticsService.QuestionAggregate> baseline = new LinkedHashMap<>();
-        baseline.put("common", aggregate(1.0, 2, "data", "reference", "latest baseline"));
-        baseline.put("baseline only", aggregate(1.0, 1, "data", "reference", "baseline"));
+        Map<CheckAnalyticsService.QuestionKey, CheckAnalyticsService.QuestionAggregate> baseline =
+                new LinkedHashMap<>();
+        baseline.put(questionKey("common", "reference"),
+                aggregate(1.0, 2, "data", "reference", "latest baseline"));
+        baseline.put(questionKey("baseline only", "reference"),
+                aggregate(1.0, 1, "data", "reference", "baseline"));
 
-        Map<String, CheckAnalyticsService.QuestionAggregate> candidate = new LinkedHashMap<>();
-        candidate.put("common", aggregate(1.8, 2, "data", "reference", "latest candidate"));
-        candidate.put("candidate only", aggregate(0.7, 1, "data", "reference", "candidate"));
+        Map<CheckAnalyticsService.QuestionKey, CheckAnalyticsService.QuestionAggregate> candidate =
+                new LinkedHashMap<>();
+        candidate.put(questionKey("common", "reference"),
+                aggregate(1.8, 2, "data", "reference", "latest candidate"));
+        candidate.put(questionKey("candidate only", "reference"),
+                aggregate(0.7, 1, "data", "reference", "candidate"));
 
         CheckAnalyticsService.ComparisonResult result =
                 CheckAnalyticsService.compareQuestions(baseline, candidate);
@@ -126,27 +157,59 @@ class CheckAnalyticsServiceTest {
             assertThat(delta.referenceAnswer()).isEqualTo("reference");
             assertThat(delta.baselineActualAnswer()).isEqualTo("latest baseline");
             assertThat(delta.candidateActualAnswer()).isEqualTo("latest candidate");
+            assertThat(delta.baseAccuracy()).isNull();
+            assertThat(delta.candidateAccuracy()).isNull();
         });
     }
 
     @Test
-    void summaryReportsCommonAndMissingQuestionCounts() {
+    void compareQuestionsKeepsAccuracyForTheCommonQuestionSet() {
+        Map<CheckAnalyticsService.QuestionKey, CheckAnalyticsService.QuestionAggregate> baseline = Map.of(
+                questionKey("common", "reference"),
+                aggregate(1.6, 2, 1, 2, "data", "reference", "baseline"));
+        Map<CheckAnalyticsService.QuestionKey, CheckAnalyticsService.QuestionAggregate> candidate = Map.of(
+                questionKey("common", "reference"),
+                aggregate(1.8, 2, 2, 2, "data", "reference", "candidate"));
+
+        CheckAnalyticsService.ComparisonResult result =
+                CheckAnalyticsService.compareQuestions(baseline, candidate);
+
+        assertThat(result.deltas()).singleElement().satisfies(delta -> {
+            assertThat(delta.baseAccuracy()).isEqualTo(0.5);
+            assertThat(delta.candidateAccuracy()).isEqualTo(1.0);
+        });
+    }
+
+    @Test
+    void sameQuestionWithDifferentReferenceAnswersIsNotComparable() {
+        Map<CheckAnalyticsService.QuestionKey, CheckAnalyticsService.QuestionAggregate> baseline = Map.of(
+                questionKey("same question", "first reference"),
+                aggregate(1.0, 1, "data", "first reference", "baseline"));
+        Map<CheckAnalyticsService.QuestionKey, CheckAnalyticsService.QuestionAggregate> candidate = Map.of(
+                questionKey("same question", "second reference"),
+                aggregate(1.0, 1, "data", "second reference", "candidate"));
+
+        CheckAnalyticsService.ComparisonResult result =
+                CheckAnalyticsService.compareQuestions(baseline, candidate);
+
+        assertThat(result.deltas()).isEmpty();
+        assertThat(result.baselineOnly()).isEqualTo(1);
+        assertThat(result.candidateOnly()).isEqualTo(1);
+    }
+
+    @Test
+    void summaryUsesOnlyMetricsFromCommonQuestions() {
         CheckAnalyticsService service = new CheckAnalyticsService(null);
-        CheckAnalyticsService.ConfigOption baseline =
-                new CheckAnalyticsService.ConfigOption("base", "Base", "v2", "base123", 2, 0.5, 0.4);
-        CheckAnalyticsService.ConfigOption candidate =
-                new CheckAnalyticsService.ConfigOption(
-                        "candidate", "Candidate", "v2", "candidate123", 2, 0.8, 0.7);
         CheckAnalyticsService.ComparisonResult comparison = new CheckAnalyticsService.ComparisonResult(
                 java.util.List.of(
-                        delta(-0.2),
-                        delta(0.0),
-                        delta(0.3)),
+                        delta(-0.2, 1.0, 0.0),
+                        delta(0.0, 0.5, 1.0),
+                        delta(0.3, 0.0, 1.0)),
                 2,
                 3);
 
         CheckAnalyticsService.ComparisonSummary summary =
-                service.summarizeConfigs(baseline, candidate, comparison);
+                service.summarizeConfigs(comparison);
 
         assertThat(summary.common()).isEqualTo(3);
         assertThat(summary.improved()).isEqualTo(1);
@@ -155,7 +218,76 @@ class CheckAnalyticsServiceTest {
         assertThat(summary.baselineOnly()).isEqualTo(2);
         assertThat(summary.candidateOnly()).isEqualTo(3);
         assertThat(summary.baseScore()).isEqualTo(0.5);
-        assertThat(summary.candidateScore()).isEqualTo(0.8);
+        assertThat(summary.candidateScore()).isEqualTo(0.533);
+        assertThat(summary.baseAccuracy()).isEqualTo(0.5);
+        assertThat(summary.candidateAccuracy()).isEqualTo(0.667);
+    }
+
+    @Test
+    void summaryHasNoMetricsWithoutCommonQuestions() {
+        CheckAnalyticsService.ComparisonSummary summary = new CheckAnalyticsService(null)
+                .summarizeConfigs(new CheckAnalyticsService.ComparisonResult(List.of(), 1, 1));
+
+        assertThat(summary.baseScore()).isNull();
+        assertThat(summary.candidateScore()).isNull();
+        assertThat(summary.baseAccuracy()).isNull();
+        assertThat(summary.candidateAccuracy()).isNull();
+    }
+
+    @Test
+    void configurationsFromDifferentEvaluationCohortsCannotBeCompared() {
+        CheckAnalyticsService.ConfigOption baseline = new CheckAnalyticsService.ConfigOption(
+                "base", "Base", "v2", "first-cohort", "base123", 1);
+        CheckAnalyticsService.ConfigOption candidate = new CheckAnalyticsService.ConfigOption(
+                "candidate", "Candidate", "v2", "second-cohort", "candidate123", 1);
+
+        assertThat(CheckAnalyticsService.canCompare(baseline, candidate)).isFalse();
+        assertThatThrownBy(() -> new CheckAnalyticsService(null).compareConfigs(baseline, candidate))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("different evaluation cohorts");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void comparisonAccuracyUsesTheStoredPassThreshold() {
+        UUID runId = UUID.randomUUID();
+        CheckRun run = checkRun("Config", "parameters");
+        run.setId(runId);
+        run.setScore(0.7);
+        run.setAccuracy(1.0);
+        run.setEvaluatorConfig("semantic-v3|model=judge|temperature=0.0|passThreshold=0.8");
+        Check check = new Check();
+        check.setQuestion("common");
+        check.setReferenceAnswer("reference");
+        check.setScore(0.7);
+
+        DataManager dataManager = mock(DataManager.class);
+        FluentLoader<CheckRun> runLoader = mock(FluentLoader.class);
+        FluentLoader.ByQuery<CheckRun> runQuery = mock(FluentLoader.ByQuery.class);
+        when(dataManager.load(CheckRun.class)).thenReturn(runLoader);
+        when(runLoader.query("e.score is not null order by e.createdDate, e.id")).thenReturn(runQuery);
+        when(runQuery.list()).thenReturn(List.of(run));
+        FluentLoader<Check> checkLoader = mock(FluentLoader.class);
+        FluentLoader.ByQuery<Check> checkQuery = mock(FluentLoader.ByQuery.class);
+        when(dataManager.load(Check.class)).thenReturn(checkLoader);
+        when(checkLoader.query("e.checkRun.id in :runIds order by e.checkRun.createdDate, e.checkRun.id, e.id"))
+                .thenReturn(checkQuery);
+        when(checkQuery.parameter("runIds", List.of(runId))).thenReturn(checkQuery);
+        when(checkQuery.list()).thenReturn(List.of(check));
+
+        CheckAnalyticsService service = new CheckAnalyticsService(dataManager);
+        CheckAnalyticsService.ConfigOption option = new CheckAnalyticsService.ConfigOption(
+                CheckAnalyticsService.groupKey(run), "Config", "v2",
+                CheckAnalyticsService.comparisonCohortKey(run),
+                CheckAnalyticsService.configFingerprint(run), 1);
+
+        CheckAnalyticsService.ComparisonSummary summary =
+                service.summarizeConfigs(service.compareConfigs(option, option));
+
+        assertThat(summary.baseScore()).isEqualTo(0.7);
+        assertThat(summary.candidateScore()).isEqualTo(0.7);
+        assertThat(summary.baseAccuracy()).isEqualTo(0.0);
+        assertThat(summary.candidateAccuracy()).isEqualTo(0.0);
     }
 
     @Test
@@ -188,7 +320,8 @@ class CheckAnalyticsServiceTest {
         CheckAnalyticsService service = new CheckAnalyticsService(dataManager);
         CheckAnalyticsService.ConfigOption option = new CheckAnalyticsService.ConfigOption(
                 CheckAnalyticsService.groupKey(first), "Config", "v2",
-                CheckAnalyticsService.configFingerprint(first), 2, 1.0, 1.0);
+                CheckAnalyticsService.comparisonCohortKey(first),
+                CheckAnalyticsService.configFingerprint(first), 2);
         CheckAnalyticsService.ComparisonResult result = service.compareConfigs(option, null);
 
         assertThat(result.baselineOnly()).isEqualTo(1);
@@ -199,13 +332,29 @@ class CheckAnalyticsServiceTest {
 
     private static CheckAnalyticsService.QuestionAggregate aggregate(
             double sum, int count, String category, String reference, String actual) {
-        return new CheckAnalyticsService.QuestionAggregate(sum, count, category, reference, actual);
+        return aggregate(sum, count, 0, 0, category, reference, actual);
+    }
+
+    private static CheckAnalyticsService.QuestionAggregate aggregate(
+            double sum, int count, int passed, int accuracyCount,
+            String category, String reference, String actual) {
+        return new CheckAnalyticsService.QuestionAggregate(
+                sum, count, passed, accuracyCount, category, reference, actual);
+    }
+
+    private static CheckAnalyticsService.QuestionKey questionKey(String question, String referenceAnswer) {
+        return new CheckAnalyticsService.QuestionKey(question, referenceAnswer);
     }
 
     private static CheckAnalyticsService.CheckDelta delta(double value) {
+        return delta(value, null, null);
+    }
+
+    private static CheckAnalyticsService.CheckDelta delta(
+            double value, Double baseAccuracy, Double candidateAccuracy) {
         return new CheckAnalyticsService.CheckDelta(
                 "question " + value, "category", 0.5, 0.5 + value, value,
-                "reference", "baseline", "candidate");
+                "reference", "baseline", "candidate", baseAccuracy, candidateAccuracy);
     }
 
     private static CheckRun checkRun(String label, String parameters) {
@@ -214,6 +363,10 @@ class CheckAnalyticsServiceTest {
         run.setParameters(parameters);
         run.setJmixVersion(JmixVersion.V2);
         return run;
+    }
+
+    private static String legacyLabel(String label, String fingerprint) {
+        return label + " [cohort:" + fingerprint + "]";
     }
 
     private static CheckDef checkDef(String id, String category, String question, String answer) {

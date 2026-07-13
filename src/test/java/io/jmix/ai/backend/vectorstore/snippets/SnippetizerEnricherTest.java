@@ -16,11 +16,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -64,7 +71,7 @@ class SnippetizerEnricherTest {
         ChatModel chatModel = mock(ChatModel.class);
         when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
                 {"snippets": [
-                  {"title": "Create a Button", "description": "Shows how to declare a button.", "language": "xml", "code": "<button text=\\"OK\\"/>"},
+                  {"title": "Create\\na Button", "description": "Shows how to declare a button.", "language": "xml", "code": "<button text=\\"OK\\"/>"},
                   {"title": "", "description": "blank title must be filtered", "language": "", "code": ""},
                   {"title": "Button styling", "description": "Style  a\\nbutton.", "language": "", "code": ""}
                 ]}
@@ -112,10 +119,21 @@ class SnippetizerEnricherTest {
     }
 
     @Test
+    void fromJson_NormalizesCachedTitleToOneLine() {
+        TestSnippetizer snippetizer = new TestSnippetizer(mock(ChatModel.class));
+        String json = snippetizer.toJson(List.of(
+                new Snippet("Create\n  a Button", "D", null, null, "https://example.com")));
+
+        assertThat(snippetizer.fromJson(json)).singleElement()
+                .extracting(Snippet::title)
+                .isEqualTo("Create a Button");
+    }
+
+    @Test
     void modelKeyIncludesReasoningEffort() {
         assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:p4");
         assertThat(new TestSnippetizer(mock(ChatModel.class)).getGenerationKey())
-                .isEqualTo("test-model:low:p4:verbatim-code-coverage-v1");
+                .isEqualTo("test-model:low:p4:verbatim-code-coverage-v2");
     }
 
     @Test
@@ -186,6 +204,41 @@ class SnippetizerEnricherTest {
     }
 
     @Test
+    void resolveAll_SubmitsAtMostParallelismUntilWorkCompletes() throws Exception {
+        ChatModel chatModel = mock(ChatModel.class);
+        EnrichmentCacheRepository cacheRepository = mock(EnrichmentCacheRepository.class);
+        when(cacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
+        CountDownLatch firstWindowStarted = new CountDownLatch(4);
+        CountDownLatch release = new CountDownLatch(1);
+        when(chatModel.call(any(Prompt.class))).thenAnswer(invocation -> {
+            firstWindowStarted.countDown();
+            release.await();
+            return chatResponse("""
+                    {"snippets": [{"title": "Page", "description": "Processed.", "language": "", "code": ""}]}
+                    """);
+        });
+        TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
+        List<Document> pages = List.of(page("1"), page("2"), page("3"), page("4"), page("5"));
+        ExecutorService caller = Executors.newSingleThreadExecutor();
+
+        try {
+            Future<Map<String, List<Snippet>>> update = caller.submit(
+                    () -> snippetizer.resolveAll("docs-snippets", pages, Document::getText));
+            assertThat(firstWindowStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            verify(chatModel, times(4)).call(any(Prompt.class));
+
+            release.countDown();
+
+            assertThat(update.get(5, TimeUnit.SECONDS)).hasSize(5);
+            verify(chatModel, times(5)).call(any(Prompt.class));
+        } finally {
+            release.countDown();
+            caller.shutdownNow();
+            snippetizer.shutdownExecutor();
+        }
+    }
+
+    @Test
     void verbatimValidationRejectsEmptySnippetList() {
         assertThat(SnippetizerEnricher.containsOnlyVerbatimCode(List.of(), "source")).isFalse();
     }
@@ -243,6 +296,14 @@ class SnippetizerEnricherTest {
 
         assertThat(snippetizer.snippetize(PAGE, content)).isNull();
         assertThat(snippetizer.capturedPrompts).hasSize(2);
+    }
+
+    private static Document page(String id) {
+        return new Document(id, PAGE.getText(), Map.of(
+                "type", "docs-snippets",
+                "source", "page-" + id,
+                "sourceHash", "hash-" + id,
+                "url", "https://example.com/" + id));
     }
 
     private static ChatResponse chatResponse(String content) {

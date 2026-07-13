@@ -2,6 +2,7 @@ package io.jmix.ai.backend.checks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.ai.backend.entity.CheckDef;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.FluentLoader;
 import io.jmix.core.Resources;
 import io.jmix.core.UnconstrainedDataManager;
@@ -38,6 +39,9 @@ class DefaultChecksInitializerTest {
         String retirementMigration = new String(Objects.requireNonNull(getClass().getResourceAsStream(
                 "/io/jmix/ai/backend/liquibase/changelog/2026/07/11-040000-retire-ambiguous-checks.xml"))
                 .readAllBytes(), StandardCharsets.UTF_8);
+        String versionMigration = new String(Objects.requireNonNull(getClass().getResourceAsStream(
+                "/io/jmix/ai/backend/liquibase/changelog/2026/07/13-110000-check-def-jmix-version.xml"))
+                .readAllBytes(), StandardCharsets.UTF_8);
 
         List<DefaultChecksInitializer.DefaultCheck> definitions =
                 DefaultChecksInitializer.missingDefinitions(json, Set.of(), new ObjectMapper());
@@ -48,6 +52,13 @@ class DefaultChecksInitializerTest {
         List<UUID> migratedIds = QUOTED_UUID.matcher(retirementMigration).results()
                 .map(result -> UUID.fromString(result.group(1)))
                 .toList();
+        Set<UUID> versionedIds = definitions.stream()
+                .filter(definition -> definition.jmixVersion() == JmixVersion.V2)
+                .map(DefaultChecksInitializer.DefaultCheck::id)
+                .collect(Collectors.toSet());
+        Set<UUID> backfilledVersionIds = QUOTED_UUID.matcher(versionMigration).results()
+                .map(result -> UUID.fromString(result.group(1)))
+                .collect(Collectors.toSet());
 
         // retired in changeset 1, deliberately reactivated in changeset 2 as an adversarial check
         Set<UUID> reactivatedIds = Set.of(UUID.fromString("018c1f8e-3b80-7fa0-e283-af1a2b3c4d5e"));
@@ -55,6 +66,8 @@ class DefaultChecksInitializerTest {
         assertThat(definitions).hasSize(81);
         assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(59);
         assertThat(inactiveDefinitionIds).hasSize(22);
+        assertThat(versionedIds).hasSize(6).isEqualTo(backfilledVersionIds);
+        assertThat(definitions).filteredOn(definition -> definition.jmixVersion() == null).hasSize(75);
         assertThat(Set.copyOf(migratedIds)).isEqualTo(Stream.concat(
                 inactiveDefinitionIds.stream(), reactivatedIds.stream()).collect(Collectors.toSet()));
         assertThat(definitions).extracting(DefaultChecksInitializer.DefaultCheck::id).doesNotHaveDuplicates();
@@ -87,6 +100,22 @@ class DefaultChecksInitializerTest {
     }
 
     @Test
+    void rejectsUnknownJmixVersion() {
+        UUID id = UUID.randomUUID();
+        String json = """
+                [
+                  {"id":"%s","active":true,"jmixVersion":"v9","category":"one","question":"one","answer":"one"}
+                ]
+                """.formatted(id);
+
+        assertThatThrownBy(() -> DefaultChecksInitializer.missingDefinitions(
+                json, Set.of(), new ObjectMapper()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown Jmix version 'v9'")
+                .hasMessageContaining(id.toString());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void importsOnlyMissingIdsAndTreatsSoftDeletedDefaultsAsExisting() {
         UUID deletedId = UUID.randomUUID();
@@ -94,7 +123,7 @@ class DefaultChecksInitializerTest {
         String json = """
                 [
                   {"id":"%s","active":"true","category":"edited","question":"do not restore","answer":"old"},
-                  {"id":"%s","active":"true","category":"javaapi","question":"new question","answer":"new answer"}
+                  {"id":"%s","active":"true","jmixVersion":"v3","category":"javaapi","question":"new question","answer":"new answer"}
                 ]
                 """.formatted(deletedId, missingId);
 
@@ -127,6 +156,7 @@ class DefaultChecksInitializerTest {
         verify(dataManager).save(any(Object[].class));
         assertThat(created.get()).isNotNull();
         assertThat(created.get().getId()).isEqualTo(missingId);
+        assertThat(created.get().getJmixVersion()).isEqualTo(JmixVersion.V3);
         assertThat(created.get().getQuestion()).isEqualTo("new question");
     }
 }

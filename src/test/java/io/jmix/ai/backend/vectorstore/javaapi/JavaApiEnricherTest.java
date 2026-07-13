@@ -95,6 +95,19 @@ class JavaApiEnricherTest {
     }
 
     @Test
+    void enrich_StripsMarkdownFencesFromExample() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
+                {"description": "Description.", "example": "```java\\nDataManager dm;\\n```"}
+                """));
+
+        JavaApiEnricher.Enrichment enrichment = new TestEnricher(chatModel).enrich(CARD.format());
+
+        assertThat(enrichment).isNotNull();
+        assertThat(enrichment.example()).isEqualTo("DataManager dm;");
+    }
+
+    @Test
     void assembleCard_ReplacesDescriptionAndAppendsExample() {
         JavaApiEnricher.Enrichment enrichment = new JavaApiEnricher.Enrichment(
                 "Authorization-aware\ndata access facade.", "DataManager dm;");
@@ -114,6 +127,16 @@ class JavaApiEnricherTest {
         assertThat(JavaApiEnricher.assembleCard(CARD, null)).isEqualTo(CARD.format());
         assertThat(JavaApiEnricher.assembleCard(CARD, new JavaApiEnricher.Enrichment(" ", "x")))
                 .isEqualTo(CARD.format());
+    }
+
+    @Test
+    void assembleCard_StripsFencesFromCachedExample() {
+        JavaApiEnricher.Enrichment enrichment = new JavaApiEnricher.Enrichment(
+                "Description.", "```java\nDataManager dm;\n```");
+
+        assertThat(JavaApiEnricher.assembleCard(CARD, enrichment))
+                .contains("// Usage example:\nDataManager dm;")
+                .doesNotContain("// Usage example:\n```java", "DataManager dm;\n```\n```");
     }
 
     private static ChatResponse chatResponse(String content) {

@@ -42,6 +42,28 @@ public class CheckRun {
     @Column(name = "CONFIG_LABEL")
     private String configLabel;
 
+    @Column(name = "EVALUATOR_CONFIG")
+    private String evaluatorConfig;
+
+    @Column(name = "DEFINITION_FINGERPRINT")
+    private String definitionFingerprint;
+
+    public String getDefinitionFingerprint() {
+        return definitionFingerprint;
+    }
+
+    public void setDefinitionFingerprint(String definitionFingerprint) {
+        this.definitionFingerprint = definitionFingerprint;
+    }
+
+    public String getEvaluatorConfig() {
+        return evaluatorConfig;
+    }
+
+    public void setEvaluatorConfig(String evaluatorConfig) {
+        this.evaluatorConfig = evaluatorConfig;
+    }
+
     public JmixVersion getJmixVersion() {
         return jmixVersion == null ? null : JmixVersion.fromId(jmixVersion);
     }

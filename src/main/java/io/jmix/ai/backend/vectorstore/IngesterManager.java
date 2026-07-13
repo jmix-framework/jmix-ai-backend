@@ -42,6 +42,19 @@ public class IngesterManager {
         return sb.toString();
     }
 
+    public String updateByTypeAndVersion(String type, JmixVersion version) {
+        StringBuilder sb = new StringBuilder();
+        ingesters.stream()
+                .filter(updater -> updater.getType().equals(type))
+                .findFirst()
+                .ifPresent(updater -> {
+                    String result = updater.updateAll(version);
+                    sb.append("<b>").append(updater.getType()).append(" (").append(version.getId()).append(")</b><br>")
+                      .append(result);
+                });
+        return sb.toString();
+    }
+
     private void updateAllVersions(Ingester updater, StringBuilder sb) {
         List<JmixVersion> versions = updater.getVersions();
         if (versions.isEmpty()) {

@@ -46,6 +46,16 @@ public class JavadocPageParserTest {
     }
 
     @Test
+    void filtersInternalImplementingClassesWithoutDroppingOtherNotes() throws IOException {
+        JavadocClassDoc classDoc = parser.parse(
+                loadResource("DataManager.html"), href -> !href.contains("impl/"));
+
+        assertThat(classDoc.notes()).extracting(JavadocClassDoc.Note::label)
+                .contains("All Superinterfaces:")
+                .doesNotContain("All Known Implementing Classes:");
+    }
+
+    @Test
     void testClassWithFieldsAndConstructors() throws IOException {
         JavadocClassDoc classDoc = parser.parse(loadResource("FetchPlan.html"));
 
@@ -73,6 +83,55 @@ public class JavadocPageParserTest {
         assertThat(classDoc.methods()).allSatisfy(m -> {
             assertThat(m.render()).doesNotContain("<a", "href=", "\u00A0");
         });
+    }
+
+    @Test
+    void testEnumConstants() throws IOException {
+        JavadocClassDoc classDoc = parser.parse(loadResource("JmixVersion.html"));
+
+        assertThat(classDoc.title()).isEqualTo("Enum Class JmixVersion");
+        assertThat(classDoc.fields()).extracting(JavadocClassDoc.Member::render)
+                .containsExactly(
+                        "V2 // Jmix 2.x.",
+                        "V3 // Jmix 3.x.");
+    }
+
+    @Test
+    void testAnnotationElements() throws IOException {
+        JavadocClassDoc classDoc = parser.parse(loadResource("Subscribe.html"));
+
+        assertThat(classDoc.title()).isEqualTo("Annotation Interface Subscribe");
+        assertThat(classDoc.methods()).extracting(JavadocClassDoc.Member::render)
+                .containsExactly(
+                        "String id // ID of the event source component.",
+                        "Target target // Target object that publishes the event.");
+    }
+
+    @Test
+    void parsesRequiredAndOptionalAnnotationElementSections() {
+        String html = """
+                <section class="member-summary" id="annotation-interface-required-element-summary">
+                    <div class="summary-table">
+                        <div class="col-first">String</div>
+                        <div class="col-second">requiredValue</div>
+                        <div class="col-last">Required value.</div>
+                    </div>
+                </section>
+                <section class="member-summary" id="annotation-interface-optional-element-summary">
+                    <div class="summary-table">
+                        <div class="col-first">boolean</div>
+                        <div class="col-second">enabled</div>
+                        <div class="col-last">Whether it is enabled.</div>
+                    </div>
+                </section>
+                """;
+
+        JavadocClassDoc classDoc = parser.parse(html);
+
+        assertThat(classDoc.methods()).extracting(JavadocClassDoc.Member::render)
+                .containsExactly(
+                        "String requiredValue // Required value.",
+                        "boolean enabled // Whether it is enabled.");
     }
 
     @Test
