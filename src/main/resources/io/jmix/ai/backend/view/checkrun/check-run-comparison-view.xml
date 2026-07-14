@@ -12,6 +12,8 @@
                     <comboBox id="candidateRunField" label="msg://candidateRun.label" width="28em"/>
                     <checkbox id="regressionsOnlyField" label="msg://regressionsOnly.label"/>
                 </hbox>
+                <span id="fieldsHint" text="msg://comparison.fieldsHint"/>
+                <span id="cohortWarning" visible="false"/>
 
                 <hbox id="summaryCards" width="100%" spacing="true"/>
 
@@ -38,12 +40,16 @@
                     <charts:tooltip trigger="AXIS">
                         <charts:axisPointer type="SHADOW"/>
                     </charts:tooltip>
+                    <charts:grid>
+                        <charts:gridItem top="85"/>
+                    </charts:grid>
                     <charts:dataZoom>
                         <charts:sliderDataZoom orientation="HORIZONTAL"/>
                     </charts:dataZoom>
                     <charts:xAxes>
                         <charts:xAxis type="CATEGORY">
-                            <charts:axisLabel rotate="35" interval="0"/>
+                            <charts:axisLabel show="false"/>
+                            <charts:axisTick show="false"/>
                         </charts:xAxis>
                     </charts:xAxes>
                     <charts:yAxes>

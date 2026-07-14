@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -235,16 +234,17 @@ class CheckAnalyticsServiceTest {
     }
 
     @Test
-    void configurationsFromDifferentEvaluationCohortsCannotBeCompared() {
+    void configurationsFromDifferentEvaluationCohortsAreFlagged() {
         CheckAnalyticsService.ConfigOption baseline = new CheckAnalyticsService.ConfigOption(
-                "base", "Base", "v2", "first-cohort", "base123", 1);
+                "base", "Base", "v2", "first-cohort", "defs-1", "semantic-v3", "base123", 1);
         CheckAnalyticsService.ConfigOption candidate = new CheckAnalyticsService.ConfigOption(
-                "candidate", "Candidate", "v2", "second-cohort", "candidate123", 1);
+                "candidate", "Candidate", "v2", "second-cohort", "defs-2", "semantic-v3", "candidate123", 1);
+        CheckAnalyticsService.ConfigOption sameCohort = new CheckAnalyticsService.ConfigOption(
+                "other", "Other", "v2", "first-cohort", "defs-1", "semantic-v3", "other123", 1);
 
         assertThat(CheckAnalyticsService.canCompare(baseline, candidate)).isFalse();
-        assertThatThrownBy(() -> new CheckAnalyticsService(null).compareConfigs(baseline, candidate))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("different evaluation cohorts");
+        assertThat(CheckAnalyticsService.canCompare(baseline, sameCohort)).isTrue();
+        assertThat(CheckAnalyticsService.canCompare(baseline, null)).isTrue();
     }
 
     @Test
@@ -278,7 +278,7 @@ class CheckAnalyticsServiceTest {
         CheckAnalyticsService service = new CheckAnalyticsService(dataManager);
         CheckAnalyticsService.ConfigOption option = new CheckAnalyticsService.ConfigOption(
                 CheckAnalyticsService.groupKey(run), "Config", "v2",
-                CheckAnalyticsService.comparisonCohortKey(run),
+                CheckAnalyticsService.comparisonCohortKey(run), "defs", "evaluator",
                 CheckAnalyticsService.configFingerprint(run), 1);
 
         CheckAnalyticsService.ComparisonSummary summary =
@@ -320,7 +320,7 @@ class CheckAnalyticsServiceTest {
         CheckAnalyticsService service = new CheckAnalyticsService(dataManager);
         CheckAnalyticsService.ConfigOption option = new CheckAnalyticsService.ConfigOption(
                 CheckAnalyticsService.groupKey(first), "Config", "v2",
-                CheckAnalyticsService.comparisonCohortKey(first),
+                CheckAnalyticsService.comparisonCohortKey(first), "defs", "evaluator",
                 CheckAnalyticsService.configFingerprint(first), 2);
         CheckAnalyticsService.ComparisonResult result = service.compareConfigs(option, null);
 

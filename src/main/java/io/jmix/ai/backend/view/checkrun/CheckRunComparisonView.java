@@ -31,6 +31,7 @@ import io.jmix.flowui.view.ViewDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -52,6 +53,10 @@ public class CheckRunComparisonView extends StandardView {
     @ViewComponent
     private JmixCheckbox regressionsOnlyField;
     @ViewComponent
+    private Span fieldsHint;
+    @ViewComponent
+    private Span cohortWarning;
+    @ViewComponent
     private HorizontalLayout summaryCards;
     @ViewComponent
     private Chart categoryChart;
@@ -69,9 +74,16 @@ public class CheckRunComparisonView extends StandardView {
         configOptions = analyticsService.configOptions();
         baselineRunField.setItems(configOptions);
         baselineRunField.setItemLabelGenerator(this::configOptionLabel);
-        candidateRunField.setItemLabelGenerator(this::configOptionLabel);
-        baselineRunField.setHelperText(messageBundle.getMessage("baselineRun.helperText"));
-        candidateRunField.setHelperText(messageBundle.getMessage("candidateRun.helperText"));
+        candidateRunField.setItemLabelGenerator(this::candidateOptionLabel);
+        fieldsHint.getStyle()
+                .set("color", "var(--lumo-secondary-text-color)")
+                .set("font-size", "var(--lumo-font-size-s)");
+        cohortWarning.getStyle()
+                .set("background", "var(--lumo-warning-color-10pct)")
+                .set("color", "var(--lumo-warning-text-color)")
+                .set("padding", "0.4em 0.8em")
+                .set("border-radius", "var(--lumo-border-radius-m)")
+                .set("font-size", "var(--lumo-font-size-s)");
         summaryCards.getStyle().set("flex-wrap", "wrap");
 
         if (!configOptions.isEmpty()) {
@@ -99,23 +111,60 @@ public class CheckRunComparisonView extends StandardView {
     }
 
     private void updateCandidateOptions(ConfigOption baseline) {
-        List<ConfigOption> compatible = baseline == null ? List.of() : configOptions.stream()
-                .filter(option -> CheckAnalyticsService.canCompare(baseline, option))
-                .toList();
-        ConfigOption current = candidateRunField.getValue();
-        candidateRunField.setItems(compatible);
-        if (compatible.isEmpty()) {
+        if (baseline == null) {
+            candidateRunField.setItems(List.of());
             candidateRunField.clear();
             return;
         }
-        if (current != null && compatible.contains(current)) {
+        // any configuration can be a candidate; same-cohort ones are more reliable, so they go first
+        List<ConfigOption> ordered = configOptions.stream()
+                .sorted(Comparator.comparing(option -> !CheckAnalyticsService.canCompare(baseline, option)))
+                .toList();
+        ConfigOption current = candidateRunField.getValue();
+        candidateRunField.setItems(ordered);
+        if (current != null && ordered.contains(current)) {
             candidateRunField.setValue(current);
         } else {
-            candidateRunField.setValue(compatible.stream()
+            candidateRunField.setValue(ordered.stream()
                     .filter(option -> !option.key().equals(baseline.key()))
+                    .filter(option -> CheckAnalyticsService.canCompare(baseline, option))
                     .findFirst()
-                    .orElse(compatible.get(0)));
+                    .orElse(ordered.stream()
+                            .filter(option -> !option.key().equals(baseline.key()))
+                            .findFirst()
+                            .orElse(ordered.get(0))));
         }
+    }
+
+    private String candidateOptionLabel(ConfigOption option) {
+        String label = configOptionLabel(option);
+        return CheckAnalyticsService.canCompare(baselineRunField.getValue(), option)
+                ? label
+                : messageBundle.formatMessage("configOption.otherCohort", label);
+    }
+
+    private void updateCohortWarning(ConfigOption base, ConfigOption candidate) {
+        if (base == null || candidate == null || CheckAnalyticsService.canCompare(base, candidate)) {
+            cohortWarning.setVisible(false);
+            return;
+        }
+        List<String> differences = new ArrayList<>();
+        if (!base.version().equals(candidate.version())) {
+            differences.add(messageBundle.formatMessage(
+                    "cohortWarning.version", base.version(), candidate.version()));
+        }
+        if (!base.definitionFingerprint().equals(candidate.definitionFingerprint())) {
+            differences.add(messageBundle.getMessage("cohortWarning.definitions"));
+        }
+        if (!base.evaluatorConfig().equals(candidate.evaluatorConfig())) {
+            differences.add(messageBundle.getMessage("cohortWarning.evaluator"));
+        }
+        if (differences.isEmpty()) {
+            differences.add(messageBundle.getMessage("cohortWarning.parameters"));
+        }
+        cohortWarning.setText(messageBundle.formatMessage(
+                "cohortWarning.text", String.join(", ", differences)));
+        cohortWarning.setVisible(true);
     }
 
     private void buildDiffGrid() {
@@ -189,6 +238,7 @@ public class CheckRunComparisonView extends StandardView {
     private void refresh() {
         ConfigOption base = baselineRunField.getValue();
         ConfigOption candidate = candidateRunField.getValue();
+        updateCohortWarning(base, candidate);
         ComparisonResult comparison = analyticsService.compareConfigs(base, candidate);
         CheckAnalyticsService.ComparisonSummary summary =
                 analyticsService.summarizeConfigs(comparison);

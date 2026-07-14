@@ -30,11 +30,14 @@ public class CheckAnalyticsService {
         this.dataManager = dataManager;
     }
 
-    public record RunInfo(@Nullable OffsetDateTime createdDate, String version, String config,
-                          double score, @Nullable Double accuracy) {
+    public record RunPoint(@Nullable OffsetDateTime createdDate, double score, @Nullable Double accuracy) {
     }
 
-    public record Overview(List<RunInfo> runs, int completedRuns, int configCount,
+    /** Chronological run metrics of one configuration (same Jmix version and parameters). */
+    public record ConfigTrend(String label, String version, String fingerprint, List<RunPoint> points) {
+    }
+
+    public record Overview(List<ConfigTrend> trends, int completedRuns, int configCount,
                            @Nullable Double latestScore, @Nullable Double latestAccuracy) {
     }
 
@@ -57,6 +60,7 @@ public class CheckAnalyticsService {
     }
 
     public record ConfigOption(String key, String description, String version, String comparisonCohort,
+                               String definitionFingerprint, String evaluatorConfig,
                                String fingerprint, int runCount) {
     }
 
@@ -89,23 +93,26 @@ public class CheckAnalyticsService {
 
     public Overview loadOverview() {
         List<CheckRun> runs = loadFinishedRuns();
-        List<RunInfo> runInfos = runs.stream()
-                .map(run -> new RunInfo(
-                        run.getCreatedDate(),
-                        versionId(run),
-                        displayConfigLabel(run),
-                        run.getScore(),
-                        run.getAccuracy()))
-                .toList();
-        int configCount = (int) runs.stream()
-                .map(CheckAnalyticsService::configurationKey)
-                .distinct()
-                .count();
+        Map<String, List<CheckRun>> groups = new LinkedHashMap<>();
+        for (CheckRun run : runs) {
+            groups.computeIfAbsent(configurationKey(run), key -> new ArrayList<>()).add(run);
+        }
+        List<ConfigTrend> trends = new ArrayList<>(groups.size());
+        groups.forEach((key, group) -> {
+            CheckRun sample = group.get(group.size() - 1);
+            trends.add(new ConfigTrend(
+                    displayConfigLabel(sample),
+                    versionId(sample),
+                    CheckRunner.shortSha256(key),
+                    group.stream()
+                            .map(run -> new RunPoint(run.getCreatedDate(), run.getScore(), run.getAccuracy()))
+                            .toList()));
+        });
         CheckRun latest = runs.isEmpty() ? null : runs.get(runs.size() - 1);
         return new Overview(
-                runInfos,
+                List.copyOf(trends),
                 runs.size(),
-                configCount,
+                trends.size(),
                 latest != null ? latest.getScore() : null,
                 latest != null ? latest.getAccuracy() : null);
     }
@@ -119,6 +126,8 @@ public class CheckAnalyticsService {
                     displayConfigLabel(sample),
                     versionId(sample),
                     comparisonCohortKey(sample),
+                    definitionFingerprint(sample),
+                    defaultString(sample.getEvaluatorConfig()),
                     configFingerprint(sample),
                     group.size()));
         });
@@ -230,15 +239,16 @@ public class CheckAnalyticsService {
     }
 
     public ComparisonResult compareConfigs(@Nullable ConfigOption base, @Nullable ConfigOption candidate) {
-        if (!canCompare(base, candidate)) {
-            throw new IllegalArgumentException("Configurations belong to different evaluation cohorts");
-        }
         Map<String, List<CheckRun>> runsByConfig = groupRunsByConfig();
         return compareQuestions(
                 aggregateQuestions(base, runsByConfig),
                 aggregateQuestions(candidate, runsByConfig));
     }
 
+    /**
+     * Whether the two configurations were evaluated under the same conditions (Jmix version, check
+     * definitions, evaluator). Cross-cohort comparison is allowed but the scores are less reliable.
+     */
     public static boolean canCompare(@Nullable ConfigOption base, @Nullable ConfigOption candidate) {
         return base == null || candidate == null
                 || Objects.equals(base.comparisonCohort(), candidate.comparisonCohort());

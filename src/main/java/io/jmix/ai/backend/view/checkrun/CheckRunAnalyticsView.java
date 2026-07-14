@@ -5,26 +5,33 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.checks.CheckAnalyticsService;
+import io.jmix.ai.backend.checks.CheckAnalyticsService.ConfigTrend;
 import io.jmix.ai.backend.checks.CheckAnalyticsService.Overview;
-import io.jmix.ai.backend.checks.CheckAnalyticsService.RunInfo;
+import io.jmix.ai.backend.checks.CheckAnalyticsService.RunPoint;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.chartsflowui.component.Chart;
 import io.jmix.chartsflowui.data.item.MapDataItem;
 import io.jmix.chartsflowui.kit.component.model.DataSet;
+import io.jmix.chartsflowui.kit.component.model.axis.AxisType;
+import io.jmix.chartsflowui.kit.component.model.axis.YAxis;
+import io.jmix.chartsflowui.kit.component.model.series.LineSeries;
 import io.jmix.chartsflowui.kit.data.chart.ListChartItems;
 import io.jmix.flowui.view.MessageBundle;
 import io.jmix.flowui.view.StandardView;
 import io.jmix.flowui.view.Subscribe;
-import io.jmix.flowui.view.View.BeforeShowEvent;
 import io.jmix.flowui.view.ViewComponent;
 import io.jmix.flowui.view.ViewController;
 import io.jmix.flowui.view.ViewDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 @Route(value = "check-runs/analytics", layout = MainView.class)
 @ViewController(id = "CheckRun.analytics")
@@ -40,7 +47,9 @@ public class CheckRunAnalyticsView extends StandardView {
     @ViewComponent
     private HorizontalLayout summaryCards;
     @ViewComponent
-    private Chart trendChart;
+    private Chart scoreTrendChart;
+    @ViewComponent
+    private Chart accuracyTrendChart;
 
     @Subscribe
     public void onBeforeShow(final BeforeShowEvent event) {
@@ -56,32 +65,108 @@ public class CheckRunAnalyticsView extends StandardView {
                 card(messageBundle.getMessage("overview.latestScore"), formatMetric(overview.latestScore())),
                 card(messageBundle.getMessage("overview.latestAccuracy"), formatMetric(overview.latestAccuracy())));
 
-        List<MapDataItem> items = overview.runs().stream()
-                .map(this::chartItem)
+        List<String> categories = overview.trends().stream()
+                .flatMap(trend -> trend.points().stream())
+                .sorted(Comparator.comparing(RunPoint::createdDate,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(this::pointLabel)
+                .distinct()
                 .toList();
-        trendChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
+        List<String> seriesLabels = trendLabels(overview.trends());
+
+        buildTrendChart(scoreTrendChart, overview.trends(), seriesLabels, categories,
+                messageBundle.getMessage("score.axis"), point -> point.score());
+        buildTrendChart(accuracyTrendChart, overview.trends(), seriesLabels, categories,
+                messageBundle.getMessage("accuracy.axis"), RunPoint::accuracy);
+    }
+
+    /** One line per configuration; the axis starts just below the data so small deltas stay visible. */
+    private void buildTrendChart(Chart chart, List<ConfigTrend> trends, List<String> seriesLabels,
+                                 List<String> categories, String axisName,
+                                 Function<RunPoint, Number> metric) {
+        List<Map<String, Number>> valuesByTrend = new ArrayList<>(trends.size());
+        double min = 1.0;
+        boolean hasData = false;
+        for (ConfigTrend trend : trends) {
+            Map<String, Number> values = new HashMap<>();
+            for (RunPoint point : trend.points()) {
+                Number value = metric.apply(point);
+                if (value != null) {
+                    values.put(pointLabel(point), value);
+                    min = Math.min(min, value.doubleValue());
+                    hasData = true;
+                }
+            }
+            valuesByTrend.add(values);
+        }
+
+        List<MapDataItem> items = new ArrayList<>(categories.size());
+        for (String category : categories) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("label", category);
+            for (int index = 0; index < trends.size(); index++) {
+                Number value = valuesByTrend.get(index).get(category);
+                // "-" is the ECharts empty-value marker; nulls would be dropped from the dataset row,
+                // breaking dimension inference and shifting series values across categories
+                row.put("s" + index, value != null ? value : "-");
+            }
+            items.add(new MapDataItem(row));
+        }
+
+        String[] valueFields = new String[trends.size()];
+        LineSeries[] series = new LineSeries[trends.size()];
+        for (int index = 0; index < trends.size(); index++) {
+            valueFields[index] = "s" + index;
+            series[index] = new LineSeries()
+                    .withName(seriesLabels.get(index))
+                    .withConnectNulls(true);
+        }
+        chart.withSeries(series);
+        chart.withYAxis(new YAxis()
+                .withType(AxisType.VALUE)
+                .withName(axisName)
+                .withMin(axisMin(min, hasData))
+                .withMax("1"));
+        chart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(items))
                 .withCategoryField("label")
-                .withValueFields("score", "accuracy")));
+                .withValueFields(valueFields)));
     }
 
-    private MapDataItem chartItem(RunInfo run) {
-        Map<String, Object> values = new LinkedHashMap<>();
-        values.put("label", runLabel(run));
-        values.put("score", run.score());
-        if (run.accuracy() != null) {
-            values.put("accuracy", run.accuracy());
+    /** Config labels for the legend; a short fingerprint disambiguates identical labels. */
+    private List<String> trendLabels(List<ConfigTrend> trends) {
+        Map<String, Integer> labelCounts = new HashMap<>();
+        for (ConfigTrend trend : trends) {
+            labelCounts.merge(baseLabel(trend), 1, Integer::sum);
         }
-        return new MapDataItem(values);
+        return trends.stream()
+                .map(trend -> labelCounts.get(baseLabel(trend)) > 1
+                        ? messageBundle.formatMessage("trendSeries.nameWithFingerprint",
+                                trend.version(), displayLabel(trend), trend.fingerprint())
+                        : baseLabel(trend))
+                .toList();
     }
 
-    private String runLabel(RunInfo run) {
-        String date = run.createdDate() != null ? run.createdDate().format(LABEL_FORMAT) : "—";
-        String version = !run.version().isBlank() ? run.version() : "—";
-        String config = !run.config().isBlank()
-                ? shorten(run.config())
+    private String baseLabel(ConfigTrend trend) {
+        return messageBundle.formatMessage("trendSeries.name", trend.version(), displayLabel(trend));
+    }
+
+    private String displayLabel(ConfigTrend trend) {
+        return !trend.label().isBlank()
+                ? shorten(trend.label())
                 : messageBundle.getMessage("config.unlabeled");
-        return messageBundle.formatMessage("overview.runLabel", date, version, config);
+    }
+
+    private String pointLabel(RunPoint point) {
+        return point.createdDate() != null ? point.createdDate().format(LABEL_FORMAT) : "—";
+    }
+
+    private static String axisMin(double min, boolean hasData) {
+        if (!hasData) {
+            return "0";
+        }
+        double floored = Math.floor((min - 0.02) * 10) / 10;
+        return String.valueOf(Math.max(0.0, Math.min(0.9, floored)));
     }
 
     private VerticalLayout card(String title, String value) {
