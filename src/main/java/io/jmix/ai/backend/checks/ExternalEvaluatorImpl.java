@@ -181,16 +181,13 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     }
 
     private static double nearestContentScore(double score) {
-        if (score >= 0.95) {
-            return 1.0;
-        }
-        if (score >= 0.8) {
-            return 0.9;
-        }
-        if (score >= 0.5) {
-            return 0.7;
-        }
-        return score >= 0.15 ? 0.3 : 0.0;
+        return switch (Double.valueOf(score)) {
+            case Double value when value >= 0.95 -> 1.0;
+            case Double value when value >= 0.8 -> 0.9;
+            case Double value when value >= 0.5 -> 0.7;
+            case Double value when value >= 0.15 -> 0.3;
+            default -> 0.0;
+        };
     }
 
     private static String extractJsonObject(String text) {
