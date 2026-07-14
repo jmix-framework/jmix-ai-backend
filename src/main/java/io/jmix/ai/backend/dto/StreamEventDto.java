@@ -37,25 +37,20 @@ public sealed interface StreamEventDto {
 
     /** Maps internal StreamEvent to public DTO. Returns null for internal-only events. */
     static StreamEventDto fromModel(EventStreamValueHolder event) {
-        if (event instanceof EventStreamValueHolder.ToolCallStart toolCall) {
-            return new ToolCall(toolCall.tool());
-        }
-        if (event instanceof EventStreamValueHolder.TokensStart) {
-            return new TokensStart();
-        }
-        if (event instanceof EventStreamValueHolder.Content content) {
-            return new Content(content.text());
-        }
-        if (event instanceof EventStreamValueHolder.TokensEnd) {
-            return new TokensEnd();
-        }
-        if (event instanceof EventStreamValueHolder.SourcesStart) {
-            return new SourcesStart();
-        }
-        if (event instanceof EventStreamValueHolder.Metadata metadata) {
-            return new Metadata(metadata.source());
-        }
-        // Internal-only events — filtered by Objects::nonNull in controller
-        return null;
+        return switch (event) {
+            case null -> null;
+            case EventStreamValueHolder.ToolCallStart toolCall -> new ToolCall(toolCall.tool());
+            case EventStreamValueHolder.TokensStart ignored -> new TokensStart();
+            case EventStreamValueHolder.Content(String text) -> new Content(text);
+            case EventStreamValueHolder.TokensEnd ignored -> new TokensEnd();
+            case EventStreamValueHolder.SourcesStart ignored -> new SourcesStart();
+            case EventStreamValueHolder.Metadata(String source) -> new Metadata(source);
+            // Internal-only events — filtered by Objects::nonNull in controller
+            case EventStreamValueHolder.RequestInfo ignored -> null;
+            case EventStreamValueHolder.ToolRetrieved ignored -> null;
+            case EventStreamValueHolder.ToolReranked ignored -> null;
+            case EventStreamValueHolder.ToolCallEnd ignored -> null;
+            case EventStreamValueHolder.RequestEnd ignored -> null;
+        };
     }
 }

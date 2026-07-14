@@ -93,7 +93,7 @@ class ChatImplTest {
                 .containsExactly("Hello", " world");
 
         EventStreamValueHolder.RequestEnd requestEnd =
-                (EventStreamValueHolder.RequestEnd) events.get(events.size() - 1).value();
+                (EventStreamValueHolder.RequestEnd) events.getLast().value();
         assertThat(requestEnd.promptTokens()).isEqualTo(3);
         assertThat(requestEnd.completionTokens()).isEqualTo(2);
         verify(chatLogManager).saveStreamResponse(

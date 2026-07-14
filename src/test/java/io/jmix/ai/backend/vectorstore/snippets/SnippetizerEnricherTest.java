@@ -81,10 +81,10 @@ class SnippetizerEnricherTest {
         List<Snippet> snippets = snippetizer.snippetize(PAGE, DocsHtmlConverter.toPlainText(PAGE.getText()));
 
         assertThat(snippets).hasSize(2);
-        assertThat(snippets.get(0).title()).isEqualTo("Create a Button");
-        assertThat(snippets.get(0).code()).isEqualTo("<button text=\"OK\"/>");
-        assertThat(snippets.get(0).language()).isEqualTo("xml");
-        assertThat(snippets.get(0).source()).isEqualTo("https://docs.jmix.io/jmix/flow-ui/vc/components/button.html");
+        assertThat(snippets.getFirst().title()).isEqualTo("Create a Button");
+        assertThat(snippets.getFirst().code()).isEqualTo("<button text=\"OK\"/>");
+        assertThat(snippets.getFirst().language()).isEqualTo("xml");
+        assertThat(snippets.getFirst().source()).isEqualTo("https://docs.jmix.io/jmix/flow-ui/vc/components/button.html");
         assertThat(snippets.get(1).description()).isEqualTo("Style a button.");
         assertThat(snippets.get(1).code()).isNull();
         assertThat(snippetizer.capturedPrompt.getUserMessage().getText())
@@ -251,7 +251,7 @@ class SnippetizerEnricherTest {
 
         assertThat(parts).allSatisfy(part -> assertThat(part.length()).isLessThanOrEqualTo(20));
         assertThat(String.join("", parts)).isEqualTo(content);
-        assertThat(parts.get(0)).endsWith("\n\n");
+        assertThat(parts.getFirst()).endsWith("\n\n");
     }
 
     @Test

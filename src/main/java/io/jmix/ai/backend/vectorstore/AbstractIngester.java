@@ -201,7 +201,7 @@ public abstract class AbstractIngester implements Ingester {
             if (entry.getKey().isEmpty()) {
                 continue;
             }
-            Object expectedValue = entry.getValue().get(0).getMetadataMap().get(INGESTION_CHUNK_COUNT);
+            Object expectedValue = entry.getValue().getFirst().getMetadataMap().get(INGESTION_CHUNK_COUNT);
             if (expectedValue instanceof Number expected && entry.getValue().size() == expected.intValue()) {
                 return entry.getValue();
             }
@@ -306,7 +306,7 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     private void addNewGeneration(List<Document> chunks) {
-        String ingestionId = (String) chunks.get(0).getMetadata().get(INGESTION_ID);
+        String ingestionId = (String) chunks.getFirst().getMetadata().get(INGESTION_ID);
         try {
             vectorStore.add(chunks);
         } catch (RuntimeException | Error failure) {

@@ -35,11 +35,11 @@ class VectorStoreAnalyticsServiceTest {
         assertThat(result.bucketStarts()).hasSize(20).startsWith(10, 12, 14).endsWith(48);
 
         assertThat(result.series()).hasSize(3);
-        VectorStoreAnalyticsService.TopicSizeSeries dataAccess = result.series().get(0);
+        VectorStoreAnalyticsService.TopicSizeSeries dataAccess = result.series().getFirst();
         assertThat(dataAccess.topic()).isEqualTo("data-access");
         assertThat(dataAccess.count()).isEqualTo(2);
         assertThat(dataAccess.averageTokens()).isEqualTo(25.0);
-        assertThat(dataAccess.bucketCounts().get(0)).isEqualTo(1);
+        assertThat(dataAccess.bucketCounts().getFirst()).isEqualTo(1);
         assertThat(dataAccess.bucketCounts().get(15)).isEqualTo(1);
 
         VectorStoreAnalyticsService.TopicSizeSeries security = result.series().get(1);

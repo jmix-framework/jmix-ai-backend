@@ -53,7 +53,7 @@ class ChatControllerTest {
                 .block();
 
         assertThat(events).hasSize(2);
-        StreamEventDto.Conversation conversation = (StreamEventDto.Conversation) events.get(0);
+        StreamEventDto.Conversation conversation = (StreamEventDto.Conversation) events.getFirst();
         assertThat(UUID.fromString(conversation.conversationId())).isNotNull();
         assertThat(events.get(1)).isInstanceOf(StreamEventDto.TokensStart.class);
         verify(chat).requestStream("question", "parameters", conversation.conversationId(), JmixVersion.V2);

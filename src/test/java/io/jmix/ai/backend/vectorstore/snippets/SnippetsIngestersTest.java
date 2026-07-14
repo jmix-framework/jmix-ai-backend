@@ -77,10 +77,10 @@ class SnippetsIngestersTest {
         List<Document> chunks = docsIngester.splitToChunks(List.of(page));
 
         assertThat(chunks).hasSize(3);
-        assertThat(chunks.get(0).getText())
+        assertThat(chunks.getFirst().getText())
                 .startsWith("Path: Flow UI > Button\n\nTITLE: Create a Button")
                 .contains("<button/>");
-        assertThat(chunks.get(0).getMetadata())
+        assertThat(chunks.getFirst().getMetadata())
                 .containsEntry("enriched", "true")
                 .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
                 .containsEntry("type", "docs-snippets");
@@ -179,8 +179,8 @@ class SnippetsIngestersTest {
         List<Document> chunks = uiSamplesIngester.splitToChunks(List.of(page));
 
         assertThat(chunks).hasSize(2);
-        assertThat(chunks.get(0).getText()).startsWith("TITLE: Button sample");
-        assertThat(chunks.get(0).getMetadata())
+        assertThat(chunks.getFirst().getText()).startsWith("TITLE: Button sample");
+        assertThat(chunks.getFirst().getMetadata())
                 .containsEntry("enriched", "true")
                 .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1");
         assertThat(chunks.get(1).getText()).isEqualTo(page.getText());
@@ -198,7 +198,7 @@ class SnippetsIngestersTest {
         List<Document> chunks = uiSamplesIngester.splitToChunks(List.of(page));
 
         assertThat(chunks).hasSize(1);
-        assertThat(chunks.get(0).getText()).isEqualTo(page.getText());
+        assertThat(chunks.getFirst().getText()).isEqualTo(page.getText());
     }
 
     @Test

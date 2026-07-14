@@ -93,8 +93,8 @@ public class VectorStoreAnalyticsService {
 
     private static TokenStatistics computeStatistics(List<Integer> sorted) {
         int count = sorted.size();
-        int min = sorted.get(0);
-        int max = sorted.get(count - 1);
+        int min = sorted.getFirst();
+        int max = sorted.getLast();
         double average = sorted.stream().mapToInt(Integer::intValue).average().orElse(0);
         double median = count % 2 == 1
                 ? sorted.get(count / 2)

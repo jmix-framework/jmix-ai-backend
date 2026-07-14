@@ -33,13 +33,13 @@ public class JavadocPageParserTest {
         assertThat(classDoc.constructors()).isEmpty();
         assertThat(classDoc.methods()).hasSize(1);
 
-        JavadocClassDoc.Member method = classDoc.methods().get(0);
+        JavadocClassDoc.Member method = classDoc.methods().getFirst();
         assertThat(method.modifierAndType()).isEqualTo("UnconstrainedDataManager");
         assertThat(method.signature()).isEqualTo("unconstrained()");
         assertThat(method.description()).startsWith("A convenience method");
 
         assertThat(classDoc.inheritedMembers()).hasSize(1);
-        assertThat(classDoc.inheritedMembers().get(0))
+        assertThat(classDoc.inheritedMembers().getFirst())
                 .contains("UnconstrainedDataManager")
                 .contains("create")
                 .contains("saveAll");
@@ -65,8 +65,8 @@ public class JavadocPageParserTest {
         assertThat(classDoc.fields()).extracting(JavadocClassDoc.Member::signature)
                 .contains("BASE", "entityClass");
         assertThat(classDoc.constructors()).hasSize(1);
-        assertThat(classDoc.constructors().get(0).modifierAndType()).isEqualTo("protected");
-        assertThat(classDoc.constructors().get(0).signature())
+        assertThat(classDoc.constructors().getFirst().modifierAndType()).isEqualTo("protected");
+        assertThat(classDoc.constructors().getFirst().signature())
                 .startsWith("FetchPlan").contains("entityClass");
         assertThat(classDoc.methods()).isNotEmpty();
     }

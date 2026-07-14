@@ -87,8 +87,8 @@ public class CheckRunComparisonView extends StandardView {
         summaryCards.getStyle().set("flex-wrap", "wrap");
 
         if (!configOptions.isEmpty()) {
-            baselineRunField.setValue(configOptions.get(0));
-            updateCandidateOptions(configOptions.get(0));
+            baselineRunField.setValue(configOptions.getFirst());
+            updateCandidateOptions(configOptions.getFirst());
         }
 
         buildDiffGrid();
@@ -132,7 +132,7 @@ public class CheckRunComparisonView extends StandardView {
                     .orElse(ordered.stream()
                             .filter(option -> !option.key().equals(baseline.key()))
                             .findFirst()
-                            .orElse(ordered.get(0))));
+                            .orElse(ordered.getFirst())));
         }
     }
 

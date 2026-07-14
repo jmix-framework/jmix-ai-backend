@@ -85,13 +85,13 @@ class AbstractRagToolTest {
         DocsTool tool = tool(reader, retrievedDocuments);
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 3, reader))
-                .thenReturn(List.of(new Reranker.Result(candidates.get(0), 1.0)));
+                .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
         tool.execute("query", null);
 
         verifySearchTopK(10);
         verify(reranker).rerank("query", candidates, 3, reader);
-        assertThat(retrievedDocuments).containsExactly(candidates.get(0));
+        assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
     }
 
     @Test
@@ -103,7 +103,7 @@ class AbstractRagToolTest {
         DocsTool tool = tool(reader, new ArrayList<>());
         List<Document> candidates = prepareCandidates(1);
         when(reranker.rerank("query", candidates, 3, reader))
-                .thenReturn(List.of(new Reranker.Result(candidates.get(0), 1.0)));
+                .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
         tool.execute("query", null);
 
@@ -124,7 +124,7 @@ class AbstractRagToolTest {
         DocsTool tool = tool(reader, new ArrayList<>());
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 50, reader))
-                .thenReturn(List.of(new Reranker.Result(candidates.get(0), 1.0)));
+                .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
         tool.execute("query", 500);
 

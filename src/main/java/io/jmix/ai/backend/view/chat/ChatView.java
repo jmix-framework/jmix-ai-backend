@@ -118,42 +118,36 @@ public class ChatView extends StandardView {
 
     private String renderStreamEvent(StreamingEvent holder) {
         String ts = formatTimestamp(holder.timestamp());
-        EventStreamValueHolder event = holder.value();
-        if (event instanceof EventStreamValueHolder.RequestInfo requestInfo) {
-            return messageBundle.formatMessage("stream.requestInfo",
-                    ts, holder.conversationId(), requestInfo.model(), requestInfo.userPrompt());
-        }
-        if (event instanceof EventStreamValueHolder.ToolCallStart toolCall) {
-            return "\n\n%s **%s**: %s".formatted(ts, toolCall.tool(), toolCall.query());
-        }
-        if (event instanceof EventStreamValueHolder.ToolRetrieved retrieved) {
-            return "\n%s ".formatted(ts) + renderDocList(
-                    messageBundle.getMessage("stream.retrieved"),
-                    retrieved.documents(), retrieved.durationMs());
-        }
-        if (event instanceof EventStreamValueHolder.ToolReranked reranked) {
-            return "\n%s ".formatted(ts) + renderDocList(
-                    messageBundle.getMessage("stream.reranked"),
-                    reranked.documents(), reranked.durationMs());
-        }
-        if (event instanceof EventStreamValueHolder.ToolCallEnd toolCallEnd) {
-            return messageBundle.formatMessage(
-                    "stream.toolDone", ts, toolCallEnd.tool(), formatMs(toolCallEnd.totalDurationMs()));
-        }
-        if (event instanceof EventStreamValueHolder.Content content) {
-            return content.text();
-        }
-        if (event instanceof EventStreamValueHolder.SourcesStart) {
-            return messageBundle.getMessage("stream.sources");
-        }
-        if (event instanceof EventStreamValueHolder.Metadata metadata) {
-            return "\n- [%s](%s)".formatted(metadata.source(), metadata.source());
-        }
-        if (event instanceof EventStreamValueHolder.RequestEnd requestEnd) {
-            return messageBundle.formatMessage("stream.requestEnd",
-                    ts, requestEnd.totalDurationMs(), requestEnd.promptTokens(), requestEnd.completionTokens());
-        }
-        return "";
+        return switch (holder.value()) {
+            case null -> "";
+            case EventStreamValueHolder.RequestInfo requestInfo ->
+                    messageBundle.formatMessage("stream.requestInfo",
+                            ts, holder.conversationId(), requestInfo.model(), requestInfo.userPrompt());
+            case EventStreamValueHolder.ToolCallStart toolCall ->
+                    "\n\n%s **%s**: %s".formatted(ts, toolCall.tool(), toolCall.query());
+            case EventStreamValueHolder.ToolRetrieved retrieved ->
+                    "\n%s ".formatted(ts) + renderDocList(
+                            messageBundle.getMessage("stream.retrieved"),
+                            retrieved.documents(), retrieved.durationMs());
+            case EventStreamValueHolder.ToolReranked reranked ->
+                    "\n%s ".formatted(ts) + renderDocList(
+                            messageBundle.getMessage("stream.reranked"),
+                            reranked.documents(), reranked.durationMs());
+            case EventStreamValueHolder.ToolCallEnd toolCallEnd ->
+                    messageBundle.formatMessage(
+                            "stream.toolDone", ts, toolCallEnd.tool(), formatMs(toolCallEnd.totalDurationMs()));
+            case EventStreamValueHolder.TokensStart ignored -> "";
+            case EventStreamValueHolder.Content(String text) -> text;
+            case EventStreamValueHolder.TokensEnd ignored -> "";
+            case EventStreamValueHolder.SourcesStart ignored ->
+                    messageBundle.getMessage("stream.sources");
+            case EventStreamValueHolder.Metadata(String source) ->
+                    "\n- [%s](%s)".formatted(source, source);
+            case EventStreamValueHolder.RequestEnd requestEnd ->
+                    messageBundle.formatMessage("stream.requestEnd",
+                            ts, requestEnd.totalDurationMs(), requestEnd.promptTokens(),
+                            requestEnd.completionTokens());
+        };
     }
 
     private static String renderDocList(String label, List<EventStreamValueHolder.DocScore> docs, long durationMs) {

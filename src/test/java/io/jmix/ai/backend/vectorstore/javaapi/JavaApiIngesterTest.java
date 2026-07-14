@@ -83,8 +83,8 @@ class JavaApiIngesterTest {
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
 
         assertThat(chunks).hasSize(1);
-        assertThat(chunks.get(0).getText()).isEqualTo(CARD.format());
-        assertThat(chunks.get(0).getMetadata())
+        assertThat(chunks.getFirst().getText()).isEqualTo(CARD.format());
+        assertThat(chunks.getFirst().getMetadata())
                 .doesNotContainKey("enriched")
                 .containsEntry("generationKey", "card-v3");
         verify(enricher, never()).enrich(anyString());
@@ -104,10 +104,10 @@ class JavaApiIngesterTest {
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
 
         assertThat(chunks).hasSize(1);
-        assertThat(chunks.get(0).getText())
+        assertThat(chunks.getFirst().getText())
                 .contains("DESCRIPTION: Cached description.")
                 .contains("// Usage example:\nDataManager dm;");
-        assertThat(chunks.get(0).getMetadata()).containsEntry("enriched", "true");
+        assertThat(chunks.getFirst().getMetadata()).containsEntry("enriched", "true");
         verify(enricher, never()).enrich(anyString());
         verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any(), any());
     }
@@ -125,7 +125,7 @@ class JavaApiIngesterTest {
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
 
         assertThat(chunks).hasSize(1);
-        assertThat(chunks.get(0).getText())
+        assertThat(chunks.getFirst().getText())
                 .contains("DESCRIPTION: Generated description.")
                 .contains("dm.unconstrained();");
         verify(enricher).enrich(CARD.format());
@@ -161,8 +161,8 @@ class JavaApiIngesterTest {
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
 
         assertThat(chunks).hasSize(1);
-        assertThat(chunks.get(0).getText()).isEqualTo(CARD.format());
-        assertThat(chunks.get(0).getMetadata()).doesNotContainKey("enriched");
+        assertThat(chunks.getFirst().getText()).isEqualTo(CARD.format());
+        assertThat(chunks.getFirst().getMetadata()).doesNotContainKey("enriched");
         verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any(), any());
     }
 

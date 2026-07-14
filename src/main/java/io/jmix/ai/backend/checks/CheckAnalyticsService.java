@@ -99,7 +99,7 @@ public class CheckAnalyticsService {
         }
         List<ConfigTrend> trends = new ArrayList<>(groups.size());
         groups.forEach((key, group) -> {
-            CheckRun sample = group.get(group.size() - 1);
+            CheckRun sample = group.getLast();
             trends.add(new ConfigTrend(
                     displayConfigLabel(sample),
                     versionId(sample),
@@ -108,7 +108,7 @@ public class CheckAnalyticsService {
                             .map(run -> new RunPoint(run.getCreatedDate(), run.getScore(), run.getAccuracy()))
                             .toList()));
         });
-        CheckRun latest = runs.isEmpty() ? null : runs.get(runs.size() - 1);
+        CheckRun latest = runs.isEmpty() ? null : runs.getLast();
         return new Overview(
                 List.copyOf(trends),
                 runs.size(),
@@ -120,7 +120,7 @@ public class CheckAnalyticsService {
     public List<ConfigOption> configOptions() {
         List<ConfigOption> options = new ArrayList<>();
         groupRunsByConfig().forEach((key, group) -> {
-            CheckRun sample = group.get(group.size() - 1);
+            CheckRun sample = group.getLast();
             options.add(new ConfigOption(
                     key,
                     displayConfigLabel(sample),
