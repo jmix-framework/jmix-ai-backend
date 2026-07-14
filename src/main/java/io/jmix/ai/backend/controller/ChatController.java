@@ -100,6 +100,7 @@ public class ChatController {
     public record Request(
             @JsonProperty("conversation_id") String conversationId,
             String text,
+            @JsonProperty("cache_enabled") Boolean cacheEnabled,
             @JsonProperty("jmix_version") String jmixVersion) {
     }
 }

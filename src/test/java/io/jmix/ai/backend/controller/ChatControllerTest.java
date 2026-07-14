@@ -48,7 +48,7 @@ class ChatControllerTest {
         ReflectionTestUtils.setField(controller, "maxRequestLength", 1_000);
 
         List<StreamEventDto> events = controller.chatStream(
-                        new ChatController.Request(null, "question", null))
+                        new ChatController.Request(null, "question", null, null))
                 .collectList()
                 .block();
 
