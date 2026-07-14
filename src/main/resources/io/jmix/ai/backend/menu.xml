@@ -17,6 +17,7 @@
     <menu opened="true" id="analytics" title="msg://io.jmix.ai.backend.view.checkrun/analyticsMenu.title">
         <item view="CheckRun.analytics" title="msg://io.jmix.ai.backend.view.checkrun/checkRunAnalyticsView.title"/>
         <item view="CheckRun.compare" title="msg://io.jmix.ai.backend.view.checkrun/checkRunComparisonView.title"/>
+        <item view="VectorStore.analytics" title="msg://io.jmix.ai.backend.view.vectorstore/vectorStoreAnalyticsView.title"/>
     </menu>
     <menu id="security" title="msg://io.jmix.ai.backend/menu.security.title">
         <item view="User.list" title="msg://io.jmix.ai.backend.view.user/UserListView.title"/>

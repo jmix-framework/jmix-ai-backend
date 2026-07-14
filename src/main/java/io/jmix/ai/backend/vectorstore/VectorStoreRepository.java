@@ -78,48 +78,37 @@ public class VectorStoreRepository {
                 new Object[]{rs.getString("type"), rs.getString("version"), rs.getInt("cnt")});
     }
 
+    /** Extracts the documentation topic (first URL path segment after the version) from chunk metadata. */
+    private static final String TOPIC_EXPR = """
+            regexp_replace(
+              split_part(regexp_replace(metadata::jsonb->>'url','^https?://docs\\.jmix\\.io/([0-9]+\\.x/jmix/[0-9.]+/|jmix/)',''),'/',1),
+              '\\.html.*$','')""";
+
+    /** AI-generated docs snippets only — excludes lossless coverage chunks and plain-text fallback chunks. */
+    private static final String AI_SNIPPET_FILTER =
+            "metadata::jsonb->>'type' = 'docs-snippets' AND metadata::jsonb->>'enriched' = 'true'";
+
     /**
-     * Counts docs-snippet chunks (the searchable snippet corpus) grouped by topic
-     * (first URL path segment after the version) and Jmix version.
+     * Counts AI-generated docs snippets grouped by topic and Jmix version.
      * Returns rows of [topic, jmixVersion, count]. Used for the topic-coverage heatmap.
      */
     public List<Object[]> countSnippetTopicByVersion() {
-        String sql = """
-                SELECT regexp_replace(
-                         split_part(regexp_replace(metadata::jsonb->>'url','^https?://docs\\.jmix\\.io/([0-9]+\\.x/jmix/[0-9.]+/|jmix/)',''),'/',1),
-                         '\\.html.*$','') AS topic,
-                       metadata::jsonb->>'jmixVersion' AS version,
-                       count(*) AS cnt
-                FROM vector_store
-                WHERE metadata::jsonb->>'type' = 'docs-snippets'
-                GROUP BY 1, 2""";
+        String sql = "SELECT " + TOPIC_EXPR + " AS topic, " +
+                "metadata::jsonb->>'jmixVersion' AS version, count(*) AS cnt " +
+                "FROM vector_store WHERE " + AI_SNIPPET_FILTER + " GROUP BY 1, 2";
         return jdbcTemplate.query(sql, (rs, rowNum) ->
                 new Object[]{rs.getString("topic"), rs.getString("version"), rs.getInt("cnt")});
     }
 
     /**
-     * Average snippet size in approx. tokens (content chars / 4) per documentation topic,
-     * over the docs-snippet corpus. Returns rows of [topic, avgTokens, count].
+     * Approx. token size (content chars / 4) of every AI-generated docs snippet together with its topic.
+     * Returns rows of [topic, tokens]. Used for the size distribution chart.
      */
-    public List<Object[]> avgSnippetTokensByTopic() {
-        String sql = """
-                SELECT regexp_replace(
-                         split_part(regexp_replace(metadata::jsonb->>'url','^https?://docs\\.jmix\\.io/([0-9]+\\.x/jmix/[0-9.]+/|jmix/)',''),'/',1),
-                         '\\.html.*$','') AS topic,
-                       round(avg(length(content) / 4.0)) AS avg_tokens,
-                       count(*) AS cnt
-                FROM vector_store
-                WHERE metadata::jsonb->>'type' = 'docs-snippets'
-                GROUP BY 1""";
+    public List<Object[]> snippetTopicTokenSizes() {
+        String sql = "SELECT " + TOPIC_EXPR + " AS topic, ceil(length(content) / 4.0)::int AS tok " +
+                "FROM vector_store WHERE " + AI_SNIPPET_FILTER;
         return jdbcTemplate.query(sql, (rs, rowNum) ->
-                new Object[]{rs.getString("topic"), rs.getInt("avg_tokens"), rs.getInt("cnt")});
-    }
-
-    /** Approx. token size (content chars / 4) of every docs-snippet chunk, for the size distribution. */
-    public List<Integer> snippetTokenSizes() {
-        String sql = "SELECT ceil(length(content) / 4.0)::int AS tok " +
-                "FROM vector_store WHERE metadata::jsonb->>'type' = 'docs-snippets'";
-        return jdbcTemplate.queryForList(sql, Integer.class);
+                new Object[]{rs.getString("topic"), rs.getInt("tok")});
     }
 
     public int getCount(String filterString) {

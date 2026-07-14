@@ -4,10 +4,6 @@ import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
-import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Span;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.entity.JmixVersion;
@@ -15,13 +11,8 @@ import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheCleanupService;
 import io.jmix.ai.backend.vectorstore.Ingester;
 import io.jmix.ai.backend.vectorstore.IngesterManager;
-import io.jmix.ai.backend.vectorstore.VectorStoreAnalyticsService;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.view.main.MainView;
-import io.jmix.chartsflowui.component.Chart;
-import io.jmix.chartsflowui.data.item.MapDataItem;
-import io.jmix.chartsflowui.kit.component.model.DataSet;
-import io.jmix.chartsflowui.kit.data.chart.ListChartItems;
 import io.jmix.core.DataLoadContext;
 import io.jmix.core.LoadContext;
 import io.jmix.flowui.Dialogs;
@@ -66,8 +57,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     @Autowired
     private VectorStoreRepository vectorStoreRepository;
     @Autowired
-    private VectorStoreAnalyticsService vectorStoreAnalyticsService;
-    @Autowired
     private EnrichmentCacheCleanupService enrichmentCacheCleanupService;
     @Autowired
     private Notifications notifications;
@@ -85,147 +74,12 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
     @ViewComponent
-    private Chart coverageChart;
-    @ViewComponent
-    private VerticalLayout topicHeatmapBox;
-    @ViewComponent
-    private Chart tokenByTopicChart;
-    @ViewComponent
-    private Chart tokenHistogramChart;
-    @ViewComponent
-    private HorizontalLayout tokenStatsCards;
-    @ViewComponent
     private MessageBundle messageBundle;
 
     @Subscribe
     public void onInit(final InitEvent event) {
         buildUpdateMenuItems();
-        refreshAnalytics();
         urlQueryParameters.registerBinder(new FilterUrlQueryParametersBinder());
-    }
-
-    /** Rebuilds the corpus charts and topic heatmap; call after the corpus changes (ingest/delete). */
-    private void refreshAnalytics() {
-        buildCoverage();
-        buildTopicHeatmap();
-        buildTokenByTopic();
-        buildTokenDistribution();
-    }
-
-    private void buildTokenByTopic() {
-        List<MapDataItem> items = vectorStoreAnalyticsService.loadTopTokenAverages().stream()
-                .map(average -> new MapDataItem(Map.of(
-                        "topic", average.topic(), "tokens", average.tokens())))
-                .toList();
-        tokenByTopicChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
-                .withDataProvider(new ListChartItems<>(items))
-                .withCategoryField("topic").withValueFields("tokens")));
-    }
-
-    private void buildTokenDistribution() {
-        VectorStoreAnalyticsService.TokenDistribution distribution =
-                vectorStoreAnalyticsService.loadTokenDistribution();
-        tokenStatsCards.removeAll();
-        if (distribution.statistics() == null) {
-            tokenHistogramChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
-                    .withDataProvider(new ListChartItems<>(List.of()))
-                    .withCategoryField("bucket").withValueFields("snippets")));
-            return;
-        }
-        VectorStoreAnalyticsService.TokenStatistics statistics = distribution.statistics();
-
-        tokenStatsCards.add(
-                statCard(messageBundle.getMessage("stats.count"), String.valueOf(statistics.count())),
-                statCard(messageBundle.getMessage("stats.min"), String.valueOf(statistics.min())),
-                statCard(messageBundle.getMessage("stats.median"), "%.0f".formatted(statistics.median())),
-                statCard(messageBundle.getMessage("stats.average"), "%.0f".formatted(statistics.average())),
-                statCard(messageBundle.getMessage("stats.max"), String.valueOf(statistics.max())),
-                statCard(messageBundle.getMessage("stats.standardDeviation"),
-                        "%.0f".formatted(statistics.standardDeviation())));
-
-        List<MapDataItem> bars = distribution.buckets().stream()
-                .map(bucket -> new MapDataItem(Map.of(
-                        "bucket", String.valueOf(bucket.start()), "snippets", bucket.snippets())))
-                .toList();
-        tokenHistogramChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
-                .withDataProvider(new ListChartItems<>(bars))
-                .withCategoryField("bucket").withValueFields("snippets")));
-    }
-
-    private Span statCard(String title, String value) {
-        Span span = new Span(title + ": " + value);
-        span.getStyle().set("padding", "0.35em 0.7em").set("border-radius", "0.5em")
-                .set("background", "var(--lumo-contrast-5pct)").set("font-weight", "600")
-                .set("font-variant-numeric", "tabular-nums");
-        return span;
-    }
-
-    private void buildTopicHeatmap() {
-        VectorStoreAnalyticsService.TopicCoverageSummary coverage =
-                vectorStoreAnalyticsService.loadTopTopicCoverage();
-
-        Div grid = new Div();
-        grid.getStyle().set("display", "grid")
-                .set("grid-template-columns", "minmax(11em, 20em) 5em 5em")
-                .set("gap", "3px").set("max-width", "34em").set("align-items", "stretch");
-        grid.add(
-                headerCell(messageBundle.getMessage("topic.label"), "left"),
-                headerCell(messageBundle.getMessage("coverage.v2"), "center"),
-                headerCell(messageBundle.getMessage("coverage.v3"), "center"));
-        for (VectorStoreAnalyticsService.TopicCoverage topic : coverage.topics()) {
-            grid.add(
-                    topicLabelCell(topic.topic()),
-                    heatCell(topic.v2(), coverage.maxCount()),
-                    heatCell(topic.v3(), coverage.maxCount()));
-        }
-
-        topicHeatmapBox.removeAll();
-        topicHeatmapBox.setPadding(false);
-        topicHeatmapBox.add(grid);
-    }
-
-    private Div headerCell(String text, String align) {
-        Div c = new Div();
-        c.setText(text);
-        c.getStyle().set("font-weight", "700").set("font-size", "0.85em")
-                .set("color", "var(--lumo-secondary-text-color)").set("text-align", align)
-                .set("padding", "0.2em 0.4em");
-        return c;
-    }
-
-    private Div topicLabelCell(String topic) {
-        Div c = new Div();
-        c.setText(topic);
-        c.getStyle().set("padding", "0.3em 0.4em").set("white-space", "nowrap")
-                .set("overflow", "hidden").set("text-overflow", "ellipsis").set("font-size", "0.9em");
-        c.setTitle(topic);
-        return c;
-    }
-
-    private Div heatCell(int count, int max) {
-        Div c = new Div();
-        c.setText(String.valueOf(count));
-        double intensity = max <= 0 ? 0.0 : (double) count / max;
-        double alpha = count == 0 ? 0.0 : 0.12 + 0.85 * intensity;
-        c.getStyle()
-                .set("background", "rgba(46, 125, 50, " + String.format(java.util.Locale.US, "%.2f", alpha) + ")")
-                .set("color", intensity > 0.55 ? "white" : "var(--lumo-body-text-color)")
-                .set("text-align", "center").set("padding", "0.3em").set("border-radius", "4px")
-                .set("font-variant-numeric", "tabular-nums");
-        return c;
-    }
-
-    private void buildCoverage() {
-        List<MapDataItem> items = vectorStoreAnalyticsService.loadCorpusCoverage().stream()
-                .map(coverage -> new MapDataItem(Map.of(
-                        "corpus", coverage.corpus(),
-                        "v2", coverage.v2(),
-                        "v3", coverage.v3(),
-                        "shared", coverage.shared())))
-                .toList();
-        coverageChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
-                .withDataProvider(new ListChartItems<>(items))
-                .withCategoryField("corpus").withValueFields("v2", "v3", "shared")));
     }
 
     private void buildUpdateMenuItems() {
@@ -341,7 +195,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                         new DialogAction(DialogAction.Type.YES).withHandler(e -> {
                             vectorStoreRepository.delete(filterField.getTypedValue());
                             vectorStoreDl.load();
-                            refreshAnalytics();
                         }),
                         new DialogAction(DialogAction.Type.NO)
                 )
@@ -352,7 +205,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     public void vectorStoreDataGridRemoveActionDelegate(final Collection<VectorStoreEntity> collection) {
         List<VectorStoreEntity> entities = getEntitiesOfTheSameSource(collection.iterator().next());
         vectorStoreRepository.delete(entities);
-        refreshAnalytics();
     }
 
     @Install(to = "vectorStoreDataGrid.removeAction", subject = "beforeActionPerformedHandler")
@@ -373,7 +225,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                                     .withHandler(e -> {
                                         vectorStoreRepository.delete(entities);
                                         vectorStoreDl.load();
-                                        refreshAnalytics();
                                     }),
                             new DialogAction(DialogAction.Type.CANCEL)
                     )
@@ -412,7 +263,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                     .withHeader("Update result")
                     .open();
             vectorStoreDl.load();
-            refreshAnalytics();
         }
 
         @Override

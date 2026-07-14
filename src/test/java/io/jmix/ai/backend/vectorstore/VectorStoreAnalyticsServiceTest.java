@@ -15,10 +15,14 @@ class VectorStoreAnalyticsServiceTest {
     private final VectorStoreAnalyticsService service = new VectorStoreAnalyticsService(repository);
 
     @Test
-    void calculatesTokenStatisticsAndFixedWidthHistogram() {
-        when(repository.snippetTokenSizes()).thenReturn(List.of(40, 10, 30, 20));
+    void calculatesSizeBreakdownWithStatisticsAndStackedBuckets() {
+        when(repository.snippetTopicTokenSizes()).thenReturn(List.of(
+                new Object[]{"data-access", 40},
+                new Object[]{"data-access", 10},
+                new Object[]{"security", 30},
+                new Object[]{null, 20}));
 
-        VectorStoreAnalyticsService.TokenDistribution result = service.loadTokenDistribution();
+        VectorStoreAnalyticsService.SnippetSizeBreakdown result = service.loadSnippetSizeBreakdown();
 
         assertThat(result.statistics()).isNotNull().satisfies(statistics -> {
             assertThat(statistics.count()).isEqualTo(4);
@@ -28,55 +32,78 @@ class VectorStoreAnalyticsServiceTest {
             assertThat(statistics.max()).isEqualTo(40);
             assertThat(statistics.standardDeviation()).isCloseTo(Math.sqrt(125), within(0.0001));
         });
-        assertThat(result.buckets()).hasSize(20);
-        assertThat(result.buckets().get(0))
-                .isEqualTo(new VectorStoreAnalyticsService.HistogramBucket(10, 1));
-        assertThat(result.buckets().get(5))
-                .isEqualTo(new VectorStoreAnalyticsService.HistogramBucket(20, 1));
-        assertThat(result.buckets().get(10))
-                .isEqualTo(new VectorStoreAnalyticsService.HistogramBucket(30, 1));
-        assertThat(result.buckets().get(15))
-                .isEqualTo(new VectorStoreAnalyticsService.HistogramBucket(40, 1));
+        assertThat(result.bucketStarts()).hasSize(20).startsWith(10, 12, 14).endsWith(48);
+
+        assertThat(result.series()).hasSize(3);
+        VectorStoreAnalyticsService.TopicSizeSeries dataAccess = result.series().get(0);
+        assertThat(dataAccess.topic()).isEqualTo("data-access");
+        assertThat(dataAccess.count()).isEqualTo(2);
+        assertThat(dataAccess.averageTokens()).isEqualTo(25.0);
+        assertThat(dataAccess.bucketCounts().get(0)).isEqualTo(1);
+        assertThat(dataAccess.bucketCounts().get(15)).isEqualTo(1);
+
+        VectorStoreAnalyticsService.TopicSizeSeries security = result.series().get(1);
+        assertThat(security.topic()).isEqualTo("security");
+        assertThat(security.averageTokens()).isEqualTo(30.0);
+        assertThat(security.bucketCounts().get(10)).isEqualTo(1);
+
+        VectorStoreAnalyticsService.TopicSizeSeries other = result.series().get(2);
+        assertThat(other.topic()).isNull();
+        assertThat(other.count()).isEqualTo(1);
+        assertThat(other.bucketCounts().get(5)).isEqualTo(1);
     }
 
     @Test
-    void returnsEmptyDistributionWhenCorpusIsEmpty() {
-        when(repository.snippetTokenSizes()).thenReturn(List.of());
+    void rollsUpTopicsBeyondTopTwelveAndUnnamedTopicsIntoOther() {
+        List<Object[]> rows = new java.util.ArrayList<>();
+        for (int topic = 1; topic <= 12; topic++) {
+            rows.add(new Object[]{"topic-%02d".formatted(topic), 100});
+            rows.add(new Object[]{"topic-%02d".formatted(topic), 100});
+        }
+        rows.add(new Object[]{"topic-13", 100});
+        rows.add(new Object[]{" ", 100});
+        when(repository.snippetTopicTokenSizes()).thenReturn(rows);
 
-        VectorStoreAnalyticsService.TokenDistribution result = service.loadTokenDistribution();
+        VectorStoreAnalyticsService.SnippetSizeBreakdown result = service.loadSnippetSizeBreakdown();
+
+        assertThat(result.series()).hasSize(13);
+        assertThat(result.series().subList(0, 12))
+                .allSatisfy(series -> assertThat(series.count()).isEqualTo(2))
+                .extracting(VectorStoreAnalyticsService.TopicSizeSeries::topic)
+                .doesNotContain("topic-13", " ")
+                .doesNotContainNull();
+        VectorStoreAnalyticsService.TopicSizeSeries other = result.series().get(12);
+        assertThat(other.topic()).isNull();
+        assertThat(other.count()).isEqualTo(2);
+    }
+
+    @Test
+    void returnsEmptyBreakdownWhenCorpusIsEmpty() {
+        when(repository.snippetTopicTokenSizes()).thenReturn(List.of());
+
+        VectorStoreAnalyticsService.SnippetSizeBreakdown result = service.loadSnippetSizeBreakdown();
 
         assertThat(result.statistics()).isNull();
-        assertThat(result.buckets()).isEmpty();
+        assertThat(result.bucketStarts()).isEmpty();
+        assertThat(result.series()).isEmpty();
     }
 
     @Test
-    void sortsTokenAveragesAndSkipsUnnamedTopics() {
-        when(repository.avgSnippetTokensByTopic()).thenReturn(List.of(
-                new Object[]{"data-access", 120, 2},
-                new Object[]{null, 900, 1},
-                new Object[]{"", 800, 1},
-                new Object[]{"security", 240, 3}));
-
-        assertThat(service.loadTopTokenAverages())
-                .containsExactly(
-                        new VectorStoreAnalyticsService.TopicTokenAverage("security", 240),
-                        new VectorStoreAnalyticsService.TopicTokenAverage("data-access", 120));
-    }
-
-    @Test
-    void groupsAndSortsTopicCoverage() {
+    void groupsAndSortsTopicCoverageWithTotals() {
         when(repository.countSnippetTopicByVersion()).thenReturn(List.of(
                 new Object[]{"data-access", "v2", 2},
                 new Object[]{"data-access", "V3", 5},
                 new Object[]{"security", null, 4},
                 new Object[]{" ", "v3", 100}));
 
-        VectorStoreAnalyticsService.TopicCoverageSummary result = service.loadTopTopicCoverage();
+        VectorStoreAnalyticsService.TopicCoverageSummary result = service.loadTopicCoverage();
 
         assertThat(result.topics()).containsExactly(
                 new VectorStoreAnalyticsService.TopicCoverage("data-access", 2, 5),
                 new VectorStoreAnalyticsService.TopicCoverage("security", 4, 0));
         assertThat(result.maxCount()).isEqualTo(5);
+        assertThat(result.totalV2()).isEqualTo(6);
+        assertThat(result.totalV3()).isEqualTo(5);
     }
 
     @Test

@@ -11,9 +11,8 @@ import java.util.Map;
 @Component
 public class VectorStoreAnalyticsService {
 
-    private static final int TOP_TOKEN_TOPICS = 20;
-    private static final int TOP_COVERAGE_TOPICS = 24;
     private static final int HISTOGRAM_BUCKETS = 20;
+    private static final int TOP_SIZE_TOPICS = 12;
 
     private final VectorStoreRepository vectorStoreRepository;
 
@@ -21,43 +20,78 @@ public class VectorStoreAnalyticsService {
         this.vectorStoreRepository = vectorStoreRepository;
     }
 
-    public record TopicTokenAverage(String topic, int tokens) {
-    }
-
     public record TokenStatistics(int count, int min, double median, double average, int max,
                                   double standardDeviation) {
     }
 
-    public record HistogramBucket(int start, int snippets) {
+    /** One stacked-histogram series; a null topic aggregates everything beyond the top topics. */
+    public record TopicSizeSeries(@Nullable String topic, int count, double averageTokens,
+                                  List<Integer> bucketCounts) {
     }
 
-    public record TokenDistribution(@Nullable TokenStatistics statistics, List<HistogramBucket> buckets) {
+    public record SnippetSizeBreakdown(@Nullable TokenStatistics statistics, List<Integer> bucketStarts,
+                                       List<TopicSizeSeries> series) {
     }
 
     public record TopicCoverage(String topic, int v2, int v3) {
     }
 
-    public record TopicCoverageSummary(List<TopicCoverage> topics, int maxCount) {
+    public record TopicCoverageSummary(List<TopicCoverage> topics, int maxCount, int totalV2, int totalV3) {
     }
 
     public record CorpusCoverage(String corpus, int v2, int v3, int shared) {
     }
 
-    public List<TopicTokenAverage> loadTopTokenAverages() {
-        return vectorStoreRepository.avgSnippetTokensByTopic().stream()
-                .filter(row -> row[0] != null && !((String) row[0]).isBlank())
-                .map(row -> new TopicTokenAverage((String) row[0], ((Number) row[1]).intValue()))
-                .sorted((first, second) -> Integer.compare(second.tokens(), first.tokens()))
-                .limit(TOP_TOKEN_TOPICS)
-                .toList();
-    }
-
-    public TokenDistribution loadTokenDistribution() {
-        List<Integer> sorted = vectorStoreRepository.snippetTokenSizes().stream().sorted().toList();
-        if (sorted.isEmpty()) {
-            return new TokenDistribution(null, List.of());
+    /**
+     * Size distribution of the AI-generated snippet corpus as a fixed-width histogram stacked by
+     * topic: overall statistics, bucket boundaries and one series per top topic (the rest are
+     * rolled up into a trailing null-topic series).
+     */
+    public SnippetSizeBreakdown loadSnippetSizeBreakdown() {
+        Map<String, List<Integer>> sizesByTopic = new LinkedHashMap<>();
+        List<Integer> allSizes = new ArrayList<>();
+        for (Object[] row : vectorStoreRepository.snippetTopicTokenSizes()) {
+            String topic = (String) row[0];
+            int tokens = ((Number) row[1]).intValue();
+            sizesByTopic.computeIfAbsent(topic == null || topic.isBlank() ? null : topic,
+                    ignored -> new ArrayList<>()).add(tokens);
+            allSizes.add(tokens);
+        }
+        if (allSizes.isEmpty()) {
+            return new SnippetSizeBreakdown(null, List.of(), List.of());
         }
 
+        List<Integer> sorted = allSizes.stream().sorted().toList();
+        TokenStatistics statistics = computeStatistics(sorted);
+        int min = statistics.min();
+        int range = Math.max(1, statistics.max() - min);
+        int width = (int) Math.ceil(range / (double) HISTOGRAM_BUCKETS);
+        List<Integer> bucketStarts = new ArrayList<>(HISTOGRAM_BUCKETS);
+        for (int index = 0; index < HISTOGRAM_BUCKETS; index++) {
+            bucketStarts.add(min + index * width);
+        }
+
+        List<Map.Entry<String, List<Integer>>> namedTopics = sizesByTopic.entrySet().stream()
+                .filter(entry -> entry.getKey() != null)
+                .sorted((first, second) -> Integer.compare(second.getValue().size(), first.getValue().size()))
+                .toList();
+        List<TopicSizeSeries> series = new ArrayList<>();
+        List<Integer> otherSizes = new ArrayList<>(sizesByTopic.getOrDefault(null, List.of()));
+        for (int index = 0; index < namedTopics.size(); index++) {
+            Map.Entry<String, List<Integer>> entry = namedTopics.get(index);
+            if (index < TOP_SIZE_TOPICS) {
+                series.add(topicSeries(entry.getKey(), entry.getValue(), min, width));
+            } else {
+                otherSizes.addAll(entry.getValue());
+            }
+        }
+        if (!otherSizes.isEmpty()) {
+            series.add(topicSeries(null, otherSizes, min, width));
+        }
+        return new SnippetSizeBreakdown(statistics, List.copyOf(bucketStarts), List.copyOf(series));
+    }
+
+    private static TokenStatistics computeStatistics(List<Integer> sorted) {
         int count = sorted.size();
         int min = sorted.get(0);
         int max = sorted.get(count - 1);
@@ -68,24 +102,24 @@ public class VectorStoreAnalyticsService {
         double standardDeviation = Math.sqrt(sorted.stream()
                 .mapToDouble(size -> (size - average) * (size - average))
                 .sum() / count);
-        TokenStatistics statistics = new TokenStatistics(
-                count, min, median, average, max, standardDeviation);
-
-        int range = Math.max(1, max - min);
-        int width = (int) Math.ceil(range / (double) HISTOGRAM_BUCKETS);
-        int[] counts = new int[HISTOGRAM_BUCKETS];
-        for (int size : sorted) {
-            int index = Math.min(HISTOGRAM_BUCKETS - 1, (size - min) / width);
-            counts[index]++;
-        }
-        List<HistogramBucket> buckets = new ArrayList<>(HISTOGRAM_BUCKETS);
-        for (int index = 0; index < HISTOGRAM_BUCKETS; index++) {
-            buckets.add(new HistogramBucket(min + index * width, counts[index]));
-        }
-        return new TokenDistribution(statistics, List.copyOf(buckets));
+        return new TokenStatistics(count, min, median, average, max, standardDeviation);
     }
 
-    public TopicCoverageSummary loadTopTopicCoverage() {
+    private static TopicSizeSeries topicSeries(@Nullable String topic, List<Integer> sizes, int min, int width) {
+        int[] counts = new int[HISTOGRAM_BUCKETS];
+        for (int size : sizes) {
+            counts[Math.min(HISTOGRAM_BUCKETS - 1, (size - min) / width)]++;
+        }
+        double average = sizes.stream().mapToInt(Integer::intValue).average().orElse(0);
+        List<Integer> bucketCounts = new ArrayList<>(HISTOGRAM_BUCKETS);
+        for (int count : counts) {
+            bucketCounts.add(count);
+        }
+        return new TopicSizeSeries(topic, sizes.size(), average, List.copyOf(bucketCounts));
+    }
+
+    /** Coverage of every documentation topic by AI snippets, sorted by total count descending. */
+    public TopicCoverageSummary loadTopicCoverage() {
         Map<String, int[]> countsByTopic = new LinkedHashMap<>();
         for (Object[] row : vectorStoreRepository.countSnippetTopicByVersion()) {
             String topic = (String) row[0];
@@ -105,13 +139,14 @@ public class VectorStoreAnalyticsService {
         List<TopicCoverage> topics = countsByTopic.entrySet().stream()
                 .map(entry -> new TopicCoverage(entry.getKey(), entry.getValue()[0], entry.getValue()[1]))
                 .sorted((first, second) -> Integer.compare(total(second), total(first)))
-                .limit(TOP_COVERAGE_TOPICS)
                 .toList();
         int maxCount = topics.stream()
                 .mapToInt(topic -> Math.max(topic.v2(), topic.v3()))
                 .max()
                 .orElse(1);
-        return new TopicCoverageSummary(topics, maxCount);
+        int totalV2 = topics.stream().mapToInt(TopicCoverage::v2).sum();
+        int totalV3 = topics.stream().mapToInt(TopicCoverage::v3).sum();
+        return new TopicCoverageSummary(topics, maxCount, totalV2, totalV3);
     }
 
     public List<CorpusCoverage> loadCorpusCoverage() {
