@@ -390,34 +390,25 @@ public class ChatImpl implements Chat {
         for (StreamingEvent holder : holders) {
             String ts = formatTimestamp(holder.timestamp());
             switch (holder.value()) {
-                case EventStreamValueHolder.RequestInfo requestInfo ->
-                        logLines.add("%s Model: %s, User prompt: %s"
-                                .formatted(ts, requestInfo.model(), requestInfo.userPrompt()));
-                case EventStreamValueHolder.ToolCallStart toolCall ->
-                        logLines.add("%s >>> Using %s: %s"
-                                .formatted(ts, toolCall.tool(), toolCall.query()));
-                case EventStreamValueHolder.ToolRetrieved retrieved ->
-                        logLines.add("%s Found documents (%d) in %d ms: %s".formatted(
-                                ts, retrieved.documents().size(), retrieved.durationMs(),
-                                formatDocScores(retrieved.documents())));
-                case EventStreamValueHolder.ToolReranked reranked ->
-                        logLines.add("%s Reranked documents (%d) in %d ms: %s".formatted(
-                                ts, reranked.documents().size(), reranked.durationMs(),
-                                formatDocScores(reranked.documents())));
-                case EventStreamValueHolder.ToolCallEnd toolCallEnd ->
-                        logLines.add("%s %s done in %d ms"
-                                .formatted(ts, toolCallEnd.tool(), toolCallEnd.totalDurationMs()));
-                case EventStreamValueHolder.Metadata metadata -> sourceUrls.add(metadata.source());
-                case EventStreamValueHolder.RequestEnd requestEnd -> {
-                    promptTokens = requestEnd.promptTokens();
-                    completionTokens = requestEnd.completionTokens();
-                    totalDurationMs = requestEnd.totalDurationMs();
+                case EventStreamValueHolder.RequestInfo ri ->
+                    logLines.add("%s Model: %s, User prompt: %s".formatted(ts, ri.model(), ri.userPrompt()));
+                case EventStreamValueHolder.ToolCallStart tc ->
+                        logLines.add("%s >>> Using %s: %s".formatted(ts, tc.tool(), tc.query()));
+                case EventStreamValueHolder.ToolRetrieved tr ->
+                        logLines.add("%s Found documents (%d) in %d ms: %s".formatted(ts, tr.documents().size(), tr.durationMs(), formatDocScores(tr.documents())));
+                case EventStreamValueHolder.ToolReranked tr ->
+                        logLines.add("%s Reranked documents (%d) in %d ms: %s".formatted(ts, tr.documents().size(), tr.durationMs(), formatDocScores(tr.documents())));
+                case EventStreamValueHolder.ToolCallEnd tc ->
+                        logLines.add("%s %s done in %d ms".formatted(ts, tc.tool(), tc.totalDurationMs()));
+                case EventStreamValueHolder.Metadata m -> sourceUrls.add(m.source());
+                case EventStreamValueHolder.RequestEnd re -> {
+                    promptTokens = re.promptTokens();
+                    completionTokens = re.completionTokens();
+                    totalDurationMs = re.totalDurationMs();
                     logLines.add("%s Received response in %d ms [promptTokens: %d, completionTokens: %d]"
-                            .formatted(ts, requestEnd.totalDurationMs(), requestEnd.promptTokens(),
-                                    requestEnd.completionTokens()));
+                            .formatted(ts, re.totalDurationMs(), re.promptTokens(), re.completionTokens()));
                 }
-                default -> {
-                }
+                default -> {}
             }
         }
 
@@ -426,27 +417,23 @@ public class ChatImpl implements Chat {
                 promptTokens, completionTokens, (int) totalDurationMs);
     }
 
-    /** Logs significant stream events to console. MDC "cid" is set by runWithConvId. */
+    /** Logs significant stream events to console with conversation id. MDC "cid" is set by runWithConvId. */
     private void logEventToConsole(StreamingEvent holder) {
         switch (holder.value()) {
-            case EventStreamValueHolder.RequestInfo requestInfo ->
-                    log.info("Model: {}, User prompt: {}",
-                            requestInfo.model(), abbreviate(requestInfo.userPrompt(), 200));
-            case EventStreamValueHolder.ToolCallStart toolCall ->
-                    log.info(">>> Using {}: {}", toolCall.tool(), toolCall.query());
-            case EventStreamValueHolder.ToolRetrieved retrieved ->
-                    log.info("Found documents ({}): {}",
-                            retrieved.documents().size(), formatDocScores(retrieved.documents()));
-            case EventStreamValueHolder.ToolReranked reranked ->
-                    log.info("Reranked documents ({}): {}",
-                            reranked.documents().size(), formatDocScores(reranked.documents()));
-            case EventStreamValueHolder.ToolCallEnd toolCallEnd ->
-                    log.info("{} done in {} ms", toolCallEnd.tool(), toolCallEnd.totalDurationMs());
-            case EventStreamValueHolder.RequestEnd requestEnd ->
+            case EventStreamValueHolder.RequestInfo ri ->
+                    log.info("Model: {}, User prompt: {}", ri.model(), abbreviate(ri.userPrompt(), 200));
+            case EventStreamValueHolder.ToolCallStart tc ->
+                    log.info(">>> Using {}: {}", tc.tool(), tc.query());
+            case EventStreamValueHolder.ToolRetrieved tr ->
+                    log.info("Found documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
+            case EventStreamValueHolder.ToolReranked tr ->
+                    log.info("Reranked documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
+            case EventStreamValueHolder.ToolCallEnd tc ->
+                    log.info("{} done in {} ms", tc.tool(), tc.totalDurationMs());
+            case EventStreamValueHolder.RequestEnd re ->
                     log.info("Received response in {} ms [promptTokens: {}, completionTokens: {}]",
-                            requestEnd.totalDurationMs(), requestEnd.promptTokens(), requestEnd.completionTokens());
-            default -> {
-            }
+                            re.totalDurationMs(), re.promptTokens(), re.completionTokens());
+            default -> {}
         }
     }
 
