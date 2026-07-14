@@ -72,9 +72,12 @@ Content-Type: application/json
 {
     "conversation_id": "test-988979",
     "text": "How can I create a button that triggers a notification when clicked?",
+    "cache_enabled": true,
     "jmix_version": "v2"
 }
 ```
+
+The `cache_enabled` property is currently not used.
 
 The optional `jmix_version` property (`v2` or `v3`) selects the documentation corpus and the version
 mentioned in the system prompt; it defaults to `v2`.
