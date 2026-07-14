@@ -103,7 +103,7 @@ public class CheckAnalyticsService {
             trends.add(new ConfigTrend(
                     displayConfigLabel(sample),
                     versionId(sample),
-                    CheckRunner.shortSha256(key),
+                    CheckFingerprints.shortHash(key),
                     group.stream()
                             .map(run -> new RunPoint(run.getCreatedDate(), run.getScore(), run.getAccuracy()))
                             .toList()));
@@ -172,7 +172,7 @@ public class CheckAnalyticsService {
     }
 
     static String configFingerprint(CheckRun run) {
-        return CheckRunner.shortSha256(groupKey(run));
+        return CheckFingerprints.shortHash(groupKey(run));
     }
 
     private static String definitionFingerprint(CheckRun run) {
@@ -180,7 +180,7 @@ public class CheckAnalyticsService {
         if (fingerprint != null && !fingerprint.isBlank()) {
             return fingerprint;
         }
-        String legacyFingerprint = CheckRunner.extractLegacyDefinitionFingerprint(run.getConfigLabel());
+        String legacyFingerprint = CheckFingerprints.fromLegacyLabel(run.getConfigLabel());
         return legacyFingerprint != null ? legacyFingerprint : LEGACY_COHORT;
     }
 
@@ -351,11 +351,7 @@ public class CheckAnalyticsService {
     }
 
     static String displayConfigLabel(CheckRun run) {
-        String label = CheckRunner.stripLegacyCohortSuffix(run.getConfigLabel());
-        if (label == null || label.isBlank()) {
-            label = CheckRunner.extractConfigLabel(run.getParameters());
-        }
-        return configLabel(label);
+        return configLabel(CheckConfigLabel.resolve(run.getConfigLabel(), run.getParameters()));
     }
 
     private static String configLabel(@Nullable String label) {

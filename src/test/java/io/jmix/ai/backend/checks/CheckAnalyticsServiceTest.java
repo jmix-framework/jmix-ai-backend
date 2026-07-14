@@ -1,7 +1,6 @@
 package io.jmix.ai.backend.checks;
 
 import io.jmix.ai.backend.entity.Check;
-import io.jmix.ai.backend.entity.CheckDef;
 import io.jmix.ai.backend.entity.CheckRun;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.DataManager;
@@ -50,44 +49,6 @@ class CheckAnalyticsServiceTest {
         assertThat(CheckAnalyticsService.configFingerprint(first))
                 .isNotEqualTo(CheckAnalyticsService.configFingerprint(second))
                 .isNotEqualTo(CheckAnalyticsService.configFingerprint(legacy));
-    }
-
-    @Test
-    void definitionFingerprintIsStableAcrossDefinitionOrderAndChangesWithDefinitionContent() {
-        CheckDef first = checkDef(
-                "10000000-0000-0000-0000-000000000001", "data", "Question 1", "Answer 1");
-        CheckDef second = checkDef(
-                "10000000-0000-0000-0000-000000000002", "ui", "Question 2", "Answer 2");
-
-        String forward = CheckRunner.buildDefinitionFingerprint(List.of(first, second));
-        String reversed = CheckRunner.buildDefinitionFingerprint(List.of(second, first));
-        second.setAnswer("Changed answer");
-        String changed = CheckRunner.buildDefinitionFingerprint(List.of(first, second));
-
-        assertThat(forward).startsWith("definitions-v1-").isEqualTo(reversed);
-        assertThat(changed).isNotEqualTo(forward);
-    }
-
-    @Test
-    void definitionFingerprintKeepsLegacyDigestWhenOnlyScopeMetadataChanges() {
-        CheckDef definition = checkDef(
-                "10000000-0000-0000-0000-000000000001", "data", "Question", "Answer");
-        definition.setJmixVersion(JmixVersion.V2);
-        String v2 = CheckRunner.buildDefinitionFingerprint(List.of(definition));
-
-        definition.setJmixVersion(JmixVersion.V3);
-
-        assertThat(CheckRunner.buildDefinitionFingerprint(List.of(definition))).isEqualTo(v2);
-    }
-
-    @Test
-    void historicalCohortSuffixCanBeReadAndRemoved() {
-        String fingerprint = "semantic-v3-123456789abc";
-        String label = legacyLabel("Config", fingerprint);
-
-        assertThat(CheckRunner.extractLegacyDefinitionFingerprint(label))
-                .isEqualTo("definitions-v1-123456789abc");
-        assertThat(CheckRunner.stripLegacyCohortSuffix(label)).isEqualTo("Config");
     }
 
     @Test
@@ -369,12 +330,4 @@ class CheckAnalyticsServiceTest {
         return label + " [cohort:" + fingerprint + "]";
     }
 
-    private static CheckDef checkDef(String id, String category, String question, String answer) {
-        CheckDef checkDef = new CheckDef();
-        checkDef.setId(UUID.fromString(id));
-        checkDef.setCategory(category);
-        checkDef.setQuestion(question);
-        checkDef.setAnswer(answer);
-        return checkDef;
-    }
 }

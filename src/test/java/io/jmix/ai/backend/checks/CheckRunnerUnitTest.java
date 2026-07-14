@@ -78,7 +78,7 @@ class CheckRunnerUnitTest {
                 .isEqualTo("semantic-v3|model=test-judge|temperature=0.0|passThreshold=0.8");
         assertThat(checkRun.getConfigLabel()).isEqualTo("test-config");
         assertThat(checkRun.getDefinitionFingerprint())
-                .isEqualTo(CheckRunner.buildDefinitionFingerprint(List.of(checkDef)));
+                .isEqualTo(CheckFingerprints.forDefinitions(List.of(checkDef)));
         assertThat(checkRun.getScore()).isEqualTo(1.0);
         assertThat(checkRun.getAccuracy()).isEqualTo(1.0);
         assertThat(check.getCheckRun()).isSameAs(checkRun);

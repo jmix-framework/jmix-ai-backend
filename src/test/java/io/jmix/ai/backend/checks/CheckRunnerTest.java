@@ -106,7 +106,7 @@ public class CheckRunnerTest {
         assertThat(updatedCheckRun.getEvaluatorConfig())
                 .isEqualTo("semantic-v3|model=test-judge|temperature=0.0|passThreshold=0.8");
         assertThat(updatedCheckRun.getDefinitionFingerprint())
-                .isEqualTo(CheckRunner.buildDefinitionFingerprint(List.of(checkDef1, checkDef2)));
+                .isEqualTo(CheckFingerprints.forDefinitions(List.of(checkDef1, checkDef2)));
     }
 
     @Test
@@ -169,6 +169,22 @@ public class CheckRunnerTest {
     }
 
     @Test
+    void runChecks_withoutActiveDefinitions_deletesRun() {
+        clearTables();
+        CheckRunner checkRunner = runner(new EchoChat(), new TestExternalEvaluator(), 2);
+        CheckRun checkRun = dataManager.create(CheckRun.class);
+        checkRun.setParameters("unused");
+        dataManager.save(checkRun);
+
+        assertThatThrownBy(() -> checkRunner.runChecks(Id.of(checkRun)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("No active check definitions for v2");
+
+        assertThat(dataManager.load(Check.class).all().list()).isEmpty();
+        assertThat(dataManager.load(CheckRun.class).all().list()).isEmpty();
+    }
+
+    @Test
     void runChecks_usesSharedAndMatchingVersionDefinitionsOnly() {
         clearTables();
         CheckDef shared = checkDef("shared", null);
@@ -190,7 +206,7 @@ public class CheckRunnerTest {
                 .doesNotContain("v3");
         CheckRun completedRun = dataManager.load(Id.of(checkRun)).one();
         assertThat(completedRun.getDefinitionFingerprint())
-                .isEqualTo(CheckRunner.buildDefinitionFingerprint(List.of(shared, v2)));
+                .isEqualTo(CheckFingerprints.forDefinitions(List.of(shared, v2)));
         assertThat(completedRun.getConfigLabel()).isNull();
     }
 
