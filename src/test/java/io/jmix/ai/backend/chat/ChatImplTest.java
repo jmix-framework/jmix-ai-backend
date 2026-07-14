@@ -55,12 +55,7 @@ class ChatImplTest {
         when(chatModel.getDefaultOptions()).thenReturn(ChatOptions.builder().build());
 
         chat = new ChatImpl(chatMemoryRepository, parametersRepository, Schedulers.immediate(),
-                toolsManager, chatLogManager, systemPromptResolver) {
-            @Override
-            ChatModel buildChatModel(ParametersReader parametersReader) {
-                return chatModel;
-            }
-        };
+                toolsManager, chatLogManager, systemPromptResolver, ignored -> chatModel);
     }
 
     @Test

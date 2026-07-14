@@ -20,29 +20,13 @@ public final class Utils {
             return (String) document.getMetadata().get("source");
     }
 
-    public static List<Document> getDistinctDocuments(List<Document> documents) {
-        Set<Object> seen = new HashSet<>();
-        return documents.stream()
-                .sorted((d1, d2) -> {
-                    Double rerankScore1 = (Double) d1.getMetadata().get("rerankScore");
-                    Double rerankScore2 = (Double) d2.getMetadata().get("rerankScore");
-                    if (rerankScore1 != null && rerankScore2 != null) {
-                        return Double.compare(rerankScore2, rerankScore1);
-                    } else {
-                        if( d1.getScore() != null && d2.getScore() != null) {
-                            return Double.compare(d2.getScore(), d1.getScore());
-                        }
-                        return 0;
-                    }
-                })
-                .filter(d -> {
-                            if (seen.contains(d.getId())) {
-                                return false;
-                            }
-                            seen.add(d.getId());
-                            return true;
-                        }
-                )
+    /**
+     * Sorts documents by relevance and keeps only the highest-ranked occurrence of each document ID.
+     */
+    public static List<Document> getUniqueSortedDocuments(List<Document> documents) {
+        Set<String> seenIds = new HashSet<>();
+        return SearchResultsFormatter.sortByRelevance(documents).stream()
+                .filter(document -> seenIds.add(document.getId()))
                 .toList();
     }
 

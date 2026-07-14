@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
-import static io.jmix.ai.backend.retrieval.Utils.getDistinctDocuments;
+import static io.jmix.ai.backend.retrieval.Utils.getUniqueSortedDocuments;
 
 @Component
 public class SearchService {
@@ -69,6 +69,6 @@ public class SearchService {
             tool.execute(query, null);
         }
 
-        return getDistinctDocuments(retrievedDocuments);
+        return getUniqueSortedDocuments(retrievedDocuments);
     }
 }
