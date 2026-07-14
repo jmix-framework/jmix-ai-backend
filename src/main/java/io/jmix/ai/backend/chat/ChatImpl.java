@@ -8,6 +8,9 @@ import io.jmix.ai.backend.retrieval.AbstractRagTool;
 import io.jmix.ai.backend.retrieval.ToolEventListener;
 import io.jmix.ai.backend.retrieval.ToolsManager;
 import io.jmix.core.UuidProvider;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -22,6 +25,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.observation.ChatModelObservationContext;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -54,6 +58,7 @@ public class ChatImpl implements Chat {
 
     private final ParametersRepository parametersRepository;
     private final ChatMemory chatMemory;
+    private final ObservationRegistry observationRegistry;
     private final ToolsManager toolsManager;
     private final ChatLogManager chatLogManager;
     private final Scheduler streamingScheduler;
@@ -77,6 +82,8 @@ public class ChatImpl implements Chat {
                 .maxMessages(10)
                 .build();
 
+        observationRegistry = ObservationRegistry.create();
+        observationRegistry.observationConfig().observationHandler(getChatObservationHandler());
         this.toolsManager = toolsManager;
         this.chatModelFactory = chatModelFactory;
     }
@@ -97,7 +104,7 @@ public class ChatImpl implements Chat {
                 ? conversationId : UuidProvider.createUuid().toString();
 
         ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
-        ChatModel chatModel = chatModelFactory.build(parametersReader);
+        ChatModel chatModel = chatModelFactory.build(parametersReader, observationRegistry);
         ChatClient chatClient = buildClient(chatModel);
 
         List<Document> retrievedDocuments = new ArrayList<>();
@@ -508,5 +515,24 @@ public class ChatImpl implements Chat {
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
+    }
+
+    private ObservationHandler<ChatModelObservationContext> getChatObservationHandler() {
+        return new ObservationHandler<>() {
+            @Override
+            public void onStart(ChatModelObservationContext context) {
+                log.trace("LLM Request:\n{}", context.getRequest());
+            }
+
+            @Override
+            public void onStop(ChatModelObservationContext context) {
+                log.trace("LLM Response:\n{}", context.getResponse());
+            }
+
+            @Override
+            public boolean supportsContext(Observation.Context context) {
+                return context instanceof ChatModelObservationContext;
+            }
+        };
     }
 }

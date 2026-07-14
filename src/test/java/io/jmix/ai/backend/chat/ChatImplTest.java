@@ -64,7 +64,7 @@ class ChatImplTest {
         when(toolsManager.getTools(anyString(), any(), any(), any())).thenReturn(List.of());
         when(systemPromptResolver.resolve("System prompt", JmixVersion.V2)).thenReturn("Resolved prompt");
         when(chatModel.getDefaultOptions()).thenReturn(ChatOptions.builder().build());
-        when(chatModelFactory.build(any(ParametersReader.class))).thenReturn(chatModel);
+        when(chatModelFactory.build(any(ParametersReader.class), any())).thenReturn(chatModel);
 
         chat = new ChatImpl(chatMemoryRepository, parametersRepository, Schedulers.immediate(),
                 toolsManager, chatLogManager, systemPromptResolver, chatModelFactory);
