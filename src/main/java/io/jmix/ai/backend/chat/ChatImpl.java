@@ -8,10 +8,6 @@ import io.jmix.ai.backend.retrieval.AbstractRagTool;
 import io.jmix.ai.backend.retrieval.ToolEventListener;
 import io.jmix.ai.backend.retrieval.ToolsManager;
 import io.jmix.core.UuidProvider;
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationHandler;
-import io.micrometer.observation.ObservationRegistry;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -26,13 +22,8 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
-import org.springframework.ai.chat.observation.ChatModelObservationContext;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -51,7 +42,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
 import static io.jmix.ai.backend.retrieval.Utils.getUniqueSortedDocuments;
@@ -64,31 +54,19 @@ public class ChatImpl implements Chat {
 
     private final ParametersRepository parametersRepository;
     private final ChatMemory chatMemory;
-    private final ObservationRegistry observationRegistry;
     private final ToolsManager toolsManager;
     private final ChatLogManager chatLogManager;
     private final Scheduler streamingScheduler;
     private final SystemPromptResolver systemPromptResolver;
-    private final Function<ParametersReader, ChatModel> chatModelFactory;
+    private final ChatModelFactory chatModelFactory;
 
-    @Autowired
     public ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
                     ParametersRepository parametersRepository,
                     @Qualifier("streamingScheduler") Scheduler streamingScheduler,
                     ToolsManager toolsManager,
                     ChatLogManager chatLogManager,
-                    SystemPromptResolver systemPromptResolver) {
-        this(chatMemoryRepository, parametersRepository, streamingScheduler, toolsManager,
-                chatLogManager, systemPromptResolver, null);
-    }
-
-    ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
-             ParametersRepository parametersRepository,
-             Scheduler streamingScheduler,
-             ToolsManager toolsManager,
-             ChatLogManager chatLogManager,
-             SystemPromptResolver systemPromptResolver,
-             @Nullable Function<ParametersReader, ChatModel> chatModelFactory) {
+                    SystemPromptResolver systemPromptResolver,
+                    ChatModelFactory chatModelFactory) {
         this.parametersRepository = parametersRepository;
         this.streamingScheduler = streamingScheduler;
         this.chatLogManager = chatLogManager;
@@ -99,10 +77,8 @@ public class ChatImpl implements Chat {
                 .maxMessages(10)
                 .build();
 
-        observationRegistry = ObservationRegistry.create();
-        observationRegistry.observationConfig().observationHandler(getChatObservationHandler());
         this.toolsManager = toolsManager;
-        this.chatModelFactory = chatModelFactory != null ? chatModelFactory : this::buildChatModel;
+        this.chatModelFactory = chatModelFactory;
     }
 
     private record ChatRequestContext(
@@ -121,7 +97,7 @@ public class ChatImpl implements Chat {
                 ? conversationId : UuidProvider.createUuid().toString();
 
         ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
-        ChatModel chatModel = chatModelFactory.apply(parametersReader);
+        ChatModel chatModel = chatModelFactory.build(parametersReader);
         ChatClient chatClient = buildClient(chatModel);
 
         List<Document> retrievedDocuments = new ArrayList<>();
@@ -528,59 +504,9 @@ public class ChatImpl implements Chat {
         ));
     }
 
-    private ChatModel buildChatModel(ParametersReader parametersReader) {
-        String openaiApiKey = System.getenv("OPENAI_API_KEY");
-        if (StringUtils.isBlank(openaiApiKey)) {
-            throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
-        }
-        OpenAiApi openAiApi = OpenAiApi.builder()
-                .apiKey(openaiApiKey)
-                .build();
-
-        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
-                .model(parametersReader.getString("model.name", "gpt-5"));
-
-        Double temperature = parametersReader.getDouble("model.temperature", null);
-        if (temperature != null)
-            optionsBuilder.temperature(temperature);
-
-        String reasoningEffort = parametersReader.getString("model.reasoningEffort", null);
-        if (reasoningEffort != null)
-            optionsBuilder.reasoningEffort(reasoningEffort);
-
-        OpenAiChatOptions openAiChatOptions = optionsBuilder
-                .streamUsage(true)
-                .build();
-
-        return OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(openAiChatOptions)
-                .observationRegistry(observationRegistry)
-                .build();
-    }
-
     private ChatClient buildClient(ChatModel chatModel) {
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
-    }
-
-    private ObservationHandler<ChatModelObservationContext> getChatObservationHandler() {
-        return new ObservationHandler<>() {
-            @Override
-            public void onStart(ChatModelObservationContext context) {
-                log.trace("LLM Request:\n{}", context.getRequest());
-            }
-
-            @Override
-            public void onStop(ChatModelObservationContext context) {
-                log.trace("LLM Response:\n{}", context.getResponse());
-            }
-
-            @Override
-            public boolean supportsContext(Observation.Context context) {
-                return context instanceof ChatModelObservationContext;
-            }
-        };
     }
 }

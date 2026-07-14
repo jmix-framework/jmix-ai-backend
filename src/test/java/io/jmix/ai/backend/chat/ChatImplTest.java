@@ -52,6 +52,7 @@ class ChatImplTest {
     private final ChatLogManager chatLogManager = mock(ChatLogManager.class);
     private final SystemPromptResolver systemPromptResolver = mock(SystemPromptResolver.class);
     private final ChatModel chatModel = mock(ChatModel.class);
+    private final ChatModelFactory chatModelFactory = mock(ChatModelFactory.class);
 
     private ChatImpl chat;
 
@@ -63,9 +64,10 @@ class ChatImplTest {
         when(toolsManager.getTools(anyString(), any(), any(), any())).thenReturn(List.of());
         when(systemPromptResolver.resolve("System prompt", JmixVersion.V2)).thenReturn("Resolved prompt");
         when(chatModel.getDefaultOptions()).thenReturn(ChatOptions.builder().build());
+        when(chatModelFactory.build(any(ParametersReader.class))).thenReturn(chatModel);
 
         chat = new ChatImpl(chatMemoryRepository, parametersRepository, Schedulers.immediate(),
-                toolsManager, chatLogManager, systemPromptResolver, ignored -> chatModel);
+                toolsManager, chatLogManager, systemPromptResolver, chatModelFactory);
     }
 
     @Test
@@ -128,7 +130,7 @@ class ChatImplTest {
 
         Scheduler concurrentScheduler = Schedulers.newParallel("chat-test", 2);
         ChatImpl concurrentChat = new ChatImpl(chatMemoryRepository, parametersRepository, concurrentScheduler,
-                toolsManager, chatLogManager, systemPromptResolver, ignored -> chatModel);
+                toolsManager, chatLogManager, systemPromptResolver, chatModelFactory);
         MdcCapturingAppender appender = new MdcCapturingAppender();
         Logger chatLogger = (Logger) LoggerFactory.getLogger(ChatImpl.class);
         appender.start();
