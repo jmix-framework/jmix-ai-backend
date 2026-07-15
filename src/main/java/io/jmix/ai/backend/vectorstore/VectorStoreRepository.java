@@ -47,23 +47,28 @@ public class VectorStoreRepository {
     }
 
     public List<VectorStoreEntity> loadList(@Nullable Filter.Expression filterExpression, int offset, int limit) {
+        String sql;
         String orderBy = "ORDER BY metadata::jsonb ->> 'type', metadata::jsonb ->> 'source'";
-        String limits = (offset > 0 ? " OFFSET " + offset : "") + (limit > 0 ? " LIMIT " + limit : "");
         if (filterExpression != null) {
-            String jsonPath = filterExpressionConverter.convertExpression(filterExpression);
-            return jdbcTemplate.query(
-                    "SELECT id, content, metadata FROM vector_store WHERE metadata::jsonb @@ ?::jsonpath " + orderBy + limits,
-                    getVsEntityRowMapper(), jsonPath);
+            String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
+            sql = "SELECT id, content, metadata FROM vector_store " +
+                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath " + orderBy;
+        } else {
+            sql = "SELECT id, content, metadata FROM vector_store " + orderBy;
         }
-        return jdbcTemplate.query(
-                "SELECT id, content, metadata FROM vector_store " + orderBy + limits,
-                getVsEntityRowMapper());
+        if (offset > 0) {
+            sql += " OFFSET " + offset;
+        }
+        if (limit > 0) {
+            sql += " LIMIT " + limit;
+        }
+        return jdbcTemplate.query(sql, getVsEntityRowMapper());
     }
 
     public VectorStoreEntity load(UUID id) {
         return jdbcTemplate.queryForObject(
-                "SELECT id, content, metadata FROM vector_store WHERE id = ?",
-                getVsEntityRowMapper(), id);
+                "SELECT id, content, metadata FROM vector_store WHERE id = '" + id + "'",
+                getVsEntityRowMapper());
     }
 
     /**
@@ -114,14 +119,16 @@ public class VectorStoreRepository {
     public int getCount(String filterString) {
         Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
 
-        Long count;
+        String sql;
         if (filterExpression != null) {
-            String jsonPath = filterExpressionConverter.convertExpression(filterExpression);
-            count = jdbcTemplate.queryForObject(
-                    "SELECT count(*) FROM vector_store WHERE metadata::jsonb @@ ?::jsonpath", Long.class, jsonPath);
+            String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
+            sql = "SELECT count(*) FROM vector_store " +
+                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath ";
         } else {
-            count = jdbcTemplate.queryForObject("SELECT count(*) FROM vector_store", Long.class);
+            sql = "SELECT count(*) FROM vector_store ";
         }
+
+        Long count = jdbcTemplate.queryForObject(sql, Long.class);
         return count == null ? 0 : count.intValue();
     }
 
@@ -137,11 +144,14 @@ public class VectorStoreRepository {
     }
 
     public void delete(UUID id) {
-        jdbcTemplate.update("DELETE FROM vector_store WHERE id = ?", id);
+        jdbcTemplate.update("DELETE FROM vector_store WHERE id = '" + id + "'");
     }
 
     public void delete(Collection<VectorStoreEntity> collection) {
-        deleteIds(collection.stream().map(VectorStoreEntity::getId).toList());
+        String ids = collection.stream()
+                .map(vectorStoreEntity -> "'" + vectorStoreEntity.getId() + "'")
+                .collect(Collectors.joining(","));
+        jdbcTemplate.update("DELETE FROM vector_store WHERE id IN (" + ids + ")");
     }
 
     public void deleteIds(Collection<UUID> ids) {
@@ -154,12 +164,15 @@ public class VectorStoreRepository {
 
     public void delete(@Nullable String filterString) {
         Filter.Expression filterExpression = StringUtils.isBlank(filterString) ? null : filterExpressionTextParser.parse(filterString);
+        String sql;
         if (filterExpression != null) {
-            String jsonPath = filterExpressionConverter.convertExpression(filterExpression);
-            jdbcTemplate.update("DELETE FROM vector_store WHERE metadata::jsonb @@ ?::jsonpath", jsonPath);
+            String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
+            sql = "DELETE FROM vector_store " +
+                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath ";
         } else {
-            jdbcTemplate.update("DELETE FROM vector_store");
+            sql = "DELETE FROM vector_store ";
         }
+        jdbcTemplate.update(sql);
     }
 
     public void deleteAll() {
