@@ -225,10 +225,9 @@ public class ChatImpl implements Chat {
      */
     @Override
     public Flux<StreamingEvent> requestStream(String userPrompt,
-                                              String parametersYaml,
-                                              @Nullable String conversationId,
-                                              @Nullable JmixVersion jmixVersion) {
-        String cid = conversationId != null ? conversationId : UuidProvider.createUuid().toString();
+                                                      String parametersYaml,
+                                                      @Nullable String conversationId,
+                                                      @Nullable JmixVersion jmixVersion) {
         // Flux.defer = "don't run this code now, run it when someone subscribes".
         // This is how we move the blocking DB/tool setup off the caller's thread
         // onto streamingScheduler (applied in withDiagnostics via subscribeOn).
@@ -245,6 +244,7 @@ public class ChatImpl implements Chat {
             AtomicInteger promptTokensRef = new AtomicInteger();
             AtomicInteger completionTokensRef = new AtomicInteger();
             // -- Blocking setup: loads config from DB, creates OpenAI client, resolves tools --
+            String cid = conversationId != null ? conversationId : "";
             JmixVersion version = jmixVersion != null ? jmixVersion : JmixVersion.V2;
 
             // Pushes tool lifecycle events into the sink.
@@ -252,7 +252,7 @@ public class ChatImpl implements Chat {
             // so any logging during tool execution (e.g. Reranker) includes conversation id.
             ToolEventListener listener = createStreamingListener(toolCallSink, cid);
             ChatRequestContext ctx = prepareRequest(
-                    userPrompt, parametersYaml, cid, version, listener);
+                    userPrompt, parametersYaml, conversationId, version, listener);
 
             // Tool events (ToolCallStart, ToolRetrieved, etc.) are pushed into the sink
             // by the listener during Spring AI's synchronous tool execution.
@@ -311,6 +311,7 @@ public class ChatImpl implements Chat {
 
         // Wrap each event with conversationId for logging/persistence,
         // then apply cross-cutting diagnostics (console log + ChatLog save).
+        String cid = conversationId != null ? conversationId : "";
         return withDiagnostics(stream.map(event -> StreamingEvent.of(cid, event)));
     }
 

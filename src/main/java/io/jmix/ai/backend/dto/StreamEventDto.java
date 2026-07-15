@@ -1,9 +1,9 @@
 package io.jmix.ai.backend.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * Public API representation of {@link EventStreamValueHolder}.
@@ -11,7 +11,6 @@ import io.jmix.ai.backend.chat.EventStreamValueHolder;
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = StreamEventDto.Conversation.class, name = "conversation"),
         @JsonSubTypes.Type(value = StreamEventDto.ToolCall.class, name = "tool_call"),
         @JsonSubTypes.Type(value = StreamEventDto.TokensStart.class, name = "tokens_start"),
         @JsonSubTypes.Type(value = StreamEventDto.Content.class, name = "content"),
@@ -20,8 +19,6 @@ import io.jmix.ai.backend.chat.EventStreamValueHolder;
         @JsonSubTypes.Type(value = StreamEventDto.Metadata.class, name = "metadata")
 })
 public sealed interface StreamEventDto {
-
-    record Conversation(@JsonProperty("conversation_id") String conversationId) implements StreamEventDto {}
 
     record ToolCall(String tool) implements StreamEventDto {}
 
@@ -38,13 +35,12 @@ public sealed interface StreamEventDto {
     /** Maps internal StreamEvent to public DTO. Returns null for internal-only events. */
     static StreamEventDto fromModel(EventStreamValueHolder event) {
         return switch (event) {
-            case null -> null;
-            case EventStreamValueHolder.ToolCallStart toolCall -> new ToolCall(toolCall.tool());
+            case EventStreamValueHolder.ToolCallStart tc -> new ToolCall(tc.tool());
             case EventStreamValueHolder.TokensStart ignored -> new TokensStart();
-            case EventStreamValueHolder.Content(String text) -> new Content(text);
+            case EventStreamValueHolder.Content c -> new Content(c.text());
             case EventStreamValueHolder.TokensEnd ignored -> new TokensEnd();
             case EventStreamValueHolder.SourcesStart ignored -> new SourcesStart();
-            case EventStreamValueHolder.Metadata(String source) -> new Metadata(source);
+            case EventStreamValueHolder.Metadata m -> new Metadata(m.source());
             // Internal-only events — filtered by Objects::nonNull in controller
             case EventStreamValueHolder.RequestInfo ignored -> null;
             case EventStreamValueHolder.ToolRetrieved ignored -> null;
