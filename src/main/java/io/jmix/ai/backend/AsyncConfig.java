@@ -29,7 +29,7 @@ public class AsyncConfig implements WebMvcConfigurer {
         return Schedulers.fromExecutorService(
                 Executors.newFixedThreadPool(8, r -> {
                     Thread t = new Thread(r);
-                    t.setName("streaming-" + t.getId());
+                    t.setName("streaming-" + t.threadId());
                     t.setDaemon(true);
                     return t;
                 }),
