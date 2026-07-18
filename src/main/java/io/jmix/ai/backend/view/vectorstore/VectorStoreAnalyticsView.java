@@ -58,7 +58,7 @@ public class VectorStoreAnalyticsView extends StandardView {
 
     private void buildCoverage() {
         List<VectorStoreAnalyticsService.CorpusCoverage> coverages = analyticsService.loadCorpusCoverage();
-        // the shared series (chunks without a Jmix version) appears only when such corpora exist
+        // the shared series (chunks without a Jmix version) appears only when such corpuses exist
         boolean hasShared = coverages.stream().anyMatch(coverage -> coverage.shared() > 0);
 
         List<MapDataItem> items = coverages.stream()

@@ -211,7 +211,7 @@ public class JavaApiIngester extends AbstractIngester {
         return chunkDocs;
     }
 
-    /** Hook for corpora that post-process rendered cards (e.g. LLM enrichment) before chunking. */
+    /** Hook for corpuses that post-process rendered cards (e.g. LLM enrichment) before chunking. */
     protected List<Document> prepareCards(List<Document> documents) {
         return documents;
     }

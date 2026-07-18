@@ -262,10 +262,10 @@ public abstract class AbstractIngester implements Ingester {
     }
 
     /**
-     * For LLM-generated corpora, a key identifying the current generator config (model + prompt
+     * For LLM-generated corpuses, a key identifying the current generator config (model + prompt
      * version). Stored in each chunk's {@code generationKey} metadata and compared in
      * {@link #isContentSame}, so bumping the prompt/model rebuilds existing docs on the next update.
-     * Returns {@code null} for deterministic corpora (no rebuild on config change).
+     * Returns {@code null} for deterministic corpuses (no rebuild on config change).
      */
     @Nullable
     protected String currentGenerationKey() {
