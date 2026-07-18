@@ -8,8 +8,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,8 +40,9 @@ public class UiSamplesSnippetsIngester extends UiSamplesIngester {
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository,
+            @Qualifier("ingestionRestTemplate") RestTemplate restTemplate,
             SnippetizerEnricher snippetizer) {
-        super(v2BaseUrl, v3BaseUrl, docPath, samplePath, limit, vectorStore, timeSource, vectorStoreRepository);
+        super(v2BaseUrl, v3BaseUrl, docPath, samplePath, limit, vectorStore, timeSource, vectorStoreRepository, restTemplate);
         this.snippetizer = snippetizer;
     }
 

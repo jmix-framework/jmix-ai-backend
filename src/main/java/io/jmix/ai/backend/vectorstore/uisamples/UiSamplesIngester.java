@@ -8,14 +8,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,15 +29,8 @@ public class UiSamplesIngester extends AbstractIngester {
     private final String samplePath;
     private final int limit;
 
-    private final RestTemplate restTemplate = createRestTemplate();
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    private static RestTemplate createRestTemplate() {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
-        requestFactory.setReadTimeout(Duration.ofSeconds(30));
-        return new RestTemplate(requestFactory);
-    }
 
     public UiSamplesIngester(
             @Value("${uisamples.v2.base-url}") String v2BaseUrl,
@@ -48,12 +40,14 @@ public class UiSamplesIngester extends AbstractIngester {
             @Value("${uisamples.limit}") int limit,
             VectorStore vectorStore,
             TimeSource timeSource,
-            VectorStoreRepository vectorStoreRepository) {
+            VectorStoreRepository vectorStoreRepository,
+            @Qualifier("ingestionRestTemplate") RestTemplate restTemplate) {
         super(vectorStore, timeSource, vectorStoreRepository, true);
         this.baseUrls = Map.of(JmixVersion.V2, v2BaseUrl, JmixVersion.V3, v3BaseUrl);
         this.docPath = docPath;
         this.samplePath = samplePath;
         this.limit = limit;
+        this.restTemplate = restTemplate;
     }
 
     @Override

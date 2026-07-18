@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,8 @@ class SnippetsIngestersTest {
     @Mock
     private VectorStoreRepository vectorStoreRepository;
     @Mock
+    private RestTemplate restTemplate;
+    @Mock
     private SnippetizerEnricher snippetizer;
 
     private DocsSnippetsIngester docsIngester;
@@ -41,7 +44,7 @@ class SnippetsIngestersTest {
         docsIngester = new DocsSnippetsIngester("https://docs/v2", "https://docs/v3", "intro.html", 0,
                 vectorStore, timeSource, vectorStoreRepository, snippetizer);
         uiSamplesIngester = new UiSamplesSnippetsIngester("https://us/v2", "https://us/v3", "doc", "sample", 0,
-                vectorStore, timeSource, vectorStoreRepository, snippetizer);
+                vectorStore, timeSource, vectorStoreRepository, restTemplate, snippetizer);
     }
 
     private Document docsPage() {

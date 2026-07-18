@@ -13,14 +13,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -62,19 +61,12 @@ public class JavaApiIngester extends AbstractIngester {
     private final int limit;
     private final int enrichmentParallelism;
 
-    private final RestTemplate restTemplate = createRestTemplate();
+    private final RestTemplate restTemplate;
     private final JavadocPageParser parser = new JavadocPageParser();
     private final JavaApiCardRenderer renderer = new JavaApiCardRenderer();
     private final JavaApiEnricher enricher;
     private final EnrichmentCacheRepository enrichmentCacheRepository;
     private final ExecutorService enrichmentExecutor;
-
-    private static RestTemplate createRestTemplate() {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
-        requestFactory.setReadTimeout(Duration.ofSeconds(30));
-        return new RestTemplate(requestFactory);
-    }
 
     public JavaApiIngester(
             @Value("${javaapi.v2.base-url:}") String v2BaseUrl,
@@ -87,6 +79,7 @@ public class JavaApiIngester extends AbstractIngester {
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository,
+            @Qualifier("ingestionRestTemplate") RestTemplate restTemplate,
             JavaApiEnricher enricher,
             EnrichmentCacheRepository enrichmentCacheRepository) {
         super(vectorStore, timeSource, vectorStoreRepository, true);
@@ -103,6 +96,7 @@ public class JavaApiIngester extends AbstractIngester {
                 .toList();
         this.limit = limit;
         this.enrichmentParallelism = Math.max(1, enrichmentParallelism);
+        this.restTemplate = restTemplate;
         this.enricher = enricher;
         this.enrichmentCacheRepository = enrichmentCacheRepository;
         this.enrichmentExecutor = Executors.newFixedThreadPool(this.enrichmentParallelism);

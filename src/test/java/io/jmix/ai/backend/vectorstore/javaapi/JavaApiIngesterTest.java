@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,8 @@ class JavaApiIngesterTest {
     @Mock
     private VectorStoreRepository vectorStoreRepository;
     @Mock
+    private RestTemplate restTemplate;
+    @Mock
     private JavaApiEnricher enricher;
     @Mock
     private EnrichmentCacheRepository enrichmentCacheRepository;
@@ -60,7 +63,7 @@ class JavaApiIngesterTest {
     void setUp() {
         ingester = new JavaApiIngester(
                 "https://docs.jmix.io/api/2.8", "", "allclasses-index.html", "core", "/impl/,/antlr2/", 0, 4,
-                vectorStore, timeSource, vectorStoreRepository, enricher, enrichmentCacheRepository);
+                vectorStore, timeSource, vectorStoreRepository, restTemplate, enricher, enrichmentCacheRepository);
     }
 
     @AfterEach
@@ -249,7 +252,7 @@ class JavaApiIngesterTest {
     void updateAll_SkipsJavaApiWhenNoBaseUrlsAreConfigured() {
         JavaApiIngester unconfiguredIngester = new JavaApiIngester(
                 "", "", "allclasses-index.html", "core", "/impl/,/antlr2/", 0, 4,
-                vectorStore, timeSource, vectorStoreRepository, enricher, enrichmentCacheRepository);
+                vectorStore, timeSource, vectorStoreRepository, restTemplate, enricher, enrichmentCacheRepository);
         try {
             assertThat(unconfiguredIngester.getVersions()).isEmpty();
             assertThat(unconfiguredIngester.updateAll())
