@@ -9,6 +9,7 @@
 
                 <hbox width="100%" spacing="true" alignItems="END">
                     <comboBox id="baselineRunField" label="msg://baselineRun.label" width="28em"/>
+                    <button id="swapButton" icon="EXCHANGE" title="msg://swap.title"/>
                     <comboBox id="candidateRunField" label="msg://candidateRun.label" width="28em"/>
                     <checkbox id="regressionsOnlyField" label="msg://regressionsOnly.label"/>
                 </hbox>

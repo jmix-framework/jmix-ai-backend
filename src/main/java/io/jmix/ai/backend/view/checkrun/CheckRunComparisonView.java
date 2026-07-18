@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.view.checkrun;
 
+import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -21,6 +22,7 @@ import io.jmix.chartsflowui.kit.component.model.DataSet;
 import io.jmix.chartsflowui.kit.data.chart.ListChartItems;
 import io.jmix.flowui.component.checkbox.JmixCheckbox;
 import io.jmix.flowui.component.combobox.JmixComboBox;
+import io.jmix.flowui.kit.component.button.JmixButton;
 import io.jmix.flowui.view.MessageBundle;
 import io.jmix.flowui.view.StandardView;
 import io.jmix.flowui.view.Subscribe;
@@ -68,6 +70,7 @@ public class CheckRunComparisonView extends StandardView {
     private final Grid<CheckDelta> diffGrid = new Grid<>(CheckDelta.class, false);
     private List<ConfigOption> configOptions = List.of();
     private boolean updatingCandidateOptions;
+    private boolean swapping;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -99,14 +102,34 @@ public class CheckRunComparisonView extends StandardView {
             } finally {
                 updatingCandidateOptions = false;
             }
-            refresh();
+            if (!swapping) {
+                refresh();
+            }
         });
         candidateRunField.addValueChangeListener(change -> {
-            if (!updatingCandidateOptions) {
+            if (!updatingCandidateOptions && !swapping) {
                 refresh();
             }
         });
         regressionsOnlyField.addValueChangeListener(change -> refresh());
+        refresh();
+    }
+
+    @Subscribe(id = "swapButton", subject = "clickListener")
+    public void onSwapButtonClick(final ClickEvent<JmixButton> event) {
+        ConfigOption baseline = baselineRunField.getValue();
+        ConfigOption candidate = candidateRunField.getValue();
+        if (baseline == null || candidate == null) {
+            return;
+        }
+        // suppress the intermediate refreshes: both fields change, one comparison run is enough
+        swapping = true;
+        try {
+            baselineRunField.setValue(candidate);
+            candidateRunField.setValue(baseline);
+        } finally {
+            swapping = false;
+        }
         refresh();
     }
 
