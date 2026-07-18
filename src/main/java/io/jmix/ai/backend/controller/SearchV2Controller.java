@@ -50,17 +50,19 @@ public class SearchV2Controller {
         if (version == null) {
             version = JmixVersion.V2;
         }
-        List<Document> documents = searchService.search(request.query(), version);
-        documents = SearchResultsFormatter.sortByRelevance(documents);
-        documents = SearchResultsFormatter.applyTokenBudget(documents, request.tokens());
+        List<Document> retrieved = searchService.search(request.query(), version);
+        List<Document> ranked = SearchResultsFormatter.sortByRelevance(retrieved);
+        List<Document> budgeted = SearchResultsFormatter.applyTokenBudget(ranked, request.tokens());
 
-        return documents.stream()
-                .map(document -> new SearchResultDocument(
-                        document.getId(),
-                        SearchResultsFormatter.extractTitle(document),
-                        SearchResultsFormatter.extractSource(document),
-                        document.getText()))
+        return budgeted.stream()
+                .map(SearchV2Controller::toResultDocument)
                 .toList();
+    }
+
+    private static SearchResultDocument toResultDocument(Document document) {
+        String title = SearchResultsFormatter.extractTitle(document);
+        String source = SearchResultsFormatter.extractSource(document);
+        return new SearchResultDocument(document.getId(), title, source, document.getText());
     }
 
     public record SearchResultDocument(String id, String title, String source, String content) {
