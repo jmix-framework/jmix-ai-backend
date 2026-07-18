@@ -108,9 +108,15 @@ public class DocsIngester extends AbstractIngester {
 
         Map<String, Object> metadata = createMetadata(source, htmlContent, version);
         metadata.put("docPath", docPath);
+        metadata.put("topic", topicFromSource(source));
         metadata.put("url", url);
 
         return createDocument(htmlContent, metadata);
+    }
+
+    /** Documentation section of a page: the first path segment of its source, e.g. "flowui" or "concepts". */
+    static String topicFromSource(String source) {
+        return source.split("/", 2)[0].replaceAll("\\.html.*$", "");
     }
 
     @Override

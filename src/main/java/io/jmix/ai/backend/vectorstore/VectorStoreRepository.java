@@ -83,22 +83,17 @@ public class VectorStoreRepository {
                 new Object[]{rs.getString("type"), rs.getString("version"), rs.getInt("cnt")});
     }
 
-    /** Extracts the documentation topic (first URL path segment after the version) from chunk metadata. */
-    private static final String TOPIC_EXPR = """
-            regexp_replace(
-              split_part(regexp_replace(metadata::jsonb->>'url','^https?://docs\\.jmix\\.io/([0-9]+\\.x/jmix/[0-9.]+/|jmix/)',''),'/',1),
-              '\\.html.*$','')""";
-
     /** AI-generated docs snippets only — excludes lossless coverage chunks and plain-text fallback chunks. */
     private static final String AI_SNIPPET_FILTER =
             "metadata::jsonb->>'type' = 'docs-snippets' AND metadata::jsonb->>'enriched' = 'true'";
 
     /**
-     * Counts AI-generated docs snippets grouped by topic and Jmix version.
+     * Counts AI-generated docs snippets grouped by topic and Jmix version. The topic
+     * (documentation section) is stamped into chunk metadata by the docs ingesters.
      * Returns rows of [topic, jmixVersion, count]. Used for the topic-coverage heatmap.
      */
     public List<Object[]> countSnippetTopicByVersion() {
-        String sql = "SELECT " + TOPIC_EXPR + " AS topic, " +
+        String sql = "SELECT metadata::jsonb->>'topic' AS topic, " +
                 "metadata::jsonb->>'jmixVersion' AS version, count(*) AS cnt " +
                 "FROM vector_store WHERE " + AI_SNIPPET_FILTER + " GROUP BY 1, 2";
         return jdbcTemplate.query(sql, (rs, rowNum) ->
@@ -106,11 +101,11 @@ public class VectorStoreRepository {
     }
 
     /**
-     * Approx. token size (content chars / 4) of every AI-generated docs snippet together with its topic.
-     * Returns rows of [topic, tokens]. Used for the size distribution chart.
+     * Approx. token size (content chars / 4) of every AI-generated docs snippet together with its
+     * topic from chunk metadata. Returns rows of [topic, tokens]. Used for the size distribution chart.
      */
     public List<Object[]> snippetTopicTokenSizes() {
-        String sql = "SELECT " + TOPIC_EXPR + " AS topic, ceil(length(content) / 4.0)::int AS tok " +
+        String sql = "SELECT metadata::jsonb->>'topic' AS topic, ceil(length(content) / 4.0)::int AS tok " +
                 "FROM vector_store WHERE " + AI_SNIPPET_FILTER;
         return jdbcTemplate.query(sql, (rs, rowNum) ->
                 new Object[]{rs.getString("topic"), rs.getInt("tok")});
