@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 @Service
 public class EnrichmentCacheCleanupService {
 
-    static final String JAVA_API = "javaapi";
+    static final String JAVA_API = "javaapi-enriched";
     static final String DOCS_SNIPPETS = "docs-snippets";
     static final String UI_SAMPLES_SNIPPETS = "uisamples-snippets";
 

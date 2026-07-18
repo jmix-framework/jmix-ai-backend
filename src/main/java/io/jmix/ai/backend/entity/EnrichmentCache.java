@@ -51,7 +51,7 @@ public class EnrichmentCache {
     @Column(name = "CREATED_DATE")
     private OffsetDateTime createdDate;
 
-    /** Corpus this entry belongs to: {@code javaapi}, {@code docs-snippets} or {@code uisamples-snippets}. */
+    /** Corpus this entry belongs to: {@code javaapi-enriched}, {@code docs-snippets} or {@code uisamples-snippets}. */
     @Column(name = "TYPE_", nullable = false)
     private String type;
 
@@ -74,7 +74,7 @@ public class EnrichmentCache {
 
     /**
      * murmur3_32 hash of the ingested <em>content</em> — the document text ({@code sourceHash}
-     * metadata: the rendered API card for {@code javaapi}, the page text for the snippet corpora),
+     * metadata: the rendered API card for {@code javaapi-enriched}, the page text for the snippet corpora),
      * NOT of the {@link #source} identifier. A key hit is reused only while this still matches the
      * current content, so a changed page is re-enriched even under an unchanged key; conversely a
      * cosmetic change that leaves the rendered content identical keeps the hash and is skipped.
@@ -83,7 +83,7 @@ public class EnrichmentCache {
     private String contentHash;
 
     /**
-     * Generated payload; its meaning depends on {@link #type}. For {@code javaapi} it is the LLM
+     * Generated payload; its meaning depends on {@link #type}. For {@code javaapi-enriched} it is the LLM
      * description. For the snippet corpora ({@code docs-snippets}/{@code uisamples-snippets}) it is
      * the JSON-serialized list of {@code Snippet}s, and {@link #example} is then unused.
      */
@@ -92,7 +92,7 @@ public class EnrichmentCache {
     private String description;
 
     /**
-     * For {@code javaapi}, the generated usage example. Empty ({@code ""}) for the snippet corpora,
+     * For {@code javaapi-enriched}, the generated usage example. Empty ({@code ""}) for the snippet corpora,
      * whose entire payload is stored in {@link #description}.
      */
     @Column(name = "EXAMPLE")

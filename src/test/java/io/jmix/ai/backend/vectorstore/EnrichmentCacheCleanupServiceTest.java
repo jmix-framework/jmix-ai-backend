@@ -102,9 +102,9 @@ class EnrichmentCacheCleanupServiceTest {
         when(javaApiEnricher.getModelKey()).thenReturn("java-current");
         when(snippetizerEnricher.getModelKey()).thenReturn("snippet-current");
         when(repository.findGenerations()).thenReturn(List.of(
-                generation("javaapi", "v2", "java-current", OLDEST),
-                generation("javaapi", "v2", "java-previous", NEWEST),
-                generation("javaapi", "v2", "java-old", null),
+                generation("javaapi-enriched", "v2", "java-current", OLDEST),
+                generation("javaapi-enriched", "v2", "java-previous", NEWEST),
+                generation("javaapi-enriched", "v2", "java-old", null),
                 generation("docs-snippets", "v2", "snippet-current", OLDEST),
                 generation("docs-snippets", "v2", "docs-previous", NEWEST),
                 generation("docs-snippets", "v2", "docs-old", null),
@@ -112,7 +112,7 @@ class EnrichmentCacheCleanupServiceTest {
                 generation("uisamples-snippets", "v3", "ui-previous", NEWEST),
                 generation("uisamples-snippets", "v3", "ui-old", null)));
         Set<GenerationKey> obsolete = Set.of(
-                key("javaapi", "v2", "java-old"),
+                key("javaapi-enriched", "v2", "java-old"),
                 key("docs-snippets", "v2", "docs-old"),
                 key("uisamples-snippets", "v3", "ui-old"));
         when(repository.deleteGenerations(obsolete)).thenReturn(new DeletionResult(17, 3));

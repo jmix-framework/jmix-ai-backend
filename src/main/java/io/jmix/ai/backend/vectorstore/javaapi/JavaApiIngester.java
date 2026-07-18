@@ -1,13 +1,10 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
-import io.jmix.ai.backend.entity.EnrichmentCache;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
-import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.core.TimeSource;
-import jakarta.annotation.PreDestroy;
 import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +12,6 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -26,26 +22,18 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletionService;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
  * Ingests Jmix Java API reference from the Javadoc site. Each class page is parsed into
  * a structured model and rendered as a compact "API card" snippet with verbatim signatures.
  * <p>
- * When enrichment is enabled, cards of new or changed pages (they are the only ones that reach
- * {@link #splitToChunks}) get an LLM-generated description and usage example. Generation runs
- * in parallel; cache lookups and saves stay on the caller thread, which has the Jmix security
- * context required by DataManager.
+ * This corpus ({@code javaapi}) is fully deterministic — no LLM calls.
+ * {@link JavaApiEnrichedIngester} builds the parallel {@code javaapi-enriched} corpus whose
+ * cards additionally carry an LLM-generated description and usage example; the corpus used by
+ * the retrieval tool is selected at runtime by the {@code tools.javaapi_retriever.vectorType}
+ * parameter.
  */
 @Component
 public class JavaApiIngester extends AbstractIngester {
@@ -59,14 +47,10 @@ public class JavaApiIngester extends AbstractIngester {
     private final Set<String> moduleWhitelist;
     private final List<String> pathBlacklist;
     private final int limit;
-    private final int enrichmentParallelism;
 
     private final RestTemplate restTemplate;
     private final JavadocPageParser parser = new JavadocPageParser();
     private final JavaApiCardRenderer renderer = new JavaApiCardRenderer();
-    private final JavaApiEnricher enricher;
-    private final EnrichmentCacheRepository enrichmentCacheRepository;
-    private final ExecutorService enrichmentExecutor;
 
     public JavaApiIngester(
             @Value("${javaapi.v2.base-url:}") String v2BaseUrl,
@@ -75,13 +59,10 @@ public class JavaApiIngester extends AbstractIngester {
             @Value("${javaapi.whitelist}") String whitelist,
             @Value("${javaapi.blacklist:}") String blacklist,
             @Value("${javaapi.limit}") int limit,
-            @Value("${javaapi.enrichment.parallelism}") int enrichmentParallelism,
             VectorStore vectorStore,
             TimeSource timeSource,
             VectorStoreRepository vectorStoreRepository,
-            @Qualifier("ingestionRestTemplate") RestTemplate restTemplate,
-            JavaApiEnricher enricher,
-            EnrichmentCacheRepository enrichmentCacheRepository) {
+            @Qualifier("ingestionRestTemplate") RestTemplate restTemplate) {
         super(vectorStore, timeSource, vectorStoreRepository, true);
         putBaseUrl(JmixVersion.V2, v2BaseUrl);
         putBaseUrl(JmixVersion.V3, v3BaseUrl);
@@ -95,11 +76,7 @@ public class JavaApiIngester extends AbstractIngester {
                 .filter(s -> !s.isEmpty())
                 .toList();
         this.limit = limit;
-        this.enrichmentParallelism = Math.max(1, enrichmentParallelism);
         this.restTemplate = restTemplate;
-        this.enricher = enricher;
-        this.enrichmentCacheRepository = enrichmentCacheRepository;
-        this.enrichmentExecutor = Executors.newFixedThreadPool(this.enrichmentParallelism);
     }
 
     private void putBaseUrl(JmixVersion version, String baseUrl) {
@@ -129,9 +106,7 @@ public class JavaApiIngester extends AbstractIngester {
 
     @Override
     protected String currentGenerationKey() {
-        return enricher.isEnabled()
-                ? CARD_FORMAT_VERSION + ":" + enricher.getModelKey()
-                : CARD_FORMAT_VERSION;
+        return CARD_FORMAT_VERSION;
     }
 
     @Override
@@ -216,10 +191,10 @@ public class JavaApiIngester extends AbstractIngester {
 
     @Override
     protected List<Document> splitToChunks(List<Document> documents) {
-        List<Document> enrichedDocuments = enrichDocuments(documents);
+        List<Document> preparedDocuments = prepareCards(documents);
 
         List<Document> chunkDocs = new ArrayList<>();
-        for (Document document : enrichedDocuments) {
+        for (Document document : preparedDocuments) {
             List<String> parts = JavaApiCardRenderer.splitCard(document.getText(), MAX_CARD_CHUNK_SIZE);
             if (parts.size() > 1) {
                 log.debug("Split card {} into {} parts", document.getMetadata().get("url"), parts.size());
@@ -227,8 +202,7 @@ public class JavaApiIngester extends AbstractIngester {
             for (String part : parts) {
                 Map<String, Object> metadataCopy = new HashMap<>(document.getMetadata());
                 metadataCopy.put("size", part.length());
-                // failed enrichment stays unstamped so the next update retries it
-                if (!enricher.isEnabled() || "true".equals(metadataCopy.get("enriched"))) {
+                if (shouldStampGenerationKey(document)) {
                     metadataCopy.put("generationKey", currentGenerationKey());
                 }
                 chunkDocs.add(createDocument(part, metadataCopy));
@@ -237,110 +211,16 @@ public class JavaApiIngester extends AbstractIngester {
         return chunkDocs;
     }
 
-    private record PendingEnrichment(Document document, Snippet card, String source, String jmixVersion,
-                                     String contentHash) {
+    /** Hook for corpora that post-process rendered cards (e.g. LLM enrichment) before chunking. */
+    protected List<Document> prepareCards(List<Document> documents) {
+        return documents;
     }
 
-    private List<Document> enrichDocuments(List<Document> documents) {
-        if (!enricher.isEnabled() || documents.isEmpty()) {
-            return documents;
-        }
-        String modelName = enricher.getModelKey();
-
-        List<Document> result = new ArrayList<>(documents.size());
-        List<PendingEnrichment> pending = new ArrayList<>();
-
-        for (Document document : documents) {
-            Snippet card = Snippet.parse(document.getText());
-            String source = getSourceFromDocument(document);
-            String jmixVersion = (String) document.getMetadata().get("jmixVersion");
-            String contentHash = (String) document.getMetadata().get("sourceHash");
-            Optional<EnrichmentCache> cached = enrichmentCacheRepository
-                    .find(getType(), source, jmixVersion, modelName)
-                    .filter(entry -> Objects.equals(contentHash, entry.getContentHash()));
-            if (cached.isPresent()) {
-                result.add(withEnrichment(document, card,
-                        new JavaApiEnricher.Enrichment(cached.get().getDescription(), cached.get().getExample())));
-            } else {
-                pending.add(new PendingEnrichment(document, card, source, jmixVersion, contentHash));
-            }
-        }
-
-        if (!pending.isEmpty()) {
-            log.info("Generating enrichment for {} documents (parallelism {})", pending.size(), enrichmentParallelism);
-            CompletionService<JavaApiEnricher.Enrichment> completed =
-                    new ExecutorCompletionService<>(enrichmentExecutor);
-            Map<Future<JavaApiEnricher.Enrichment>, PendingEnrichment> inFlight = new HashMap<>();
-            int next = 0;
-            int completedCount = 0;
-            try {
-                while (next < pending.size() && inFlight.size() < enrichmentParallelism) {
-                    PendingEnrichment item = pending.get(next++);
-                    inFlight.put(completed.submit(() -> enricher.enrich(item.card().format())), item);
-                }
-
-                while (!inFlight.isEmpty()) {
-                    Future<JavaApiEnricher.Enrichment> future = completed.take();
-                    PendingEnrichment item = inFlight.remove(future);
-                    JavaApiEnricher.Enrichment enrichment = getEnrichment(future, item.source());
-                    if (enrichment != null) {
-                        // save on the caller thread: DataManager requires the caller's security context
-                        enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
-                                item.contentHash(), enrichment.description(), enrichment.example());
-                    }
-                    result.add(withEnrichment(item.document(), item.card(), enrichment));
-                    completedCount++;
-                    if (completedCount % 100 == 0) {
-                        log.info("Enriched {}/{} documents", completedCount, pending.size());
-                    }
-                    if (next < pending.size()) {
-                        PendingEnrichment nextItem = pending.get(next++);
-                        inFlight.put(completed.submit(() -> enricher.enrich(nextItem.card().format())), nextItem);
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Enrichment interrupted", e);
-            } finally {
-                inFlight.keySet().forEach(future -> future.cancel(true));
-            }
-        }
-        return result;
-    }
-
-    @PreDestroy
-    void shutdownEnrichmentExecutor() {
-        enrichmentExecutor.shutdown();
-        try {
-            if (!enrichmentExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
-                enrichmentExecutor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            enrichmentExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    @Nullable
-    private JavaApiEnricher.Enrichment getEnrichment(Future<JavaApiEnricher.Enrichment> future, String source) {
-        try {
-            return future.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Enrichment interrupted", e);
-        } catch (ExecutionException e) {
-            log.error("Enrichment failed for {}", source, e.getCause());
-            return null;
-        }
-    }
-
-    private Document withEnrichment(Document document, Snippet card, @Nullable JavaApiEnricher.Enrichment enrichment) {
-        if (enrichment == null) {
-            return document;
-        }
-        String text = JavaApiEnricher.assembleCard(card, enrichment);
-        Map<String, Object> metadata = new HashMap<>(document.getMetadata());
-        metadata.put("enriched", "true");
-        return createDocument(text, metadata);
+    /**
+     * Whether the card is final for the current generation; chunks of unstamped cards are
+     * rebuilt by the next update.
+     */
+    protected boolean shouldStampGenerationKey(Document document) {
+        return true;
     }
 }

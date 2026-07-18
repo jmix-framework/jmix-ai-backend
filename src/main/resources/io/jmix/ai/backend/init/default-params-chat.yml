@@ -45,6 +45,7 @@ tools:
 
   javaapi_retriever:
     enabled: true
+    vectorType: javaapi-enriched
     averageDocumentTokens: 450
     description: Searches the Jmix Java API reference (Javadoc) by class, interface or method name. Returns exact type and member signatures with Javadoc descriptions; use documentation or UI samples for usage examples. Always use it when the question mentions a specific Jmix class, interface or method (e.g. DataManager, UserRepository, FetchPlan.BASE). Query with the class or member name.
     similarityThreshold: 0.0

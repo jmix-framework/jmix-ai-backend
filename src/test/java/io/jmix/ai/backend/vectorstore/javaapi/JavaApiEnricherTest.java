@@ -31,7 +31,7 @@ class JavaApiEnricherTest {
         int modelBuilds;
 
         TestEnricher(ChatModel chatModel) {
-            super(false, "test-model", "low", "test-key",
+            super("test-model", "low", "test-key",
                     Duration.ofSeconds(1), Duration.ofSeconds(1));
             this.chatModel = chatModel;
         }

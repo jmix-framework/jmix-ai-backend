@@ -50,24 +50,16 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
     private static final BeanOutputConverter<Enrichment> OUTPUT_CONVERTER =
             new BeanOutputConverter<>(Enrichment.class);
 
-    private final boolean enabled;
-
     // bump on SYSTEM_PROMPT changes: invalidates the enrichment cache and rebuilds existing chunks
     private static final String PROMPT_VERSION = "p2";
 
     public JavaApiEnricher(
-            @Value("${javaapi.enrichment.enabled}") boolean enabled,
             @Value("${javaapi.enrichment.model}") String modelName,
             @Value("${javaapi.enrichment.reasoning-effort:}") String reasoningEffort,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
             @Value("${enrichment.openai.connect-timeout}") Duration connectTimeout,
             @Value("${enrichment.openai.read-timeout}") Duration readTimeout) {
-        super(modelName, reasoningEffort, configuredApiKey, enabled, connectTimeout, readTimeout);
-        this.enabled = enabled;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
+        super(modelName, reasoningEffort, configuredApiKey, false, connectTimeout, readTimeout);
     }
 
     @Override
