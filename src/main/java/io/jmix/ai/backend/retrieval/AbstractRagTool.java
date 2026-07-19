@@ -168,13 +168,11 @@ public abstract class AbstractRagTool {
 
             if (rerankResults == null) {
                 listener.onLog("Reranking failed, filtering by minScore");
-                var fallbackDocuments = documents.stream()
+                filteredDocuments = documents.stream()
                         .filter(document ->
-                                minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore);
-                if (fallbackLimit != null) {
-                    fallbackDocuments = fallbackDocuments.limit(fallbackLimit);
-                }
-                filteredDocuments = fallbackDocuments.toList();
+                                minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
+                        .limit(fallbackLimit != null ? fallbackLimit : Long.MAX_VALUE)
+                        .toList();
                 listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
             } else {
                 List<Reranker.Result> filteredRerankResults = rerankResults.stream()
