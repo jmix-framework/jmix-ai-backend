@@ -33,7 +33,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
+import static io.jmix.ai.backend.retrieval.RetrievalUtils.getUrlOrSource;
 
 @Component
 public class Reranker {

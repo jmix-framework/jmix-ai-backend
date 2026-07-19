@@ -14,8 +14,8 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
-import static io.jmix.ai.backend.retrieval.Utils.getUniqueSortedDocuments;
+import static io.jmix.ai.backend.retrieval.RetrievalUtils.addLogMessage;
+import static io.jmix.ai.backend.retrieval.RetrievalUtils.getUniqueSortedDocuments;
 
 @Component
 public class SearchService {

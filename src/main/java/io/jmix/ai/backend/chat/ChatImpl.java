@@ -51,8 +51,8 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
-import static io.jmix.ai.backend.retrieval.Utils.getUniqueSortedDocuments;
+import static io.jmix.ai.backend.retrieval.RetrievalUtils.addLogMessage;
+import static io.jmix.ai.backend.retrieval.RetrievalUtils.getUniqueSortedDocuments;
 import static org.apache.commons.lang3.StringUtils.abbreviate;
 
 @Component

@@ -8,7 +8,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class UtilsTest {
+class RetrievalUtilsTest {
 
     @Test
     void returnsUniqueDocumentsSortedByRelevance() {
@@ -29,7 +29,7 @@ class UtilsTest {
                 .score(0.2)
                 .build();
 
-        List<Document> result = Utils.getUniqueSortedDocuments(
+        List<Document> result = RetrievalUtils.getUniqueSortedDocuments(
                 List.of(lowerRankedDuplicate, similarityRanked, higherRankedDuplicate));
 
         assertThat(result).extracting(Document::getId)

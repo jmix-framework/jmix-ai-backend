@@ -9,8 +9,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public final class Utils {
-    private Utils() {}
+public final class RetrievalUtils {
+    private RetrievalUtils() {}
 
     public static String getUrlOrSource(Document document) {
         String url = (String) document.getMetadata().get("url");

@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
+import static io.jmix.ai.backend.retrieval.RetrievalUtils.getUrlOrSource;
 
 public abstract class AbstractRagTool {
 
