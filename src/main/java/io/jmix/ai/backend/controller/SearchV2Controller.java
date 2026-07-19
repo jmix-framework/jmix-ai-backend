@@ -52,17 +52,15 @@ public class SearchV2Controller {
         }
         List<Document> retrieved = searchService.search(request.query(), version);
         List<Document> ranked = SearchResultsFormatter.sortByRelevance(retrieved);
-        List<Document> budgeted = SearchResultsFormatter.applyTokenBudget(ranked, request.tokens());
+        List<Document> trimmedToBudget = SearchResultsFormatter.applyTokenBudget(ranked, request.tokens());
 
-        return budgeted.stream()
-                .map(SearchV2Controller::toResultDocument)
+        return trimmedToBudget.stream()
+                .map(document -> {
+                    String title = SearchResultsFormatter.extractTitle(document);
+                    String source = SearchResultsFormatter.extractSource(document);
+                    return new SearchResultDocument(document.getId(), title, source, document.getText());
+                })
                 .toList();
-    }
-
-    private static SearchResultDocument toResultDocument(Document document) {
-        String title = SearchResultsFormatter.extractTitle(document);
-        String source = SearchResultsFormatter.extractSource(document);
-        return new SearchResultDocument(document.getId(), title, source, document.getText());
     }
 
     public record SearchResultDocument(String id, String title, String source, String content) {
