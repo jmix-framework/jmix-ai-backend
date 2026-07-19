@@ -22,6 +22,7 @@ import java.util.stream.DoubleStream;
 @Component
 public class CheckAnalyticsService {
 
+    /** Fingerprint of runs that predate both the fingerprint column and the legacy label suffix. */
     static final String LEGACY_COHORT = "legacy";
 
     private final DataManager dataManager;
@@ -30,6 +31,7 @@ public class CheckAnalyticsService {
         this.dataManager = dataManager;
     }
 
+    /** Score and accuracy of one completed run; a point on the Overview trend charts. */
     public record RunPoint(@Nullable OffsetDateTime createdDate, double score, @Nullable Double accuracy) {
     }
 
@@ -37,36 +39,65 @@ public class CheckAnalyticsService {
     public record ConfigTrend(String label, String version, String fingerprint, List<RunPoint> points) {
     }
 
+    /** Everything the Overview screen shows: one trend per configuration plus headline counters. */
     public record Overview(List<ConfigTrend> trends, int completedRuns, int configCount,
                            @Nullable Double latestScore, @Nullable Double latestAccuracy) {
     }
 
+    /** Average scores of one category in both compared configurations; a bar pair on the category chart. */
     public record CategoryScore(String category, double base, double compare) {
     }
 
+    /**
+     * One row of the question-by-question comparison. Scores are averaged over all runs of each
+     * configuration, while the actual answers come from the latest run only — so the shown text
+     * may not correspond to the averaged score exactly. Accuracies are null when the pass
+     * threshold of the runs is unknown.
+     */
     public record CheckDelta(String question, String category, double base, double compare, double delta,
                              String referenceAnswer, String baselineActualAnswer,
                              String candidateActualAnswer, @Nullable Double baseAccuracy,
                              @Nullable Double candidateAccuracy) {
     }
 
+    /**
+     * Question-by-question comparison. Deltas cover only questions present in both configurations
+     * (matched as {@link QuestionKey}), sorted worst regression first. The counters are questions
+     * that exist on one side only — they are excluded from every metric.
+     */
     public record ComparisonResult(List<CheckDelta> deltas, int baselineOnly, int candidateOnly) {
     }
 
+    /** Headline cards of the comparison; unchanged means the averaged scores differ by no more than 0.0001. */
     public record ComparisonSummary(int common, int improved, int regressed, int unchanged,
                                     int baselineOnly, int candidateOnly,
                                     @Nullable Double baseScore, @Nullable Double candidateScore,
                                     @Nullable Double baseAccuracy, @Nullable Double candidateAccuracy) {
     }
 
+    /**
+     * A selectable configuration in the comparison drop-downs: all finished runs sharing one
+     * {@link #groupKey(CheckRun)}. The {@code fingerprint} is a short hash of that key, shown in
+     * the label to tell equally-described configurations apart; {@code comparisonCohort} drives
+     * {@link #canCompare(ConfigOption, ConfigOption)}.
+     */
     public record ConfigOption(String key, String description, String version, String comparisonCohort,
                                String definitionFingerprint, String evaluatorConfig,
                                String fingerprint, int runCount) {
     }
 
+    /**
+     * Identity of a question across runs: the text together with the reference answer, so an
+     * edited check definition does not match its former self.
+     */
     record QuestionKey(String question, String referenceAnswer) {
     }
 
+    /**
+     * Running aggregate of one question over all runs of a configuration: score sum and count for
+     * the average, passed and accuracyCount for accuracy (counted only when the runs' pass
+     * threshold is known), and the latest actual answer for the details panel.
+     */
     record QuestionAggregate(double sum, int count, int passed, int accuracyCount,
                              String category, String referenceAnswer, String latestActualAnswer) {
 
@@ -149,12 +180,23 @@ public class CheckAnalyticsService {
                 .list();
     }
 
+    /**
+     * Identity of a selectable configuration (one comparison drop-down item): the comparison
+     * cohort plus the exact parameters. Finer than {@link #configurationKey(CheckRun)} — the same
+     * parameters evaluated against different check suites form different options.
+     */
     static String groupKey(CheckRun run) {
         String parameters = run.getParameters();
         return comparisonCohortKey(run) + "||"
                 + (parameters != null ? "1" + parameters : "0");
     }
 
+    /**
+     * Identity of the evaluation conditions: Jmix version, check definitions and evaluator
+     * settings. Scores are directly comparable only within one cohort. For runs whose conditions
+     * are unknown (legacy fingerprint or missing evaluator config) the parameters are mixed in,
+     * so such runs compare without a warning only against runs of the very same configuration.
+     */
     static String comparisonCohortKey(CheckRun run) {
         String fingerprint = definitionFingerprint(run);
         String evaluatorConfig = run.getEvaluatorConfig();
@@ -165,16 +207,22 @@ public class CheckAnalyticsService {
         return key;
     }
 
+    /** Identity of a configuration on the Overview trends: Jmix version plus parameters. */
     static String configurationKey(CheckRun run) {
         String parameters = run.getParameters();
         return versionId(run) + "||"
                 + (parameters != null ? "1" + parameters : "0");
     }
 
+    /** Short hash of {@link #groupKey(CheckRun)}, shown in UI labels to disambiguate configurations. */
     static String configFingerprint(CheckRun run) {
         return CheckFingerprints.shortHash(groupKey(run));
     }
 
+    /**
+     * The stored fingerprint of the active check definitions, falling back for pre-column runs
+     * to the hash embedded in the legacy label suffix, then to {@link #LEGACY_COHORT}.
+     */
     private static String definitionFingerprint(CheckRun run) {
         String fingerprint = run.getDefinitionFingerprint();
         if (fingerprint != null && !fingerprint.isBlank()) {
@@ -192,6 +240,10 @@ public class CheckAnalyticsService {
         return value != null ? "1" + value : "0";
     }
 
+    /**
+     * Aggregates every check of every run of the option per question; averaging across runs
+     * smooths run-to-run LLM noise.
+     */
     private Map<QuestionKey, QuestionAggregate> aggregateQuestions(
             @Nullable ConfigOption option, Map<String, List<CheckRun>> runsByConfig) {
         Map<QuestionKey, QuestionAggregate> perQuestion = new LinkedHashMap<>();
@@ -213,6 +265,11 @@ public class CheckAnalyticsService {
         return new QuestionAggregate(0.0, 0, 0, 0, "", "", "");
     }
 
+    /**
+     * The pass threshold the runs were evaluated with, parsed back from the stored evaluator
+     * config — historical runs are judged by their own threshold, not the current application
+     * setting. Null (no accuracy) when no run carries one.
+     */
     private static @Nullable Double passThreshold(List<CheckRun> runs) {
         String marker = "|passThreshold=";
         for (CheckRun run : runs) {
