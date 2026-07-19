@@ -17,18 +17,23 @@ public record Snippet(
         @Nullable String code,
         String source) {
 
+    /** Starts the first line of a formatted snippet; retrieval recognizes snippet titles by it. */
+    public static final String TITLE_PREFIX = "TITLE: ";
+    private static final String DESCRIPTION_PREFIX = "DESCRIPTION: ";
+    private static final String SOURCE_PREFIX = "SOURCE: ";
+    private static final String LANGUAGE_PREFIX = "LANGUAGE: ";
     private static final String CODE_FENCE_START = "\nCODE:\n```";
     private static final String CODE_FENCE_END = "\n```";
 
     public String format() {
         StringBuilder sb = new StringBuilder();
-        sb.append("TITLE: ").append(title).append('\n');
-        sb.append("DESCRIPTION: ").append(description).append('\n');
-        sb.append("SOURCE: ").append(source);
+        sb.append(TITLE_PREFIX).append(title).append('\n');
+        sb.append(DESCRIPTION_PREFIX).append(description).append('\n');
+        sb.append(SOURCE_PREFIX).append(source);
         if (code != null && !code.isBlank()) {
             String lang = language == null ? "" : language;
             if (!lang.isEmpty()) {
-                sb.append('\n').append("LANGUAGE: ").append(lang);
+                sb.append('\n').append(LANGUAGE_PREFIX).append(lang);
             }
             sb.append(CODE_FENCE_START).append(lang).append('\n')
                     .append(code).append(CODE_FENCE_END);
@@ -50,14 +55,14 @@ public record Snippet(
         String source = null;
         String language = null;
         for (String line : head.split("\n")) {
-            if (line.startsWith("TITLE: ")) {
-                title = line.substring("TITLE: ".length());
-            } else if (line.startsWith("DESCRIPTION: ")) {
-                description = line.substring("DESCRIPTION: ".length());
-            } else if (line.startsWith("SOURCE: ")) {
-                source = line.substring("SOURCE: ".length());
-            } else if (line.startsWith("LANGUAGE: ")) {
-                language = line.substring("LANGUAGE: ".length());
+            if (line.startsWith(TITLE_PREFIX)) {
+                title = line.substring(TITLE_PREFIX.length());
+            } else if (line.startsWith(DESCRIPTION_PREFIX)) {
+                description = line.substring(DESCRIPTION_PREFIX.length());
+            } else if (line.startsWith(SOURCE_PREFIX)) {
+                source = line.substring(SOURCE_PREFIX.length());
+            } else if (line.startsWith(LANGUAGE_PREFIX)) {
+                language = line.substring(LANGUAGE_PREFIX.length());
             }
         }
         if (title == null || description == null || source == null) {

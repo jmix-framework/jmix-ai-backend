@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.retrieval;
 
+import io.jmix.ai.backend.vectorstore.Snippet;
 import org.springframework.ai.document.Document;
 import org.springframework.lang.Nullable;
 
@@ -60,14 +61,14 @@ public class SearchResultsFormatter {
     }
 
     /**
-     * Snippet title: the "TITLE: " line if present, otherwise the docPath metadata,
-     * otherwise the beginning of the text.
+     * Snippet title: the {@link Snippet#TITLE_PREFIX} line if present, otherwise the docPath
+     * metadata, otherwise the beginning of the text.
      */
     public static String extractTitle(Document document) {
         String text = document.getText() == null ? "" : document.getText();
         for (String line : text.split("\n", 6)) {
-            if (line.startsWith("TITLE: ")) {
-                return line.substring("TITLE: ".length()).trim();
+            if (line.startsWith(Snippet.TITLE_PREFIX)) {
+                return line.substring(Snippet.TITLE_PREFIX.length()).trim();
             }
         }
         String docPath = Objects.toString(document.getMetadata().get("docPath"), "");
