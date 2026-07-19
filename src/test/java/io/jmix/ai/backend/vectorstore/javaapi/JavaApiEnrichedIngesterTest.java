@@ -86,8 +86,8 @@ class JavaApiEnrichedIngesterTest {
         when(enricher.getModelKey()).thenReturn("test-model");
         EnrichmentCache cached = new EnrichmentCache();
         cached.setContentHash("hash1");
-        cached.setDescription("Cached description.");
-        cached.setExample("DataManager dm;");
+        cached.setContent(JavaApiEnricher.toCacheJson(
+                new JavaApiEnricher.Enrichment("Cached description.", "DataManager dm;")));
         when(enrichmentCacheRepository.find("javaapi-enriched", "io/jmix/core/DataManager.html", "v2", "test-model"))
                 .thenReturn(Optional.of(cached));
 
@@ -99,7 +99,7 @@ class JavaApiEnrichedIngesterTest {
                 .contains("// Usage example:\nDataManager dm;");
         assertThat(chunks.getFirst().getMetadata()).containsEntry("enriched", "true");
         verify(enricher, never()).enrich(anyString());
-        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any(), any());
+        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -119,7 +119,8 @@ class JavaApiEnrichedIngesterTest {
                 .contains("dm.unconstrained();");
         verify(enricher).enrich(CARD.format());
         verify(enrichmentCacheRepository).save("javaapi-enriched", "io/jmix/core/DataManager.html", "v2",
-                "test-model", "hash1", "Generated description.", "dm.unconstrained();");
+                "test-model", "hash1",
+                JavaApiEnricher.toCacheJson(new JavaApiEnricher.Enrichment("Generated description.", "dm.unconstrained();")));
     }
 
     @Test
@@ -152,7 +153,7 @@ class JavaApiEnrichedIngesterTest {
         assertThat(chunks.getFirst().getMetadata())
                 .doesNotContainKey("enriched")
                 .doesNotContainKey("generationKey");
-        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any(), any());
+        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -170,7 +171,7 @@ class JavaApiEnrichedIngesterTest {
         assertThat(chunks).allSatisfy(chunk ->
                 assertThat(chunk.getText()).contains("DESCRIPTION: Generated."));
         verify(enricher, times(4)).enrich(anyString());
-        verify(enrichmentCacheRepository, times(4)).save(any(), any(), any(), any(), any(), any(), any());
+        verify(enrichmentCacheRepository, times(4)).save(any(), any(), any(), any(), any(), any());
     }
 
     @Test

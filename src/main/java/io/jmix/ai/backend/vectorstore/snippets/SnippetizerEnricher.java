@@ -150,7 +150,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
             Optional<List<Snippet>> cached = enrichmentCacheRepository
                     .find(type, source(document), jmixVersion(document), getModelKey())
                     .filter(entry -> Objects.equals(contentHash, entry.getContentHash()))
-                    .map(EnrichmentCache::getDescription)
+                    .map(EnrichmentCache::getContent)
                     .map(this::fromJson)
                     .filter(snippets -> containsOnlyVerbatimCode(snippets, content));
             if (cached.isPresent()) {
@@ -182,7 +182,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
                 if (snippets != null && !snippets.isEmpty()) {
                     result.put(document.getId(), snippets);
                     enrichmentCacheRepository.save(type, source(document), jmixVersion(document), getModelKey(),
-                            (String) document.getMetadata().get("sourceHash"), toJson(snippets), "");
+                            (String) document.getMetadata().get("sourceHash"), toJson(snippets));
                 }
                 completedCount++;
                 if (completedCount % 100 == 0) {

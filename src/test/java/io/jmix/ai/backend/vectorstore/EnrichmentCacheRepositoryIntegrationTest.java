@@ -86,8 +86,7 @@ class EnrichmentCacheRepositoryIntegrationTest {
         cache.setJmixVersion(jmixVersion);
         cache.setModelName(modelName);
         cache.setContentHash("hash");
-        cache.setDescription("description");
-        cache.setExample("");
+        cache.setContent("content");
         return cache;
     }
 }

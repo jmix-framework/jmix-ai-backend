@@ -161,7 +161,7 @@ class SnippetizerEnricherTest {
         EnrichmentCache cached = new EnrichmentCache();
         cached.setContentHash("hash1");
         TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
-        cached.setDescription(snippetizer.toJson(List.of(
+        cached.setContent(snippetizer.toJson(List.of(
                 new Snippet("Invented", "Cached.", "xml", "<button text=\"Invented\"/>", "source"))));
         when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
                 "test-model:low:p4")).thenReturn(Optional.of(cached));
@@ -185,7 +185,7 @@ class SnippetizerEnricherTest {
         TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
         EnrichmentCache cached = new EnrichmentCache();
         cached.setContentHash("hash1");
-        cached.setDescription(snippetizer.toJson(List.of(
+        cached.setContent(snippetizer.toJson(List.of(
                 new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>", "source"))));
         when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
                 "test-model:low:p4")).thenReturn(Optional.of(cached));

@@ -1,6 +1,8 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.ai.backend.vectorstore.AbstractOpenAiEnricher;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import org.apache.commons.lang3.StringUtils;
@@ -45,6 +47,28 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
     public record Enrichment(
             @Nullable @JsonProperty(required = true, value = "description") String description,
             @Nullable @JsonProperty(required = true, value = "example") String example) {
+    }
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /** Serializes the enrichment for the {@code EnrichmentCache} content. */
+    public static String toCacheJson(Enrichment enrichment) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(enrichment);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize enrichment", e);
+        }
+    }
+
+    /** Restores the enrichment from cached content, or null if unreadable (a cache miss). */
+    @Nullable
+    public static Enrichment fromCacheJson(String json) {
+        try {
+            return OBJECT_MAPPER.readValue(json, Enrichment.class);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to deserialize cached enrichment", e);
+            return null;
+        }
     }
 
     private static final BeanOutputConverter<Enrichment> OUTPUT_CONVERTER =

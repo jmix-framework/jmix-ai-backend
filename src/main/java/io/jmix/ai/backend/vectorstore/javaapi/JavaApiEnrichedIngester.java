@@ -110,12 +110,13 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
             String source = getSourceFromDocument(document);
             String jmixVersion = (String) document.getMetadata().get("jmixVersion");
             String contentHash = (String) document.getMetadata().get("sourceHash");
-            Optional<EnrichmentCache> cached = enrichmentCacheRepository
+            Optional<JavaApiEnricher.Enrichment> cached = enrichmentCacheRepository
                     .find(getType(), source, jmixVersion, modelName)
-                    .filter(entry -> Objects.equals(contentHash, entry.getContentHash()));
+                    .filter(entry -> Objects.equals(contentHash, entry.getContentHash()))
+                    .map(EnrichmentCache::getContent)
+                    .map(JavaApiEnricher::fromCacheJson);
             if (cached.isPresent()) {
-                result.add(withEnrichment(document, card,
-                        new JavaApiEnricher.Enrichment(cached.get().getDescription(), cached.get().getExample())));
+                result.add(withEnrichment(document, card, cached.get()));
             } else {
                 pending.add(new PendingEnrichment(document, card, source, jmixVersion, contentHash));
             }
@@ -141,7 +142,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
                     if (enrichment != null) {
                         // save on the caller thread: DataManager requires the caller's security context
                         enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
-                                item.contentHash(), enrichment.description(), enrichment.example());
+                                item.contentHash(), JavaApiEnricher.toCacheJson(enrichment));
                     }
                     result.add(withEnrichment(item.document(), item.card(), enrichment));
                     completedCount++;

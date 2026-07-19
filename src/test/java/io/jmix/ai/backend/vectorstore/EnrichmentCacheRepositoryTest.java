@@ -31,11 +31,10 @@ class EnrichmentCacheRepositoryTest {
         when(dataManager.save(attempted)).thenThrow(new UniqueConstraintViolationException());
 
         repository.save("docs-snippets", "page.html", "v2", "model:p3",
-                "hash", "description", "example");
+                "hash", "content");
 
         verify(dataManager).save(concurrent);
         assertThat(concurrent.getContentHash()).isEqualTo("hash");
-        assertThat(concurrent.getDescription()).isEqualTo("description");
-        assertThat(concurrent.getExample()).isEqualTo("example");
+        assertThat(concurrent.getContent()).isEqualTo("content");
     }
 }

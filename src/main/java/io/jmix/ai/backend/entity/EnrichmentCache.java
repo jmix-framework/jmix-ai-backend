@@ -83,21 +83,14 @@ public class EnrichmentCache {
     private String contentHash;
 
     /**
-     * Generated payload; its meaning depends on {@link #type}. For {@code javaapi-enriched} it is the LLM
-     * description. For the snippet corpuses ({@code docs-snippets}/{@code uisamples-snippets}) it is
-     * the JSON-serialized list of {@code Snippet}s, and {@link #example} is then unused.
+     * Serialized generated payload; its format depends on {@link #type}: the JSON-serialized list
+     * of {@code Snippet}s for the snippet corpuses ({@code docs-snippets}/{@code uisamples-snippets}),
+     * the JSON-serialized {@code Enrichment} (description and usage example) for {@code javaapi-enriched}.
+     * An unreadable payload is treated as a cache miss and regenerated.
      */
-    @Column(name = "DESCRIPTION")
+    @Column(name = "CONTENT")
     @Lob
-    private String description;
-
-    /**
-     * For {@code javaapi-enriched}, the generated usage example. Empty ({@code ""}) for the snippet corpuses,
-     * whose entire payload is stored in {@link #description}.
-     */
-    @Column(name = "EXAMPLE")
-    @Lob
-    private String example;
+    private String content;
 
     public UUID getId() {
         return id;
@@ -155,19 +148,11 @@ public class EnrichmentCache {
         this.contentHash = contentHash;
     }
 
-    public String getDescription() {
-        return description;
+    public String getContent() {
+        return content;
     }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getExample() {
-        return example;
-    }
-
-    public void setExample(String example) {
-        this.example = example;
+    public void setContent(String content) {
+        this.content = content;
     }
 }

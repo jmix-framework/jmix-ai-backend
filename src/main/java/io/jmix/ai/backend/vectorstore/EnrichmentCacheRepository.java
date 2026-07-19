@@ -34,10 +34,10 @@ public class EnrichmentCacheRepository {
     }
 
     public void save(String type, String source, String jmixVersion, String modelName,
-                     String contentHash, String description, String example) {
+                     String contentHash, String content) {
         Optional<EnrichmentCache> existing = find(type, source, jmixVersion, modelName);
         if (existing.isPresent()) {
-            save(existing.get(), contentHash, description, example);
+            save(existing.get(), contentHash, content);
             return;
         }
 
@@ -47,12 +47,12 @@ public class EnrichmentCacheRepository {
         entity.setJmixVersion(jmixVersion);
         entity.setModelName(modelName);
         try {
-            save(entity, contentHash, description, example);
+            save(entity, contentHash, content);
         } catch (UniqueConstraintViolationException e) {
             // Another ingestion run inserted the same cache key after our initial lookup.
             EnrichmentCache concurrent = find(type, source, jmixVersion, modelName)
                     .orElseThrow(() -> e);
-            save(concurrent, contentHash, description, example);
+            save(concurrent, contentHash, content);
         }
     }
 
@@ -112,10 +112,9 @@ public class EnrichmentCacheRepository {
         return loader.list();
     }
 
-    private void save(EnrichmentCache entity, String contentHash, String description, String example) {
+    private void save(EnrichmentCache entity, String contentHash, String content) {
         entity.setContentHash(contentHash);
-        entity.setDescription(description);
-        entity.setExample(example);
+        entity.setContent(content);
         dataManager.save(entity);
     }
 

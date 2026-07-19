@@ -23,8 +23,7 @@
             <column name="CONTENT_HASH" type="VARCHAR(50)">
                 <constraints nullable="false"/>
             </column>
-            <column name="DESCRIPTION" type="CLOB"/>
-            <column name="EXAMPLE" type="CLOB"/>
+            <column name="CONTENT" type="CLOB"/>
         </createTable>
         <createIndex tableName="ENRICHMENT_CACHE" indexName="IDX_ENRICHMENT_CACHE_LOOKUP" unique="true">
             <column name="TYPE_"/>
