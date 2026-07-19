@@ -25,8 +25,8 @@ import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
 
 public abstract class AbstractRagTool {
 
-    /** Upper bound on how many snippets the model may request in a single tool call. */
-    private static final int MAX_RESULTS_CAP = 50;
+    /** Upper bound on how many snippets a caller (the model or the search API) may request per tool call. */
+    public static final int MAX_RESULTS_CAP = 50;
     private static final String MAX_RESULTS_DESCRIPTION =
             "Optional: how many snippets to return (1-" + MAX_RESULTS_CAP
                     + "). Omit to use the configured default. The tool description states the "

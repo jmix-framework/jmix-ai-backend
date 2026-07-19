@@ -65,12 +65,12 @@ class SearchControllersTest {
                 .metadata(Map.of("url", "https://example.com/high"))
                 .score(0.9)
                 .build();
-        when(searchService.search("query", JmixVersion.V2))
+        when(searchService.search("query", JmixVersion.V2, null))
                 .thenReturn(List.of(lessRelevant, mostRelevant));
         SearchV2Controller controller = new SearchV2Controller(searchService);
 
         List<SearchV2Controller.SearchResultDocument> result = controller.search(
-                new SearchV2Controller.SearchRequest("query", null, 1));
+                new SearchV2Controller.SearchRequest("query", null, 1, null));
 
         assertThat(result).singleElement().satisfies(item -> {
             assertThat(item.id()).isEqualTo("high");
@@ -78,7 +78,7 @@ class SearchControllersTest {
             assertThat(item.source()).isEqualTo("https://example.com/high");
             assertThat(item.content()).isEqualTo(mostRelevant.getText());
         });
-        verify(searchService).search("query", JmixVersion.V2);
+        verify(searchService).search("query", JmixVersion.V2, null);
     }
 
     @ParameterizedTest
@@ -87,7 +87,30 @@ class SearchControllersTest {
         SearchV2Controller controller = new SearchV2Controller(searchService);
 
         assertThatThrownBy(() -> controller.search(
-                new SearchV2Controller.SearchRequest("query", "v2", tokens)))
+                new SearchV2Controller.SearchRequest("query", "v2", tokens, null)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
+        verifyNoInteractions(searchService);
+    }
+
+    @Test
+    void v2EndpointPassesMaxResultsToEveryRetrievalTool() {
+        when(searchService.search("query", JmixVersion.V2, 7)).thenReturn(List.of());
+        SearchV2Controller controller = new SearchV2Controller(searchService);
+
+        controller.search(new SearchV2Controller.SearchRequest("query", "v2", null, 7));
+
+        verify(searchService).search("query", JmixVersion.V2, 7);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0, 51})
+    void v2EndpointRejectsInvalidMaxResults(int maxResults) {
+        SearchV2Controller controller = new SearchV2Controller(searchService);
+
+        assertThatThrownBy(() -> controller.search(
+                new SearchV2Controller.SearchRequest("query", "v2", null, maxResults)))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         exception -> assertThat(exception.getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
@@ -100,7 +123,7 @@ class SearchControllersTest {
         SearchV2Controller controller = new SearchV2Controller(searchService);
 
         assertThatThrownBy(() -> controller.search(
-                new SearchV2Controller.SearchRequest("query", version, null)))
+                new SearchV2Controller.SearchRequest("query", version, null, null)))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         exception -> assertThat(exception.getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
@@ -114,7 +137,7 @@ class SearchControllersTest {
         SearchV2Controller controller = new SearchV2Controller(searchService);
 
         assertThatThrownBy(() -> controller.search(
-                new SearchV2Controller.SearchRequest(query, "v2", null)))
+                new SearchV2Controller.SearchRequest(query, "v2", null, null)))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         exception -> assertThat(exception.getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
@@ -126,7 +149,7 @@ class SearchControllersTest {
         SearchV2Controller controller = new SearchV2Controller(searchService);
 
         assertThatThrownBy(() -> controller.search(
-                new SearchV2Controller.SearchRequest("x".repeat(10_001), "v2", null)))
+                new SearchV2Controller.SearchRequest("x".repeat(10_001), "v2", null, null)))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         exception -> assertThat(exception.getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));

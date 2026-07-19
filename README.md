@@ -99,15 +99,19 @@ Content-Type: application/json
 {
     "query": "how to add a click handler to a button",
     "jmix_version": "v2",
-    "tokens": 2000
+    "tokens": 2000,
+    "max_results": 10
 }
 ```
 
 Each v2 result contains `id`, `title`, `source` and `content`. The optional `jmix_version` field
-selects the corpus. The optional `tokens` field accepts values from 1 to 100000 and applies an
-approximate, best-effort response budget using four characters per token. At least the most relevant
-result is returned, so that first result may exceed a small budget. Omit `tokens` to return all
-retrieved documents. Both endpoints are configured by the active search parameters record.
+selects the corpus. The optional `max_results` field (1 to 50) limits how many snippets each
+retrieval tool returns, so the caller decides how much context it wants instead of relying on the
+configured per-tool defaults. The optional `tokens` field accepts values from 1 to 100000 and
+applies an approximate, best-effort response budget using four characters per token to the
+relevance-ordered total. At least the most relevant result is returned, so that first result may
+exceed a small budget. Omit both to return the default set of retrieved documents. Both endpoints
+are configured by the active search parameters record.
 
 ## Admin UI
 

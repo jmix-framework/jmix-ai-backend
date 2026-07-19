@@ -2,6 +2,7 @@ package io.jmix.ai.backend.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.jmix.ai.backend.entity.JmixVersion;
+import io.jmix.ai.backend.retrieval.AbstractRagTool;
 import io.jmix.ai.backend.retrieval.SearchResultsFormatter;
 import io.jmix.ai.backend.retrieval.SearchService;
 import org.apache.commons.lang3.StringUtils;
@@ -41,6 +42,11 @@ public class SearchV2Controller {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Tokens must be between 1 and " + MAX_TOKEN_BUDGET);
         }
+        if (request.maxResults() != null
+                && (request.maxResults() <= 0 || request.maxResults() > AbstractRagTool.MAX_RESULTS_CAP)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Max results must be between 1 and " + AbstractRagTool.MAX_RESULTS_CAP);
+        }
 
         JmixVersion version = JmixVersion.fromId(request.jmixVersion());
         if (version == null && StringUtils.isNotBlank(request.jmixVersion())) {
@@ -50,7 +56,7 @@ public class SearchV2Controller {
         if (version == null) {
             version = JmixVersion.V2;
         }
-        List<Document> retrieved = searchService.search(request.query(), version);
+        List<Document> retrieved = searchService.search(request.query(), version, request.maxResults());
         List<Document> ranked = SearchResultsFormatter.sortByRelevance(retrieved);
         List<Document> trimmedToBudget = SearchResultsFormatter.applyTokenBudget(ranked, request.tokens());
 
@@ -66,9 +72,15 @@ public class SearchV2Controller {
     public record SearchResultDocument(String id, String title, String source, String content) {
     }
 
+    /**
+     * {@code maxResults} limits how many snippets each retrieval tool returns, so the caller
+     * (e.g. an MCP client's LLM) decides how much context it wants; {@code tokens} then trims
+     * the relevance-ordered total to an approximate budget.
+     */
     public record SearchRequest(
             String query,
             @JsonProperty("jmix_version") String jmixVersion,
-            Integer tokens) {
+            Integer tokens,
+            @JsonProperty("max_results") Integer maxResults) {
     }
 }

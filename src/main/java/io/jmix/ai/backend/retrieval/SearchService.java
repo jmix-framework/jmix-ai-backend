@@ -8,6 +8,7 @@ import io.jmix.ai.backend.parameters.ParametersRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -30,6 +31,15 @@ public class SearchService {
     }
 
     public List<Document> search(String query, JmixVersion jmixVersion) {
+        return search(query, jmixVersion, null);
+    }
+
+    /**
+     * Runs the retrieval tools without the answering LLM. {@code maxResults} limits how many
+     * snippets each tool returns (the caller decides how much context it needs); null uses the
+     * configured per-tool defaults.
+     */
+    public List<Document> search(String query, JmixVersion jmixVersion, @Nullable Integer maxResults) {
         List<Document> retrievedDocuments = new ArrayList<>();
 
         List<String> logMessages = new ArrayList<>();
@@ -66,7 +76,7 @@ public class SearchService {
         List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, listener, jmixVersion);
 
         for (AbstractRagTool tool : ragTools) {
-            tool.execute(query, null);
+            tool.execute(query, maxResults);
         }
 
         return getUniqueSortedDocuments(retrievedDocuments);
