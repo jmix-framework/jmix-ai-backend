@@ -22,8 +22,10 @@ public record Snippet(
     private static final String DESCRIPTION_PREFIX = "DESCRIPTION: ";
     private static final String SOURCE_PREFIX = "SOURCE: ";
     private static final String LANGUAGE_PREFIX = "LANGUAGE: ";
-    private static final String CODE_FENCE_START = "\nCODE:\n```";
-    private static final String CODE_FENCE_END = "\n```";
+    /** Opens the code section of a formatted snippet, followed by the language and a line break. */
+    public static final String CODE_FENCE_START = "\nCODE:\n```";
+    /** Terminates the code section; a formatted snippet with code always ends with it. */
+    public static final String CODE_FENCE_END = "\n```";
 
     public String format() {
         StringBuilder sb = new StringBuilder();

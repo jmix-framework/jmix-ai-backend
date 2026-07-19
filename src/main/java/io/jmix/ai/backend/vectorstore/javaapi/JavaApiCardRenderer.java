@@ -59,27 +59,25 @@ public class JavaApiCardRenderer {
         if (cardText.length() <= maxSize) {
             return List.of(cardText);
         }
-        String fenceStart = "CODE:\n```";
-        int codeIdx = cardText.indexOf(fenceStart);
+        int codeIdx = cardText.indexOf(Snippet.CODE_FENCE_START);
         if (codeIdx < 0) {
             return splitText(cardText, maxSize);
         }
-        String footer = "\n```";
-        int bodyLineBreak = cardText.indexOf('\n', codeIdx + fenceStart.length());
-        if (bodyLineBreak < 0 || !cardText.endsWith(footer)) {
+        int bodyLineBreak = cardText.indexOf('\n', codeIdx + Snippet.CODE_FENCE_START.length());
+        if (bodyLineBreak < 0 || !cardText.endsWith(Snippet.CODE_FENCE_END)) {
             return splitText(cardText, maxSize);
         }
         int bodyStart = bodyLineBreak + 1;
         String header = cardText.substring(0, bodyStart);
-        String body = cardText.substring(bodyStart, cardText.length() - footer.length());
+        String body = cardText.substring(bodyStart, cardText.length() - Snippet.CODE_FENCE_END.length());
 
-        int budget = maxSize - header.length() - footer.length();
+        int budget = maxSize - header.length() - Snippet.CODE_FENCE_END.length();
         if (budget <= 0) {
             return splitText(cardText, maxSize);
         }
         List<String> parts = new ArrayList<>();
         for (String bodyPart : splitText(body, budget)) {
-            parts.add(header + bodyPart + footer);
+            parts.add(header + bodyPart + Snippet.CODE_FENCE_END);
         }
         return parts;
     }
