@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 /**
  * Ingests Jmix Java API reference from the Javadoc site. Each class page is parsed into
- * a structured model and rendered as a compact "API card" snippet with verbatim signatures.
+ * a structured model and formatted as a compact "API card" snippet with verbatim signatures.
  * <p>
  * This corpus ({@code javaapi}) is fully deterministic — no LLM calls.
  * {@link JavaApiEnrichedIngester} builds the parallel {@code javaapi-enriched} corpus whose
@@ -50,7 +50,7 @@ public class JavaApiIngester extends AbstractIngester {
 
     private final RestTemplate restTemplate;
     private final JavadocPageParser parser = new JavadocPageParser();
-    private final JavaApiCardRenderer renderer = new JavaApiCardRenderer();
+    private final JavaApiCardFormatter cardFormatter = new JavaApiCardFormatter();
 
     public JavaApiIngester(
             @Value("${javaapi.v2.base-url:}") String v2BaseUrl,
@@ -180,7 +180,7 @@ public class JavaApiIngester extends AbstractIngester {
             log.warn("Not a class page, skipping: {}", url);
             return null;
         }
-        Snippet card = renderer.render(classDoc, url);
+        Snippet card = cardFormatter.format(classDoc, url);
         String cardText = card.format();
 
         Map<String, Object> metadata = createMetadata(source, cardText, version);
@@ -195,7 +195,7 @@ public class JavaApiIngester extends AbstractIngester {
 
         List<Document> chunkDocs = new ArrayList<>();
         for (Document document : preparedDocuments) {
-            List<String> parts = JavaApiCardRenderer.splitCard(document.getText(), MAX_CARD_CHUNK_SIZE);
+            List<String> parts = JavaApiCardFormatter.splitCard(document.getText(), MAX_CARD_CHUNK_SIZE);
             if (parts.size() > 1) {
                 log.debug("Split card {} into {} parts", document.getMetadata().get("url"), parts.size());
             }
@@ -211,7 +211,7 @@ public class JavaApiIngester extends AbstractIngester {
         return chunkDocs;
     }
 
-    /** Hook for corpuses that post-process rendered cards (e.g. LLM enrichment) before chunking. */
+    /** Hook for corpuses that post-process formatted cards (e.g. LLM enrichment) before chunking. */
     protected List<Document> prepareCards(List<Document> documents) {
         return documents;
     }

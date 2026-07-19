@@ -74,7 +74,7 @@ public class EnrichmentCache {
 
     /**
      * murmur3_32 hash of the ingested <em>content</em> — the document text ({@code sourceHash}
-     * metadata: the rendered API card for {@code javaapi-enriched}, the page text for the snippet corpuses),
+     * metadata: the formatted API card for {@code javaapi-enriched}, the page text for the snippet corpuses),
      * NOT of the {@link #source} identifier. A key hit is reused only while this still matches the
      * current content, so a changed page is re-enriched even under an unchanged key; conversely a
      * cosmetic change that leaves the rendered content identical keeps the hash and is skipped.

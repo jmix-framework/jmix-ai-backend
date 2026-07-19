@@ -12,17 +12,17 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class JavaApiCardRendererTest {
+public class JavaApiCardFormatterTest {
 
     private static final String URL = "https://docs.jmix.io/api/2.8/io/jmix/core/DataManager.html";
 
     private final JavadocPageParser parser = new JavadocPageParser();
-    private final JavaApiCardRenderer renderer = new JavaApiCardRenderer();
+    private final JavaApiCardFormatter formatter = new JavaApiCardFormatter();
 
     @Test
     void testRenderCard() throws IOException {
         JavadocClassDoc classDoc = parser.parse(loadResource("DataManager.html"));
-        Snippet card = renderer.render(classDoc, URL);
+        Snippet card = formatter.format(classDoc, URL);
 
         assertThat(card.title()).isEqualTo("Interface DataManager (io.jmix.core)");
         assertThat(card.source()).isEqualTo(URL);
@@ -42,18 +42,18 @@ public class JavaApiCardRendererTest {
     @Test
     void testSplitCardFits() throws IOException {
         JavadocClassDoc classDoc = parser.parse(loadResource("DataManager.html"));
-        String formatted = renderer.render(classDoc, URL).format();
+        String formatted = formatter.format(classDoc, URL).format();
 
-        assertThat(JavaApiCardRenderer.splitCard(formatted, 30_000)).containsExactly(formatted);
+        assertThat(JavaApiCardFormatter.splitCard(formatted, 30_000)).containsExactly(formatted);
     }
 
     @Test
     void testSplitCardParts() throws IOException {
         JavadocClassDoc classDoc = parser.parse(loadResource("UnconstrainedDataManager.html"));
-        String formatted = renderer.render(classDoc, URL).format();
+        String formatted = formatter.format(classDoc, URL).format();
         int maxSize = 2000;
 
-        List<String> parts = JavaApiCardRenderer.splitCard(formatted, maxSize);
+        List<String> parts = JavaApiCardFormatter.splitCard(formatted, maxSize);
 
         assertThat(parts.size()).isGreaterThan(1);
         String header = formatted.substring(0, formatted.indexOf("```java\n") + "```java\n".length());
@@ -75,7 +75,7 @@ public class JavaApiCardRendererTest {
         String formatted = new Snippet("Title", "Description.", "java", code, URL).format();
         String header = formatted.substring(0, formatted.indexOf("```java\n") + "```java\n".length());
 
-        List<String> parts = JavaApiCardRenderer.splitCard(formatted, 1_000);
+        List<String> parts = JavaApiCardFormatter.splitCard(formatted, 1_000);
 
         assertThat(parts).hasSizeGreaterThan(1)
                 .allSatisfy(part -> assertThat(part.length()).isLessThanOrEqualTo(1_000));
@@ -89,7 +89,7 @@ public class JavaApiCardRendererTest {
     void testSplitCardSplitsWholeCardWhenHeaderExceedsLimit() {
         String formatted = new Snippet("Title", "d".repeat(1_000), "java", "int value = 1;", URL).format();
 
-        List<String> parts = JavaApiCardRenderer.splitCard(formatted, 500);
+        List<String> parts = JavaApiCardFormatter.splitCard(formatted, 500);
 
         assertThat(parts).hasSizeGreaterThan(1)
                 .allSatisfy(part -> assertThat(part.length()).isLessThanOrEqualTo(500));

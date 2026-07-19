@@ -6,12 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Renders a parsed Javadoc class page into a compact "API card" snippet:
+ * Formats a parsed Javadoc class page into a compact "API card" snippet:
  * verbatim type signature, member signatures and short descriptions.
  */
-public class JavaApiCardRenderer {
+public class JavaApiCardFormatter {
 
-    public Snippet render(JavadocClassDoc classDoc, String url) {
+    public Snippet format(JavadocClassDoc classDoc, String url) {
         StringBuilder code = new StringBuilder();
         code.append(classDoc.typeSignature());
 
