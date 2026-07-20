@@ -21,7 +21,7 @@ public class JavaApiCardFormatterTest {
 
     @Test
     void testRenderCard() throws IOException {
-        JavadocClassDoc classDoc = parser.parse(loadResource("DataManager.html"));
+        JavadocClassDoc classDoc = parser.parse(loadResource("v2/DataManager.html"));
         Snippet card = formatter.format(classDoc, URL);
 
         assertThat(card.title()).isEqualTo("Interface DataManager (io.jmix.core)");
@@ -41,7 +41,7 @@ public class JavaApiCardFormatterTest {
 
     @Test
     void testSplitCardFits() throws IOException {
-        JavadocClassDoc classDoc = parser.parse(loadResource("DataManager.html"));
+        JavadocClassDoc classDoc = parser.parse(loadResource("v2/DataManager.html"));
         String formatted = formatter.format(classDoc, URL).format();
 
         assertThat(JavaApiCardFormatter.splitCard(formatted, 30_000)).containsExactly(formatted);
@@ -49,7 +49,7 @@ public class JavaApiCardFormatterTest {
 
     @Test
     void testSplitCardParts() throws IOException {
-        JavadocClassDoc classDoc = parser.parse(loadResource("UnconstrainedDataManager.html"));
+        JavadocClassDoc classDoc = parser.parse(loadResource("v2/UnconstrainedDataManager.html"));
         String formatted = formatter.format(classDoc, URL).format();
         int maxSize = 2000;
 
