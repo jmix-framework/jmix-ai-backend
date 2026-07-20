@@ -8,6 +8,11 @@
     <changeSet id="1" author="jmix-ai-backend">
         <addColumn tableName="CHECK_RUN">
             <column name="ACCURACY" type="DOUBLE"/>
+            <column name="CONFIG_LABEL" type="VARCHAR(255)"/>
+            <column name="JMIX_VERSION" type="VARCHAR(10)"/>
+            <column name="EVALUATOR_CONFIG" type="VARCHAR(255)"/>
+            <column name="PASS_THRESHOLD" type="DOUBLE"/>
+            <column name="DEFINITION_FINGERPRINT" type="VARCHAR(255)"/>
         </addColumn>
     </changeSet>
 </databaseChangeLog>

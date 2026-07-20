@@ -39,9 +39,6 @@ class DefaultChecksInitializerTest {
         String retirementMigration = new String(Objects.requireNonNull(getClass().getResourceAsStream(
                 "/io/jmix/ai/backend/liquibase/changelog/2026/07/11-040000-retire-ambiguous-checks.xml"))
                 .readAllBytes(), StandardCharsets.UTF_8);
-        String versionMigration = new String(Objects.requireNonNull(getClass().getResourceAsStream(
-                "/io/jmix/ai/backend/liquibase/changelog/2026/07/13-110000-check-def-jmix-version.xml"))
-                .readAllBytes(), StandardCharsets.UTF_8);
 
         List<DefaultChecksInitializer.DefaultCheck> definitions =
                 DefaultChecksInitializer.missingDefinitions(json, Set.of(), new ObjectMapper());
@@ -56,9 +53,6 @@ class DefaultChecksInitializerTest {
                 .filter(definition -> definition.jmixVersion() == JmixVersion.V2)
                 .map(DefaultChecksInitializer.DefaultCheck::id)
                 .collect(Collectors.toSet());
-        Set<UUID> backfilledVersionIds = QUOTED_UUID.matcher(versionMigration).results()
-                .map(result -> UUID.fromString(result.group(1)))
-                .collect(Collectors.toSet());
 
         // retired in changeset 1, deliberately reactivated in changeset 2 as an adversarial check
         Set<UUID> reactivatedIds = Set.of(UUID.fromString("018c1f8e-3b80-7fa0-e283-af1a2b3c4d5e"));
@@ -66,7 +60,7 @@ class DefaultChecksInitializerTest {
         assertThat(definitions).hasSize(81);
         assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(59);
         assertThat(inactiveDefinitionIds).hasSize(22);
-        assertThat(versionedIds).hasSize(6).isEqualTo(backfilledVersionIds);
+        assertThat(versionedIds).hasSize(6);
         assertThat(definitions).filteredOn(definition -> definition.jmixVersion() == null).hasSize(75);
         assertThat(Set.copyOf(migratedIds)).isEqualTo(Stream.concat(
                 inactiveDefinitionIds.stream(), reactivatedIds.stream()).collect(Collectors.toSet()));

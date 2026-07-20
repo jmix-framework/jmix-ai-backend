@@ -17,6 +17,7 @@
             <column name="SOURCE" type="VARCHAR(1000)">
                 <constraints nullable="false"/>
             </column>
+            <column name="JMIX_VERSION" type="VARCHAR(10)"/>
             <column name="MODEL_NAME" type="VARCHAR(100)">
                 <constraints nullable="false"/>
             </column>
@@ -28,6 +29,7 @@
         <createIndex tableName="ENRICHMENT_CACHE" indexName="IDX_ENRICHMENT_CACHE_LOOKUP" unique="true">
             <column name="TYPE_"/>
             <column name="SOURCE"/>
+            <column name="JMIX_VERSION"/>
             <column name="MODEL_NAME"/>
         </createIndex>
     </changeSet>

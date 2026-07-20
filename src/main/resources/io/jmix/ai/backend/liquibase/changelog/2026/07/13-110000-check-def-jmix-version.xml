@@ -9,19 +9,5 @@
         <addColumn tableName="CHECK_DEF">
             <column name="JMIX_VERSION" type="VARCHAR(10)"/>
         </addColumn>
-        <!-- A null version means that a definition is shared by all Jmix versions. -->
-        <update tableName="CHECK_DEF">
-            <column name="JMIX_VERSION" value="v2"/>
-            <where>
-                ID IN (
-                    '9149bb5d-ff38-4975-9461-81fb7143d427',
-                    '3e8863e5-7193-4a08-a76f-47ff26777d88',
-                    'ea4a94f2-5413-42cc-9c16-615ac1a1b5f3',
-                    'd573185f-afd0-4da3-8c71-888574d8bce1',
-                    '83cd6d77-5f14-43f9-aa2a-76bcc5119bbc',
-                    '5b9620aa-0142-42cb-b98c-77674c4ab2c7'
-                )
-            </where>
-        </update>
     </changeSet>
 </databaseChangeLog>
