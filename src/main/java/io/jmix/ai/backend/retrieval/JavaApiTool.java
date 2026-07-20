@@ -9,9 +9,14 @@ import java.util.List;
 
 public class JavaApiTool extends AbstractRagTool {
 
-    public JavaApiTool(VectorStore vectorStore, PostRetrievalProcessor postRetrievalProcessor, Reranker reranker,
-                       ParametersReader parametersReader, List<Document> retrievedDocuments, ToolEventListener listener,
-                       JmixVersion jmixVersion) {
+    public JavaApiTool(
+            VectorStore vectorStore,
+            PostRetrievalProcessor postRetrievalProcessor,
+            Reranker reranker,
+            ParametersReader parametersReader,
+            List<Document> retrievedDocuments,
+            ToolEventListener listener,
+            JmixVersion jmixVersion) {
         super("javaapi_retriever", "javaapi", vectorStore, postRetrievalProcessor, reranker,
                 parametersReader, retrievedDocuments, listener, jmixVersion, true);
     }

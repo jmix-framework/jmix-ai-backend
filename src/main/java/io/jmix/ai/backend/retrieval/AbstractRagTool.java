@@ -120,8 +120,12 @@ public abstract class AbstractRagTool {
         return executeSearch(queryText, similarityThreshold, effectiveTopK, wanted, wanted);
     }
 
-    protected String executeSearch(String queryText, double similarityThreshold, int topK, int topReranked,
-                                   @Nullable Integer fallbackLimit) {
+    protected String executeSearch(
+            String queryText,
+            double similarityThreshold,
+            int topK,
+            int topReranked,
+            @Nullable Integer fallbackLimit) {
         long startTime = System.currentTimeMillis();
         listener.onToolCallStart(toolName, queryText);
 

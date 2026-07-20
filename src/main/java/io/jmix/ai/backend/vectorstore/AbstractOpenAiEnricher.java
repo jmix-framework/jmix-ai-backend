@@ -28,9 +28,13 @@ public abstract class AbstractOpenAiEnricher {
     private final OpenAiApi openAiApi;
     private ChatModel chatModel;
 
-    protected AbstractOpenAiEnricher(String modelName, String reasoningEffort,
-                                     String configuredApiKey, boolean requireApiKey,
-                                     Duration connectTimeout, Duration readTimeout) {
+    protected AbstractOpenAiEnricher(
+            String modelName,
+            String reasoningEffort,
+            String configuredApiKey,
+            boolean requireApiKey,
+            Duration connectTimeout,
+            Duration readTimeout) {
         this.modelName = modelName;
         this.reasoningEffort = reasoningEffort;
         String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));

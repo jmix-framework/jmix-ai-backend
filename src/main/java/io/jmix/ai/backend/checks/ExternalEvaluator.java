@@ -11,6 +11,9 @@ public interface ExternalEvaluator {
      */
     String configurationSnapshot();
 
-    double evaluateSemantic(String question, String referenceAnswer, String actualAnswer,
-                            @Nullable Consumer<String> logger);
+    double evaluateSemantic(
+            String question,
+            String referenceAnswer,
+            String actualAnswer,
+            @Nullable Consumer<String> logger);
 }

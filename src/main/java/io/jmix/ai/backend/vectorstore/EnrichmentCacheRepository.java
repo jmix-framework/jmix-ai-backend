@@ -33,8 +33,13 @@ public class EnrichmentCacheRepository {
                 .optional();
     }
 
-    public void save(String type, String source, String jmixVersion, String modelName,
-                     String contentHash, String content) {
+    public void save(
+            String type,
+            String source,
+            String jmixVersion,
+            String modelName,
+            String contentHash,
+            String content) {
         Optional<EnrichmentCache> existing = find(type, source, jmixVersion, modelName);
         if (existing.isPresent()) {
             save(existing.get(), contentHash, content);

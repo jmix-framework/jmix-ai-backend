@@ -123,8 +123,11 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     }
 
     @Override
-    public double evaluateSemantic(String question, String referenceAnswer, String actualAnswer,
-                                   @Nullable Consumer<String> logger) {
+    public double evaluateSemantic(
+            String question,
+            String referenceAnswer,
+            String actualAnswer,
+            @Nullable Consumer<String> logger) {
         try {
             Prompt prompt = new Prompt(List.of(
                     new SystemMessage(SYSTEM_PROMPT),

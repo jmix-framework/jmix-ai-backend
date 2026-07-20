@@ -81,9 +81,13 @@ public class CheckRunAnalyticsView extends StandardView {
     }
 
     /** One line per configuration; the axis starts just below the data so small deltas stay visible. */
-    private void buildTrendChart(Chart chart, List<ConfigTrend> trends, List<String> seriesLabels,
-                                 List<String> categories, String axisName,
-                                 Function<RunPoint, Number> metric) {
+    private void buildTrendChart(
+            Chart chart,
+            List<ConfigTrend> trends,
+            List<String> seriesLabels,
+            List<String> categories,
+            String axisName,
+            Function<RunPoint, Number> metric) {
         List<Map<String, Number>> valuesByTrend = new ArrayList<>(trends.size());
         double min = 1.0;
         boolean hasData = false;
