@@ -5,6 +5,7 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Route;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.VectorStoreAnalyticsService;
 import io.jmix.ai.backend.vectorstore.VectorStoreAnalyticsService.SnippetSizeBreakdown;
 import io.jmix.ai.backend.vectorstore.VectorStoreAnalyticsService.TokenStatistics;
@@ -56,17 +57,22 @@ public class VectorStoreAnalyticsView extends StandardView {
         buildSizeBreakdown();
     }
 
+    private static final String FIELD_CORPUS = "corpus";
+    private static final String FIELD_SHARED = "shared";
+
     private void buildCoverage() {
         List<VectorStoreAnalyticsService.CorpusCoverage> coverages = analyticsService.loadCorpusCoverage();
         // the shared series (chunks without a Jmix version) appears only when such corpuses exist
         boolean hasShared = coverages.stream().anyMatch(coverage -> coverage.shared() > 0);
 
+        String v2 = JmixVersion.V2.getId();
+        String v3 = JmixVersion.V3.getId();
         List<MapDataItem> items = coverages.stream()
                 .map(coverage -> new MapDataItem(Map.of(
-                        "corpus", coverage.corpus(),
-                        "v2", coverage.v2(),
-                        "v3", coverage.v3(),
-                        "shared", coverage.shared())))
+                        FIELD_CORPUS, coverage.corpus(),
+                        v2, coverage.v2(),
+                        v3, coverage.v3(),
+                        FIELD_SHARED, coverage.shared())))
                 .toList();
         coverageChart.withSeries(hasShared
                 ? new BarSeries[]{
@@ -78,8 +84,10 @@ public class VectorStoreAnalyticsView extends StandardView {
                         new BarSeries().withName(messageBundle.getMessage("coverage.v3"))});
         coverageChart.setDataSet(new DataSet().withSource(new DataSet.Source<MapDataItem>()
                 .withDataProvider(new ListChartItems<>(items))
-                .withCategoryField("corpus")
-                .withValueFields(hasShared ? new String[]{"v2", "v3", "shared"} : new String[]{"v2", "v3"})));
+                .withCategoryField(FIELD_CORPUS)
+                .withValueFields(hasShared
+                        ? new String[]{v2, v3, FIELD_SHARED}
+                        : new String[]{v2, v3})));
     }
 
     private void buildTopicHeatmap() {
