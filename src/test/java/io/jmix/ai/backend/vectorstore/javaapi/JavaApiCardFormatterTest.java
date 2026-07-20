@@ -25,13 +25,13 @@ public class JavaApiCardFormatterTest {
         Snippet card = formatter.format(classDoc, URL);
 
         assertThat(card.title()).isEqualTo("Interface DataManager (io.jmix.core)");
-        assertThat(card.source()).isEqualTo(URL);
+        assertThat(card.absoluteUrl()).isEqualTo(URL);
 
         String formatted = card.format();
         assertThat(formatted)
                 .startsWith("TITLE: Interface DataManager (io.jmix.core)")
                 .contains("DESCRIPTION: Same as UnconstrainedDataManager")
-                .contains("SOURCE: " + URL)
+                .contains("URL: " + URL)
                 .contains("LANGUAGE: java")
                 .contains("public interface DataManager extends UnconstrainedDataManager")
                 .contains("// Methods")

@@ -69,7 +69,7 @@ class JavaApiIngesterTest {
     @Test
     void splitToChunks_UsesFourThousandCharacterTargetWithoutLosingBody() {
         String code = "public void method() {}\n".repeat(500);
-        String formatted = new Snippet(CARD.title(), CARD.description(), "java", code, CARD.source()).format();
+        String formatted = new Snippet(CARD.title(), CARD.description(), "java", code, CARD.absoluteUrl()).format();
         Document document = new Document("large", formatted, cardDocument().getMetadata());
         String header = formatted.substring(0, formatted.indexOf("```java\n") + "```java\n".length());
 

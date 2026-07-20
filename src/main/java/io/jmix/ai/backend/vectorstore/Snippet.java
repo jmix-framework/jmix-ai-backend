@@ -3,11 +3,14 @@ package io.jmix.ai.backend.vectorstore;
 import org.springframework.lang.Nullable;
 
 /**
- * A small self-contained piece of knowledge: title, description, optional code and a source URL.
- * This is the target format for ingested content (similar to context7 snippets), rendered to
- * plain text by {@link #format()} before embedding.
+ * A small self-contained piece of knowledge: title, description, optional code and the absolute
+ * URL of the page it came from. This is the target format for ingested content (similar to
+ * context7 snippets), rendered to plain text by {@link #format()} before embedding.
  * <p>
- * Title, description and source must be single-line: {@link #parse(String)} relies on it
+ * {@code absoluteUrl} is the full page link for citation (e.g. {@code https://docs.jmix.io/...});
+ * it is NOT the corpus source identifier (the relative path kept in the {@code source} metadata).
+ * <p>
+ * Title, description and URL must be single-line: {@link #parse(String)} relies on it
  * to restore a snippet from its formatted text.
  */
 public record Snippet(
@@ -15,23 +18,39 @@ public record Snippet(
         String description,
         @Nullable String language,
         @Nullable String code,
-        String source) {
+        String absoluteUrl) {
 
     /** Starts the first line of a formatted snippet; retrieval recognizes snippet titles by it. */
     public static final String TITLE_PREFIX = "TITLE: ";
     private static final String DESCRIPTION_PREFIX = "DESCRIPTION: ";
-    private static final String SOURCE_PREFIX = "SOURCE: ";
+    private static final String URL_PREFIX = "URL: ";
     private static final String LANGUAGE_PREFIX = "LANGUAGE: ";
     /** Opens the code section of a formatted snippet, followed by the language and a line break. */
     public static final String CODE_FENCE_START = "\nCODE:\n```";
     /** Terminates the code section; a formatted snippet with code always ends with it. */
     public static final String CODE_FENCE_END = "\n```";
 
+    /**
+     * Renders the snippet as the plain text that is embedded and stored in the vector store:
+     * <pre>
+     * TITLE: Standard delete action of DataGrid
+     * DESCRIPTION: The list_remove action removes selected rows and asks for confirmation...
+     * URL: https://docs.jmix.io/jmix/flowui/actions/list-actions.html
+     * LANGUAGE: java
+     * CODE:
+     * ```java
+     * removeAction.setConfirmation(true);
+     * ```
+     * </pre>
+     * The three header lines are always present and single-line; LANGUAGE and the fenced CODE
+     * block appear only when the snippet has code, and such text always ends with the closing
+     * fence. This is exactly the shape {@link #parse(String)} restores a snippet from.
+     */
     public String format() {
         StringBuilder sb = new StringBuilder();
         sb.append(TITLE_PREFIX).append(title).append('\n');
         sb.append(DESCRIPTION_PREFIX).append(description).append('\n');
-        sb.append(SOURCE_PREFIX).append(source);
+        sb.append(URL_PREFIX).append(absoluteUrl);
         if (code != null && !code.isBlank()) {
             String lang = language == null ? "" : language;
             if (!lang.isEmpty()) {
@@ -54,20 +73,20 @@ public record Snippet(
 
         String title = null;
         String description = null;
-        String source = null;
+        String absoluteUrl = null;
         String language = null;
         for (String line : head.split("\n")) {
             if (line.startsWith(TITLE_PREFIX)) {
                 title = line.substring(TITLE_PREFIX.length());
             } else if (line.startsWith(DESCRIPTION_PREFIX)) {
                 description = line.substring(DESCRIPTION_PREFIX.length());
-            } else if (line.startsWith(SOURCE_PREFIX)) {
-                source = line.substring(SOURCE_PREFIX.length());
+            } else if (line.startsWith(URL_PREFIX)) {
+                absoluteUrl = line.substring(URL_PREFIX.length());
             } else if (line.startsWith(LANGUAGE_PREFIX)) {
                 language = line.substring(LANGUAGE_PREFIX.length());
             }
         }
-        if (title == null || description == null || source == null) {
+        if (title == null || description == null || absoluteUrl == null) {
             throw new IllegalArgumentException("Not a formatted snippet: " + head);
         }
 
@@ -80,6 +99,6 @@ public record Snippet(
             code = formatted.substring(bodyStart, formatted.length() - CODE_FENCE_END.length());
         }
 
-        return new Snippet(title, description, language, code, source);
+        return new Snippet(title, description, language, code, absoluteUrl);
     }
 }

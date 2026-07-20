@@ -55,7 +55,7 @@ class SearchResultsFormatterTest {
 
     @Test
     void extractsTitleFromSnippetText() {
-        Document snippet = doc("1", "Path: Flow UI > Button\n\nTITLE: Create a Button\nDESCRIPTION: d\nSOURCE: s", Map.of());
+        Document snippet = doc("1", "Path: Flow UI > Button\n\nTITLE: Create a Button\nDESCRIPTION: d\nURL: s", Map.of());
         assertThat(SearchResultsFormatter.extractTitle(snippet)).isEqualTo("Create a Button");
 
         Document docsChunk = doc("2", "Path: Flow UI > Button\n\nSome plain docs text", Map.of("docPath", "Flow UI > Button"));

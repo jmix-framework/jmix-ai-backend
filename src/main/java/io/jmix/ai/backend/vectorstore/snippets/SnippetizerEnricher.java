@@ -362,7 +362,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
                             snippet.description(),
                             snippet.language(),
                             snippet.code(),
-                            snippet.source()))
+                            snippet.absoluteUrl()))
                     .toList();
         } catch (Exception e) {
             log.error("Failed to deserialize cached snippets", e);

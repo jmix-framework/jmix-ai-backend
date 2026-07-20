@@ -84,7 +84,7 @@ class SnippetizerEnricherTest {
         assertThat(snippets.getFirst().title()).isEqualTo("Create a Button");
         assertThat(snippets.getFirst().code()).isEqualTo("<button text=\"OK\"/>");
         assertThat(snippets.getFirst().language()).isEqualTo("xml");
-        assertThat(snippets.getFirst().source()).isEqualTo("https://docs.jmix.io/jmix/flow-ui/vc/components/button.html");
+        assertThat(snippets.getFirst().absoluteUrl()).isEqualTo("https://docs.jmix.io/jmix/flow-ui/vc/components/button.html");
         assertThat(snippets.get(1).description()).isEqualTo("Style a button.");
         assertThat(snippets.get(1).code()).isNull();
         assertThat(snippetizer.capturedPrompt.getUserMessage().getText())

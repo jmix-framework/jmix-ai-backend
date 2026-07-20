@@ -139,7 +139,7 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
             code = code + "\n\n// Usage example:\n" + example;
         }
         String description = enrichment.description().replaceAll("\\s+", " ").trim();
-        return new Snippet(card.title(), description, card.language(), code, card.source()).format();
+        return new Snippet(card.title(), description, card.language(), code, card.absoluteUrl()).format();
     }
 
     private static String stripMarkdownFences(@Nullable String text) {
