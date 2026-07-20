@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore;
 
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.core.EntityStates;
 import org.apache.commons.lang3.StringUtils;
@@ -63,6 +64,22 @@ public class VectorStoreRepository {
             sql += " LIMIT " + limit;
         }
         return jdbcTemplate.query(sql, getVsEntityRowMapper());
+    }
+
+    public List<VectorStoreEntity> loadSourceChunks(String type, String source, @Nullable JmixVersion version) {
+        if (StringUtils.isBlank(type) || StringUtils.isBlank(source)) {
+            throw new IllegalArgumentException("Vector store source type and source must not be blank");
+        }
+
+        String sql = "SELECT id, content, metadata FROM vector_store " +
+                "WHERE metadata::jsonb ->> 'type' = ? " +
+                "AND metadata::jsonb ->> 'source' = ? ";
+        if (version != null) {
+            return jdbcTemplate.query(sql + "AND metadata::jsonb ->> 'jmixVersion' = ?",
+                    getVsEntityRowMapper(), type, source, version.getId());
+        }
+        return jdbcTemplate.query(sql + "AND metadata::jsonb ->> 'jmixVersion' IS NULL",
+                getVsEntityRowMapper(), type, source);
     }
 
     public VectorStoreEntity load(UUID id) {
@@ -140,13 +157,6 @@ public class VectorStoreRepository {
 
     public void delete(UUID id) {
         jdbcTemplate.update("DELETE FROM vector_store WHERE id = '" + id + "'");
-    }
-
-    public void delete(Collection<VectorStoreEntity> collection) {
-        String ids = collection.stream()
-                .map(vectorStoreEntity -> "'" + vectorStoreEntity.getId() + "'")
-                .collect(Collectors.joining(","));
-        jdbcTemplate.update("DELETE FROM vector_store WHERE id IN (" + ids + ")");
     }
 
     public void deleteIds(Collection<UUID> ids) {
