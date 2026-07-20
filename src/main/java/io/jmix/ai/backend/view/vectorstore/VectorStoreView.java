@@ -203,17 +203,20 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Install(to = "vectorStoreDataGrid.removeAction", subject = "delegate")
     public void vectorStoreDataGridRemoveActionDelegate(final Collection<VectorStoreEntity> collection) {
-        List<VectorStoreEntity> entities = getEntitiesOfTheSameSource(collection.iterator().next());
-        vectorStoreRepository.delete(entities);
+        deleteSourceChunks(loadSelectedSourceChunks(collection.iterator().next()));
     }
 
     @Install(to = "vectorStoreDataGrid.removeAction", subject = "beforeActionPerformedHandler")
-    private void vectorStoreDataGridRemoveActionBeforeActionPerformedHandler(final RemoveOperation.BeforeActionPerformedEvent<VectorStoreEntity> beforeActionPerformedEvent) {
+    void vectorStoreDataGridRemoveActionBeforeActionPerformedHandler(final RemoveOperation.BeforeActionPerformedEvent<VectorStoreEntity> beforeActionPerformedEvent) {
         VectorStoreEntity selectedEntity = vectorStoreDataGrid.getSingleSelectedItem();
         if (selectedEntity == null)
             return;
 
-        List<VectorStoreEntity> entities = getEntitiesOfTheSameSource(selectedEntity);
+        List<VectorStoreEntity> entities = loadSelectedSourceChunks(selectedEntity);
+        if (entities.isEmpty()) {
+            beforeActionPerformedEvent.preventAction();
+            return;
+        }
         if (entities.size() > 1) {
             beforeActionPerformedEvent.preventAction();
             dialogs.createOptionDialog()
@@ -223,7 +226,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                             new DialogAction(DialogAction.Type.OK)
                                     .withVariant(ActionVariant.PRIMARY)
                                     .withHandler(e -> {
-                                        vectorStoreRepository.delete(entities);
+                                        deleteSourceChunks(entities);
                                         vectorStoreDl.load();
                                     }),
                             new DialogAction(DialogAction.Type.CANCEL)
@@ -232,12 +235,49 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         }
     }
 
-    private List<VectorStoreEntity> getEntitiesOfTheSameSource(VectorStoreEntity selectedEntity) {
-        Map<String, Object> metadata = selectedEntity.getMetadataMap();
-        String type = (String) metadata.get("type");
-        String source = (String) metadata.get("source");
-        List<VectorStoreEntity> entities = vectorStoreRepository.loadList("type == '%s' && source == '%s'".formatted(type, source));
-        return entities;
+    List<VectorStoreEntity> loadSelectedSourceChunks(VectorStoreEntity selectedEntity) {
+        Map<String, Object> metadata;
+        try {
+            metadata = selectedEntity.getMetadataMap();
+        } catch (RuntimeException e) {
+            return invalidSourceMetadata();
+        }
+        if (metadata == null) {
+            return invalidSourceMetadata();
+        }
+
+        Object typeValue = metadata.get("type");
+        Object sourceValue = metadata.get("source");
+        if (!(typeValue instanceof String type) || StringUtils.isBlank(type)
+                || !(sourceValue instanceof String source) || StringUtils.isBlank(source)) {
+            return invalidSourceMetadata();
+        }
+
+        JmixVersion version = null;
+        Object versionValue = metadata.get("jmixVersion");
+        if (versionValue != null) {
+            if (!(versionValue instanceof String versionId) || StringUtils.isBlank(versionId)) {
+                return invalidSourceMetadata();
+            }
+            version = JmixVersion.fromId(versionId);
+            if (version == null || !version.getId().equals(versionId)) {
+                return invalidSourceMetadata();
+            }
+        }
+        return vectorStoreRepository.loadSourceChunks(type, source, version);
+    }
+
+    private void deleteSourceChunks(List<VectorStoreEntity> entities) {
+        vectorStoreRepository.deleteIds(entities.stream()
+                .map(VectorStoreEntity::getId)
+                .toList());
+    }
+
+    private List<VectorStoreEntity> invalidSourceMetadata() {
+        notifications.create(messageBundle.getMessage("remove.invalidSourceMetadata"))
+                .withType(Notifications.Type.ERROR)
+                .show();
+        return List.of();
     }
 
     @Subscribe(id = "filterClearButton", subject = "clickListener")
