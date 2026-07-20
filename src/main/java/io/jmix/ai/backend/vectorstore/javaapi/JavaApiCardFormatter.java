@@ -6,11 +6,26 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Formats a parsed Javadoc class page into a compact "API card" snippet:
- * verbatim type signature, member signatures and short descriptions.
+ * Formats a parsed Javadoc class page into a compact "API card" snippet. The card's code section
+ * is deterministic text, not compilable Java: the verbatim type signature, then the page notes,
+ * member signatures and inherited-member lists as {@code //} comment lines, e.g.
+ * <pre>
+ * {@literal @}NullMarked public interface DataManager extends UnconstrainedDataManager
+ * // All Superinterfaces: UnconstrainedDataManager
+ *
+ * // Methods
+ * UnconstrainedDataManager unconstrained() // A convenience method that returns...
+ * </pre>
+ * Everything comes verbatim from the Javadoc; no text is generated here (an LLM description and
+ * usage example may be added later by {@code JavaApiEnricher}, signatures stay untouched).
  */
 public class JavaApiCardFormatter {
 
+    /**
+     * Builds the card: snippet title is "Type (package)", description is the class Javadoc
+     * (or a generic fallback for undocumented types — the enricher replaces it anyway),
+     * code is assembled as described on the class.
+     */
     public Snippet format(JavadocClassDoc classDoc, String url) {
         StringBuilder code = new StringBuilder();
         code.append(classDoc.typeSignature());
@@ -48,9 +63,12 @@ public class JavaApiCardFormatter {
     }
 
     /**
-     * Splits a formatted card without dropping source text, repeating the header
-     * (TITLE..CODE fence) in each part when it fits. Every returned part stays within
-     * {@code maxSize}.
+     * Splits a formatted card that exceeds {@code maxSize} into several chunks without dropping
+     * any source text. The header (TITLE through the opening code fence) is repeated in every
+     * part and each part is re-terminated with the closing fence, so every chunk is a
+     * self-contained, individually retrievable snippet of the same class. Falls back to plain
+     * line-boundary splitting when the card has no code section or the header alone exceeds
+     * the budget.
      */
     public static List<String> splitCard(String cardText, int maxSize) {
         if (maxSize <= 0) {
@@ -82,6 +100,7 @@ public class JavaApiCardFormatter {
         return parts;
     }
 
+    /** Splits text into parts of at most {@code maxSize}, preferring line boundaries. */
     private static List<String> splitText(String text, int maxSize) {
         if (text.length() <= maxSize) {
             return List.of(text);
