@@ -37,9 +37,10 @@ public abstract class AbstractOpenAiEnricher {
             Duration readTimeout) {
         this.modelName = modelName;
         this.reasoningEffort = reasoningEffort;
-        String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
+        // the api-key property already resolves OPENAI_API_KEY (spring.ai.openai.api-key=${OPENAI_API_KEY:})
+        String apiKey = configuredApiKey;
         if (requireApiKey && StringUtils.isBlank(apiKey)) {
-            throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
+            throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key)");
         }
         if (StringUtils.isBlank(apiKey)) {
             this.openAiApi = null;
@@ -64,7 +65,7 @@ public abstract class AbstractOpenAiEnricher {
 
     protected final synchronized ChatModel chatModel() {
         if (openAiApi == null) {
-            throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
+            throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key)");
         }
         if (chatModel == null) {
             chatModel = createChatModel();
