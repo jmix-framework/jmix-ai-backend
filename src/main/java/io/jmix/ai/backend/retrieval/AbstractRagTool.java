@@ -21,8 +21,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static io.jmix.ai.backend.retrieval.RetrievalUtils.getUrlOrSource;
-
 public abstract class AbstractRagTool {
 
     /** Upper bound on how many snippets a caller (the model or the search API) may request per tool call. */
@@ -188,7 +186,7 @@ public abstract class AbstractRagTool {
                         .toList();
                 listener.onToolReranked(toolName,
                         filteredRerankResults.stream()
-                                .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), getUrlOrSource(rr.document())))
+                                .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), RetrievalUtils.getUrlOrSource(rr.document())))
                                 .toList(),
                         rerankMs);
             }
@@ -211,7 +209,7 @@ public abstract class AbstractRagTool {
         return documents.stream()
                 .map(doc -> new EventStreamValueHolder.DocScore(
                         doc.getScore() != null ? doc.getScore() : 0.0,
-                        getUrlOrSource(doc)))
+                        RetrievalUtils.getUrlOrSource(doc)))
                 .toList();
     }
 

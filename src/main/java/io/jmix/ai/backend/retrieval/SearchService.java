@@ -14,9 +14,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.jmix.ai.backend.retrieval.RetrievalUtils.addLogMessage;
-import static io.jmix.ai.backend.retrieval.RetrievalUtils.getUniqueSortedDocuments;
-
 @Component
 public class SearchService {
     private final Logger logger = LoggerFactory.getLogger(SearchService.class);
@@ -50,27 +47,27 @@ public class SearchService {
         ToolEventListener listener = new ToolEventListener() {
             @Override
             public void onToolCallStart(String tool, String query) {
-                addLogMessage(logger, logMessages, "Using %s: %s".formatted(tool, query));
+                RetrievalUtils.addLogMessage(logger, logMessages, "Using %s: %s".formatted(tool, query));
             }
 
             @Override
             public void onToolRetrieved(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
-                addLogMessage(logger, logMessages, "Retrieved %d docs in %d ms".formatted(documents.size(), durationMs));
+                RetrievalUtils.addLogMessage(logger, logMessages, "Retrieved %d docs in %d ms".formatted(documents.size(), durationMs));
             }
 
             @Override
             public void onToolReranked(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
-                addLogMessage(logger, logMessages, "Reranked to %d docs in %d ms".formatted(documents.size(), durationMs));
+                RetrievalUtils.addLogMessage(logger, logMessages, "Reranked to %d docs in %d ms".formatted(documents.size(), durationMs));
             }
 
             @Override
             public void onToolCallEnd(String tool, long totalDurationMs) {
-                addLogMessage(logger, logMessages, "%s done in %d ms".formatted(tool, totalDurationMs));
+                RetrievalUtils.addLogMessage(logger, logMessages, "%s done in %d ms".formatted(tool, totalDurationMs));
             }
 
             @Override
             public void onLog(String message) {
-                addLogMessage(logger, logMessages, message);
+                RetrievalUtils.addLogMessage(logger, logMessages, message);
             }
         };
 
@@ -84,7 +81,7 @@ public class SearchService {
         }
 
         // then keep the globally most relevant maxResults across all corpora
-        List<Document> ranked = getUniqueSortedDocuments(retrievedDocuments);
+        List<Document> ranked = RetrievalUtils.getUniqueSortedDocuments(retrievedDocuments);
         if (maxResults != null && ranked.size() > maxResults) {
             return ranked.subList(0, maxResults);
         }

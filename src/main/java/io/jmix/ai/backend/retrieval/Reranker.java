@@ -33,8 +33,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.jmix.ai.backend.retrieval.RetrievalUtils.getUrlOrSource;
-
 @Component
 public class Reranker {
 
@@ -194,7 +192,7 @@ public class Reranker {
                     String truncatedText = text.length() > maxDocumentChars
                             ? text.substring(0, maxDocumentChars)
                             : text;
-                    String source = getUrlOrSource(document);
+                    String source = RetrievalUtils.getUrlOrSource(document);
                     return new CandidateDocument(index, source, truncatedText);
                 })
                 .filter(Objects::nonNull)
