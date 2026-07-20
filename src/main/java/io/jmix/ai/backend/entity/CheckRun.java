@@ -45,8 +45,19 @@ public class CheckRun {
     @Column(name = "EVALUATOR_CONFIG")
     private String evaluatorConfig;
 
+    @Column(name = "PASS_THRESHOLD")
+    private Double passThreshold;
+
     @Column(name = "DEFINITION_FINGERPRINT")
     private String definitionFingerprint;
+
+    public Double getPassThreshold() {
+        return passThreshold;
+    }
+
+    public void setPassThreshold(Double passThreshold) {
+        this.passThreshold = passThreshold;
+    }
 
     public String getDefinitionFingerprint() {
         return definitionFingerprint;

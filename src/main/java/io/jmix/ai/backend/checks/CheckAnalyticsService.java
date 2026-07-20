@@ -200,11 +200,19 @@ public class CheckAnalyticsService {
     static String comparisonCohortKey(CheckRun run) {
         String fingerprint = definitionFingerprint(run);
         String evaluatorConfig = run.getEvaluatorConfig();
-        String key = versionId(run) + "||" + fingerprint + "||" + nullableKey(evaluatorConfig);
+        // pass threshold used to live inside evaluatorConfig; it is a first-class field now but
+        // still part of the cohort identity (accuracy is not comparable across thresholds)
+        String evaluator = nullableKey(evaluatorConfig) + "|" + nullableKey(passThresholdKey(run));
+        String key = versionId(run) + "||" + fingerprint + "||" + evaluator;
         if (LEGACY_COHORT.equals(fingerprint) || evaluatorConfig == null) {
             key += "||" + nullableKey(run.getParameters());
         }
         return key;
+    }
+
+    @Nullable
+    private static String passThresholdKey(CheckRun run) {
+        return run.getPassThreshold() != null ? run.getPassThreshold().toString() : null;
     }
 
     /** Identity of a configuration on the Overview trends: Jmix version plus parameters. */
@@ -266,33 +274,15 @@ public class CheckAnalyticsService {
     }
 
     /**
-     * The pass threshold the runs were evaluated with, parsed back from the stored evaluator
-     * config — historical runs are judged by their own threshold, not the current application
-     * setting. Null (no accuracy) when no run carries one.
+     * The pass threshold the runs were evaluated with — historical runs keep their own threshold,
+     * not the current application setting. Null (no accuracy) when no run carries one.
      */
     private static @Nullable Double passThreshold(List<CheckRun> runs) {
-        String marker = "|passThreshold=";
-        for (CheckRun run : runs) {
-            String evaluatorConfig = run.getEvaluatorConfig();
-            if (evaluatorConfig == null) {
-                continue;
-            }
-            int start = evaluatorConfig.indexOf(marker);
-            if (start < 0) {
-                continue;
-            }
-            start += marker.length();
-            int end = evaluatorConfig.indexOf('|', start);
-            String value = end >= 0
-                    ? evaluatorConfig.substring(start, end)
-                    : evaluatorConfig.substring(start);
-            try {
-                return Double.parseDouble(value);
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
-        return null;
+        return runs.stream()
+                .map(CheckRun::getPassThreshold)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     public ComparisonResult compareConfigs(@Nullable ConfigOption base, @Nullable ConfigOption candidate) {

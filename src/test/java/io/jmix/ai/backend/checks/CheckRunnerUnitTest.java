@@ -75,7 +75,8 @@ class CheckRunnerUnitTest {
 
         assertThat(evaluatedQuestion).hasValue(checkDef.getQuestion());
         assertThat(checkRun.getEvaluatorConfig())
-                .isEqualTo("semantic-v3|model=test-judge|temperature=0.0|passThreshold=0.8");
+                .isEqualTo("semantic-v3|model=test-judge|temperature=0.0");
+        assertThat(checkRun.getPassThreshold()).isEqualTo(0.8);
         assertThat(checkRun.getConfigLabel()).isEqualTo("test-config");
         assertThat(checkRun.getDefinitionFingerprint())
                 .isEqualTo(CheckFingerprints.forDefinitions(List.of(checkDef)));

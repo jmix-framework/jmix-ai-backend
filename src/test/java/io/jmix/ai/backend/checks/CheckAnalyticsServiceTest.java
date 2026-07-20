@@ -39,9 +39,9 @@ class CheckAnalyticsServiceTest {
     void groupIdentityIncludesEvaluatorConfigAndSeparatesLegacyRuns() {
         CheckRun legacy = checkRun("Config", "parameters");
         CheckRun first = checkRun("Config", "parameters");
-        first.setEvaluatorConfig("semantic-v3|model=first|temperature=0.0|passThreshold=0.8");
+        first.setEvaluatorConfig("semantic-v3|model=first|temperature=0.0");
         CheckRun second = checkRun("Config", "parameters");
-        second.setEvaluatorConfig("semantic-v3|model=second|temperature=0.0|passThreshold=0.8");
+        second.setEvaluatorConfig("semantic-v3|model=second|temperature=0.0");
 
         assertThat(CheckAnalyticsService.groupKey(first))
                 .isNotEqualTo(CheckAnalyticsService.groupKey(second))
@@ -56,7 +56,7 @@ class CheckAnalyticsServiceTest {
         String parameters = "description: Same config\nmodel:\n  name: gpt-5";
         String historicalFingerprint = "semantic-v3-aaaaaaaaaaaa";
         String currentFingerprint = "definitions-v1-aaaaaaaaaaaa";
-        String evaluatorConfig = "semantic-v3|model=gpt-5-mini|temperature=0.0|passThreshold=0.8";
+        String evaluatorConfig = "semantic-v3|model=gpt-5-mini|temperature=0.0";
         CheckRun historical = checkRun(legacyLabel("Same config", historicalFingerprint), parameters);
         historical.setEvaluatorConfig(evaluatorConfig);
         CheckRun current = checkRun("Same config", parameters);
@@ -216,7 +216,8 @@ class CheckAnalyticsServiceTest {
         run.setId(runId);
         run.setScore(0.7);
         run.setAccuracy(1.0);
-        run.setEvaluatorConfig("semantic-v3|model=judge|temperature=0.0|passThreshold=0.8");
+        run.setEvaluatorConfig("semantic-v3|model=judge|temperature=0.0");
+        run.setPassThreshold(0.8);
         Check check = new Check();
         check.setQuestion("common");
         check.setReferenceAnswer("reference");

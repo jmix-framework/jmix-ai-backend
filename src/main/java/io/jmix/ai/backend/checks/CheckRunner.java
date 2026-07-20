@@ -49,8 +49,7 @@ public class CheckRunner {
         this.parallelism = Math.max(1, parallelism);
         this.executor = Executors.newFixedThreadPool(this.parallelism);
         this.passThreshold = passThreshold;
-        this.evaluatorConfig = externalEvaluator.configurationSnapshot()
-                + "|passThreshold=" + passThreshold;
+        this.evaluatorConfig = externalEvaluator.configurationSnapshot();
     }
 
     public void runChecks(Id<CheckRun> checkRunId) {
@@ -95,6 +94,7 @@ public class CheckRunner {
         String configLabel = CheckConfigLabel.resolve(
                 checkRun.getConfigLabel(), checkRun.getParameters());
         checkRun.setEvaluatorConfig(evaluatorConfig);
+        checkRun.setPassThreshold(passThreshold);
         checkRun.setDefinitionFingerprint(CheckFingerprints.forDefinitions(definitions));
         checkRun.setConfigLabel(configLabel);
     }

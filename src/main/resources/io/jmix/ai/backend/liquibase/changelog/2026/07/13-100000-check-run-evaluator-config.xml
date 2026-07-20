@@ -8,6 +8,7 @@
     <changeSet id="1" author="jmix-ai-backend">
         <addColumn tableName="CHECK_RUN">
             <column name="EVALUATOR_CONFIG" type="VARCHAR(255)"/>
+            <column name="PASS_THRESHOLD" type="DOUBLE"/>
         </addColumn>
     </changeSet>
 </databaseChangeLog>

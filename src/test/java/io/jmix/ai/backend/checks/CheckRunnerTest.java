@@ -104,7 +104,8 @@ public class CheckRunnerTest {
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
         assertThat(updatedCheckRun.getScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
         assertThat(updatedCheckRun.getEvaluatorConfig())
-                .isEqualTo("semantic-v3|model=test-judge|temperature=0.0|passThreshold=0.8");
+                .isEqualTo("semantic-v3|model=test-judge|temperature=0.0");
+        assertThat(updatedCheckRun.getPassThreshold()).isEqualTo(0.8);
         assertThat(updatedCheckRun.getDefinitionFingerprint())
                 .isEqualTo(CheckFingerprints.forDefinitions(List.of(checkDef1, checkDef2)));
     }
