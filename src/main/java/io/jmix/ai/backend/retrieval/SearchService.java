@@ -35,9 +35,12 @@ public class SearchService {
     }
 
     /**
-     * Runs the retrieval tools without the answering LLM. {@code maxResults} limits how many
-     * snippets each tool returns (the caller decides how much context it needs); null uses the
-     * configured per-tool defaults.
+     * Runs the retrieval tools without the answering LLM. {@code maxResults} caps the total number
+     * of returned snippets across all tools (the caller decides how much context it needs), not the
+     * count per tool: each tool contributes up to {@code maxResults} candidates, they are merged and
+     * ordered by relevance, and the head is kept. Null uses the configured per-tool defaults with no
+     * overall cap. The number of enabled tools is a server-side detail that must not leak into the
+     * size of the response.
      */
     public List<Document> search(String query, JmixVersion jmixVersion, @Nullable Integer maxResults) {
         List<Document> retrievedDocuments = new ArrayList<>();
@@ -75,10 +78,16 @@ public class SearchService {
 
         List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, listener, jmixVersion);
 
+        // each tool fills the pool with up to maxResults candidates from its own corpus
         for (AbstractRagTool tool : ragTools) {
             tool.execute(query, maxResults);
         }
 
-        return getUniqueSortedDocuments(retrievedDocuments);
+        // then keep the globally most relevant maxResults across all corpora
+        List<Document> ranked = getUniqueSortedDocuments(retrievedDocuments);
+        if (maxResults != null && ranked.size() > maxResults) {
+            return ranked.subList(0, maxResults);
+        }
+        return ranked;
     }
 }

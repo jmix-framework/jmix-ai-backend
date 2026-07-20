@@ -73,9 +73,10 @@ public class SearchV2Controller {
     }
 
     /**
-     * {@code maxResults} limits how many snippets each retrieval tool returns, so the caller
-     * (e.g. an MCP client's LLM) decides how much context it wants; {@code tokens} then trims
-     * the relevance-ordered total to an approximate budget.
+     * {@code maxResults} caps the total number of returned snippets across all tools, so the
+     * caller (e.g. an MCP client's LLM) decides how much context it wants without knowing how many
+     * tools the server has enabled; {@code tokens} then trims the relevance-ordered total to an
+     * approximate budget.
      */
     public record SearchRequest(
             String query,

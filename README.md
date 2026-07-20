@@ -105,9 +105,9 @@ Content-Type: application/json
 ```
 
 Each v2 result contains `id`, `title`, `source` and `content`. The optional `jmix_version` field
-selects the corpus. The optional `max_results` field (1 to 50) limits how many snippets each
-retrieval tool returns, so the caller decides how much context it wants instead of relying on the
-configured per-tool defaults. The optional `tokens` field accepts values from 1 to 100000 and
+selects the corpus. The optional `max_results` field (1 to 50) caps the total number of returned
+snippets across all tools, so the caller decides how much context it wants without depending on how
+many tools the server has enabled. The optional `tokens` field accepts values from 1 to 100000 and
 applies an approximate, best-effort response budget using four characters per token to the
 relevance-ordered total. At least the most relevant result is returned, so that first result may
 exceed a small budget. Omit both to return the default set of retrieved documents. Both endpoints
