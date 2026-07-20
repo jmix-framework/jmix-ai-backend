@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.vectorstore.CorpusType;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
@@ -73,7 +74,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
 
     @Override
     public String getType() {
-        return "javaapi-enriched";
+        return CorpusType.JAVA_API_ENRICHED;
     }
 
     @Override

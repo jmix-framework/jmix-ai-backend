@@ -2,6 +2,7 @@ package io.jmix.ai.backend.retrieval;
 
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
+import io.jmix.ai.backend.vectorstore.CorpusType;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 
@@ -17,7 +18,7 @@ public class JavaApiTool extends AbstractRagTool {
             List<Document> retrievedDocuments,
             ToolEventListener listener,
             JmixVersion jmixVersion) {
-        super("javaapi_retriever", "javaapi", vectorStore, postRetrievalProcessor, reranker,
+        super("javaapi_retriever", CorpusType.JAVA_API, vectorStore, postRetrievalProcessor, reranker,
                 parametersReader, retrievedDocuments, listener, jmixVersion, true);
     }
 }

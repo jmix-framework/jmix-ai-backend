@@ -2,6 +2,7 @@ package io.jmix.ai.backend.vectorstore.javaapi;
 
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.AbstractIngester;
+import io.jmix.ai.backend.vectorstore.CorpusType;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.core.TimeSource;
@@ -87,7 +88,7 @@ public class JavaApiIngester extends AbstractIngester {
 
     @Override
     public String getType() {
-        return "javaapi";
+        return CorpusType.JAVA_API;
     }
 
     /** Only versions with a configured Javadoc base URL are ingested. */

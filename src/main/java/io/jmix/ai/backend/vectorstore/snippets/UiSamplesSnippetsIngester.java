@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore.snippets;
 
+import io.jmix.ai.backend.vectorstore.CorpusType;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.vectorstore.uisamples.UiSamplesIngester;
@@ -48,7 +49,7 @@ public class UiSamplesSnippetsIngester extends UiSamplesIngester {
 
     @Override
     public String getType() {
-        return "uisamples-snippets";
+        return CorpusType.UISAMPLES_SNIPPETS;
     }
 
     @Override

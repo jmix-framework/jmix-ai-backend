@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore.snippets;
 
+import io.jmix.ai.backend.vectorstore.CorpusType;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
 import io.jmix.ai.backend.vectorstore.docs.DocsIngester;
@@ -45,7 +46,7 @@ public class DocsSnippetsIngester extends DocsIngester {
 
     @Override
     public String getType() {
-        return "docs-snippets";
+        return CorpusType.DOCS_SNIPPETS;
     }
 
     @Override

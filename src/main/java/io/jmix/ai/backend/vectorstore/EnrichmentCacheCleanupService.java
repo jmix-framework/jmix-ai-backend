@@ -19,10 +19,6 @@ import java.util.stream.Collectors;
 @Service
 public class EnrichmentCacheCleanupService {
 
-    static final String JAVA_API = "javaapi-enriched";
-    static final String DOCS_SNIPPETS = "docs-snippets";
-    static final String UI_SAMPLES_SNIPPETS = "uisamples-snippets";
-
     private static final Comparator<Generation> NEWEST_FIRST = Comparator
             .comparing(Generation::latestCreatedDate,
                     Comparator.nullsLast(Comparator.<OffsetDateTime>reverseOrder()))
@@ -43,9 +39,9 @@ public class EnrichmentCacheCleanupService {
     public CleanupResult cleanup() {
         String snippetModelName = snippetizerEnricher.getModelKey();
         Map<String, String> activeModelNames = Map.of(
-                JAVA_API, javaApiEnricher.getModelKey(),
-                DOCS_SNIPPETS, snippetModelName,
-                UI_SAMPLES_SNIPPETS, snippetModelName);
+                CorpusType.JAVA_API_ENRICHED, javaApiEnricher.getModelKey(),
+                CorpusType.DOCS_SNIPPETS, snippetModelName,
+                CorpusType.UISAMPLES_SNIPPETS, snippetModelName);
         CleanupPlan plan = planCleanup(cacheRepository.findGenerations(), activeModelNames);
         DeletionResult deletion = cacheRepository.deleteGenerations(plan.obsoleteGenerations());
         return new CleanupResult(deletion.entries(), deletion.generations(), plan.skippedScopes());

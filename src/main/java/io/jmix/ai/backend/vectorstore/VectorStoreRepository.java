@@ -85,7 +85,7 @@ public class VectorStoreRepository {
 
     /** AI-generated docs snippets only — excludes lossless coverage chunks and plain-text fallback chunks. */
     private static final String AI_SNIPPET_FILTER =
-            "metadata::jsonb->>'type' = 'docs-snippets' AND metadata::jsonb->>'enriched' = 'true'";
+            "metadata::jsonb->>'type' = '" + CorpusType.DOCS_SNIPPETS + "' AND metadata::jsonb->>'enriched' = 'true'";
 
     /**
      * Counts AI-generated docs snippets grouped by topic and Jmix version. The topic
