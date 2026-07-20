@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore;
 
+import io.jmix.ai.backend.entity.JmixVersion;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -129,11 +130,13 @@ public class VectorStoreAnalyticsService {
             String version = (String) row[1];
             int count = ((Number) row[2]).intValue();
             int[] counts = countsByTopic.computeIfAbsent(topic, ignored -> new int[2]);
-            if ("v3".equalsIgnoreCase(version)) {
-                counts[1] += count;
-            } else {
-                counts[0] += count;
-            }
+            // index: 0 = v2 (and unknown), 1 = v3 — mirrors TopicCoverage(topic, v2, v3)
+            int index = switch (JmixVersion.fromId(version)) {
+                case V2 -> 0;
+                case V3 -> 1;
+                case null -> 0;
+            };
+            counts[index] += count;
         }
 
         List<TopicCoverage> topics = countsByTopic.entrySet().stream()
@@ -159,13 +162,13 @@ public class VectorStoreAnalyticsService {
             String version = (String) row[1];
             int count = ((Number) row[2]).intValue();
             int[] counts = countsByType.computeIfAbsent(type, ignored -> new int[3]);
-            if ("v2".equalsIgnoreCase(version)) {
-                counts[0] += count;
-            } else if ("v3".equalsIgnoreCase(version)) {
-                counts[1] += count;
-            } else {
-                counts[2] += count;
-            }
+            // index: 0 = v2, 1 = v3, 2 = shared/unknown — mirrors CorpusCoverage(corpus, v2, v3, shared)
+            int index = switch (JmixVersion.fromId(version)) {
+                case V2 -> 0;
+                case V3 -> 1;
+                case null -> 2;
+            };
+            counts[index] += count;
         }
 
         List<CorpusCoverage> coverage = new ArrayList<>(countsByType.size());
