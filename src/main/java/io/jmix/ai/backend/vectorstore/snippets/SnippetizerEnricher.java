@@ -4,8 +4,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.AbstractOpenAiEnricher;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
+import io.jmix.ai.backend.vectorstore.NormalizationUtils;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.StringUtils;
@@ -245,18 +247,11 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
                 log.error("Snippetization returned no snippets for {}", url);
                 return null;
             }
-            List<Snippet> snippets = parsed.snippets().stream()
-                    .filter(item -> !StringUtils.isBlank(item.title()) && !StringUtils.isBlank(item.description()))
-                    .map(item -> new Snippet(
-                            normalizeTitle(item.title()),
-                            item.description().replaceAll("\\s+", " ").trim(),
-                            StringUtils.defaultIfBlank(item.language(), null),
-                            // markdown fences inside code would break the snippet's own code fence
-                            item.code() == null ? null
-                                    : StringUtils.defaultIfBlank(item.code().replace("```", ""), null),
-                            url))
-                    .toList();
-            if (snippets.isEmpty()) {
+            // the same gate cached payloads pass in fromJson: live and cache cannot diverge
+            List<Snippet> snippets = NormalizationUtils.canonicalSnippets(parsed.snippets().stream()
+                    .map(item -> new Snippet(item.title(), item.description(), item.language(), item.code(), url))
+                    .toList());
+            if (snippets == null) {
                 return null;
             }
             if (!containsOnlyVerbatimCode(snippets, content)) {
@@ -341,8 +336,8 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
         return (String) document.getMetadata().get("source");
     }
 
-    private String jmixVersion(Document document) {
-        return (String) document.getMetadata().get("jmixVersion");
+    private JmixVersion jmixVersion(Document document) {
+        return JmixVersion.fromId((String) document.getMetadata().get("jmixVersion"));
     }
 
     String toJson(List<Snippet> snippets) {
@@ -353,24 +348,18 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
         }
     }
 
+    /**
+     * Restores snippets from cached content, or null if unreadable or semantically invalid (both
+     * a cache miss). Cached data passes the same gate as a live response, so a stale or
+     * hand-edited entry can never resurface snippets the live path would have rejected.
+     */
     @Nullable
     List<Snippet> fromJson(String json) {
         try {
-            return OBJECT_MAPPER.readValue(json, SNIPPET_LIST_TYPE).stream()
-                    .map(snippet -> new Snippet(
-                            normalizeTitle(snippet.title()),
-                            snippet.description(),
-                            snippet.language(),
-                            snippet.code(),
-                            snippet.absoluteUrl()))
-                    .toList();
+            return NormalizationUtils.canonicalSnippets(OBJECT_MAPPER.readValue(json, SNIPPET_LIST_TYPE));
         } catch (Exception e) {
             log.error("Failed to deserialize cached snippets", e);
             return null;
         }
-    }
-
-    private static String normalizeTitle(String title) {
-        return title.replaceAll("\\s+", " ").trim();
     }
 }

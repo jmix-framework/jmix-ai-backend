@@ -28,9 +28,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 @Route(value = "check-runs/analytics", layout = MainView.class)
@@ -38,7 +40,11 @@ import java.util.function.Function;
 @ViewDescriptor(path = "check-run-analytics-view.xml")
 public class CheckRunAnalyticsView extends StandardView {
 
-    private static final DateTimeFormatter LABEL_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm");
+    // Category identity of a run point on the time axis: precise enough (year + seconds) that two
+    // distinct runs never share a slot, while runs of different configs at the same instant still
+    // align on one tick. Undated points get a unique synthetic key instead of collapsing together.
+    private static final DateTimeFormatter KEY_FORMAT = DateTimeFormatter.ofPattern("yy-MM-dd HH:mm:ss");
+    private static final String UNDATED_KEY_PREFIX = "—#";
 
     @Autowired
     private CheckAnalyticsService analyticsService;
@@ -65,38 +71,33 @@ public class CheckRunAnalyticsView extends StandardView {
                 card(messageBundle.getMessage("overview.latestScore"), formatMetric(overview.latestScore())),
                 card(messageBundle.getMessage("overview.latestAccuracy"), formatMetric(overview.latestAccuracy())));
 
-        List<String> categories = overview.trends().stream()
-                .flatMap(trend -> trend.points().stream())
-                .sorted(Comparator.comparing(RunPoint::createdDate,
-                        Comparator.nullsFirst(Comparator.naturalOrder())))
-                .map(this::pointLabel)
-                .distinct()
-                .toList();
+        ChartModel model = buildModel(overview.trends());
         List<String> seriesLabels = trendLabels(overview.trends());
 
-        buildTrendChart(scoreTrendChart, overview.trends(), seriesLabels, categories,
-                messageBundle.getMessage("score.axis"), point -> point.score());
-        buildTrendChart(accuracyTrendChart, overview.trends(), seriesLabels, categories,
+        buildTrendChart(scoreTrendChart, model, seriesLabels,
+                messageBundle.getMessage("score.axis"), RunPoint::score);
+        buildTrendChart(accuracyTrendChart, model, seriesLabels,
                 messageBundle.getMessage("accuracy.axis"), RunPoint::accuracy);
     }
 
     /** One line per configuration; the axis starts just below the data so small deltas stay visible. */
     private void buildTrendChart(
             Chart chart,
-            List<ConfigTrend> trends,
+            ChartModel model,
             List<String> seriesLabels,
-            List<String> categories,
             String axisName,
             Function<RunPoint, Number> metric) {
-        List<Map<String, Number>> valuesByTrend = new ArrayList<>(trends.size());
+        List<String> categories = model.categories();
+        int trendCount = model.pointsByTrend().size();
+        List<Map<String, Number>> valuesByTrend = new ArrayList<>(trendCount);
         double min = 1.0;
         boolean hasData = false;
-        for (ConfigTrend trend : trends) {
+        for (Map<String, RunPoint> points : model.pointsByTrend()) {
             Map<String, Number> values = new HashMap<>();
-            for (RunPoint point : trend.points()) {
-                Number value = metric.apply(point);
+            for (Map.Entry<String, RunPoint> point : points.entrySet()) {
+                Number value = metric.apply(point.getValue());
                 if (value != null) {
-                    values.put(pointLabel(point), value);
+                    values.put(point.getKey(), value);
                     min = Math.min(min, value.doubleValue());
                     hasData = true;
                 }
@@ -108,7 +109,7 @@ public class CheckRunAnalyticsView extends StandardView {
         for (String category : categories) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("label", category);
-            for (int index = 0; index < trends.size(); index++) {
+            for (int index = 0; index < trendCount; index++) {
                 Number value = valuesByTrend.get(index).get(category);
                 // "-" is the ECharts empty-value marker; nulls would be dropped from the dataset row,
                 // breaking dimension inference and shifting series values across categories
@@ -117,9 +118,9 @@ public class CheckRunAnalyticsView extends StandardView {
             items.add(new MapDataItem(row));
         }
 
-        String[] valueFields = new String[trends.size()];
-        LineSeries[] series = new LineSeries[trends.size()];
-        for (int index = 0; index < trends.size(); index++) {
+        String[] valueFields = new String[trendCount];
+        LineSeries[] series = new LineSeries[trendCount];
+        for (int index = 0; index < trendCount; index++) {
             valueFields[index] = "s" + index;
             series[index] = new LineSeries()
                     .withName(seriesLabels.get(index))
@@ -161,8 +162,44 @@ public class CheckRunAnalyticsView extends StandardView {
                 : messageBundle.getMessage("config.unlabeled");
     }
 
-    private String pointLabel(RunPoint point) {
-        return point.createdDate() != null ? point.createdDate().format(LABEL_FORMAT) : "—";
+    /**
+     * Aligns every run point onto the shared time axis. Each point keeps its own slot — keyed by a
+     * precise timestamp, or a unique synthetic key when undated — so two runs in the same minute,
+     * across years, or without a date are no longer collapsed onto one another. Runs of different
+     * configs at the same instant still share a slot, which keeps them aligned on the axis.
+     */
+    static ChartModel buildModel(List<ConfigTrend> trends) {
+        List<Map<String, RunPoint>> pointsByTrend = new ArrayList<>(trends.size());
+        List<Entry> union = new ArrayList<>();
+        for (int index = 0; index < trends.size(); index++) {
+            pointsByTrend.add(new LinkedHashMap<>());
+            for (RunPoint point : trends.get(index).points()) {
+                union.add(new Entry(index, point));
+            }
+        }
+        union.sort(Comparator.comparing((Entry entry) -> entry.point().createdDate(),
+                Comparator.nullsFirst(Comparator.naturalOrder())));
+
+        List<String> categories = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int undated = 0;
+        for (Entry entry : union) {
+            String key = entry.point().createdDate() != null
+                    ? entry.point().createdDate().format(KEY_FORMAT)
+                    : UNDATED_KEY_PREFIX + undated++;
+            if (seen.add(key)) {
+                categories.add(key);
+            }
+            pointsByTrend.get(entry.trendIndex()).put(key, entry.point());
+        }
+        return new ChartModel(categories, pointsByTrend);
+    }
+
+    private record Entry(int trendIndex, RunPoint point) {
+    }
+
+    /** Chart-ready trend data: the ordered x-axis categories and, per trend, its point at each. */
+    record ChartModel(List<String> categories, List<Map<String, RunPoint>> pointsByTrend) {
     }
 
     private static String axisMin(double min, boolean hasData) {

@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.vectorstore;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository.DeletionResult;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository.Generation;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository.GenerationKey;
@@ -43,27 +44,27 @@ class EnrichmentCacheRepositoryIntegrationTest {
     @Test
     void findsGenerationRecencyAndDeletesOnlyRequestedGeneration() {
         dataManager.save(
-                cache("source-a", "v2", "current"),
-                cache("source-b", "v2", "current"),
-                cache("source-a", "v2", "old"),
-                cache("source-a", null, "shared-old"));
+                cache("source-a", JmixVersion.V2, "current"),
+                cache("source-b", JmixVersion.V2, "current"),
+                cache("source-a", JmixVersion.V2, "old"),
+                cache("source-a", JmixVersion.V3, "v3-old"));
 
         List<EnrichmentCache> stored = dataManager.load(EnrichmentCache.class).all().list();
 
         List<Generation> generations = repository.findGenerations();
 
         assertThat(generations).containsExactlyInAnyOrder(
-                new Generation("docs-snippets", "v2", "current", stored.stream()
+                new Generation(CorpusType.DOCS_SNIPPETS, JmixVersion.V2.getId(), "current", stored.stream()
                         .filter(cache -> cache.getModelName().equals("current"))
                         .map(EnrichmentCache::getCreatedDate)
                         .max(Comparator.naturalOrder())
                         .orElseThrow()),
                 generation(stored, "old"),
-                generation(stored, "shared-old"));
+                generation(stored, "v3-old"));
 
         DeletionResult deletion = repository.deleteGenerations(Set.of(
-                new GenerationKey("docs-snippets", "v2", "old"),
-                new GenerationKey("docs-snippets", null, "shared-old")));
+                new GenerationKey(CorpusType.DOCS_SNIPPETS, JmixVersion.V2.getId(), "old"),
+                new GenerationKey(CorpusType.DOCS_SNIPPETS, JmixVersion.V3.getId(), "v3-old")));
 
         assertThat(deletion).isEqualTo(new DeletionResult(2, 2));
         assertThat(dataManager.load(EnrichmentCache.class).all().list())
@@ -76,12 +77,12 @@ class EnrichmentCacheRepositoryIntegrationTest {
                 .filter(item -> item.getModelName().equals(modelName))
                 .findFirst()
                 .orElseThrow();
-        return new Generation(cache.getType(), cache.getJmixVersion(), modelName, cache.getCreatedDate());
+        return new Generation(cache.getType(), cache.getJmixVersion().getId(), modelName, cache.getCreatedDate());
     }
 
-    private EnrichmentCache cache(String source, String jmixVersion, String modelName) {
+    private EnrichmentCache cache(String source, JmixVersion jmixVersion, String modelName) {
         EnrichmentCache cache = dataManager.create(EnrichmentCache.class);
-        cache.setType("docs-snippets");
+        cache.setType(CorpusType.DOCS_SNIPPETS);
         cache.setSource(source);
         cache.setJmixVersion(jmixVersion);
         cache.setModelName(modelName);

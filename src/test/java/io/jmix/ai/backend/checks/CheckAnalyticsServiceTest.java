@@ -52,24 +52,6 @@ class CheckAnalyticsServiceTest {
     }
 
     @Test
-    void historicalSuffixAndDedicatedFingerprintUseTheSameCohort() {
-        String parameters = "description: Same config\nmodel:\n  name: gpt-5";
-        String historicalFingerprint = "semantic-v3-aaaaaaaaaaaa";
-        String currentFingerprint = "definitions-v1-aaaaaaaaaaaa";
-        String evaluatorConfig = "semantic-v3|model=gpt-5-mini|temperature=0.0";
-        CheckRun historical = checkRun(legacyLabel("Same config", historicalFingerprint), parameters);
-        historical.setEvaluatorConfig(evaluatorConfig);
-        CheckRun current = checkRun("Same config", parameters);
-        current.setDefinitionFingerprint(currentFingerprint);
-        current.setEvaluatorConfig(evaluatorConfig);
-
-        assertThat(CheckAnalyticsService.groupKey(historical))
-                .isEqualTo(CheckAnalyticsService.groupKey(current));
-        assertThat(CheckAnalyticsService.displayConfigLabel(historical)).isEqualTo("Same config");
-        assertThat(CheckAnalyticsService.displayConfigLabel(current)).isEqualTo("Same config");
-    }
-
-    @Test
     void configFingerprintIsStableAndIncludesFullConfigAndCohort() {
         String parameters = "description: Same config\nmodel:\n  name: first";
         CheckRun first = checkRun("Same config", parameters);
@@ -197,15 +179,39 @@ class CheckAnalyticsServiceTest {
     @Test
     void configurationsFromDifferentEvaluationCohortsAreFlagged() {
         CheckAnalyticsService.ConfigOption baseline = new CheckAnalyticsService.ConfigOption(
-                "base", "Base", "v2", "first-cohort", "defs-1", "semantic-v3", "base123", 1);
+                "base", "Base", "v2", "first-cohort", "defs-1", "semantic-v3", "0.8", "base123", 1);
         CheckAnalyticsService.ConfigOption candidate = new CheckAnalyticsService.ConfigOption(
-                "candidate", "Candidate", "v2", "second-cohort", "defs-2", "semantic-v3", "candidate123", 1);
+                "candidate", "Candidate", "v2", "second-cohort", "defs-2", "semantic-v3", "0.8", "candidate123", 1);
         CheckAnalyticsService.ConfigOption sameCohort = new CheckAnalyticsService.ConfigOption(
-                "other", "Other", "v2", "first-cohort", "defs-1", "semantic-v3", "other123", 1);
+                "other", "Other", "v2", "first-cohort", "defs-1", "semantic-v3", "0.8", "other123", 1);
 
         assertThat(CheckAnalyticsService.canCompare(baseline, candidate)).isFalse();
         assertThat(CheckAnalyticsService.canCompare(baseline, sameCohort)).isTrue();
         assertThat(CheckAnalyticsService.canCompare(baseline, null)).isTrue();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void overviewSeparatesRunsThatDifferOnlyByEvaluationCohort() {
+        CheckRun runA = checkRun("Config", "same-params");
+        runA.setScore(0.8);
+        runA.setEvaluatorConfig("evaluator-A");
+        CheckRun runB = checkRun("Config", "same-params");
+        runB.setScore(0.6);
+        runB.setEvaluatorConfig("evaluator-B");
+
+        DataManager dataManager = mock(DataManager.class);
+        FluentLoader<CheckRun> runLoader = mock(FluentLoader.class);
+        FluentLoader.ByQuery<CheckRun> runQuery = mock(FluentLoader.ByQuery.class);
+        when(dataManager.load(CheckRun.class)).thenReturn(runLoader);
+        when(runLoader.query("e.score is not null order by e.createdDate, e.id")).thenReturn(runQuery);
+        when(runQuery.list()).thenReturn(List.of(runA, runB));
+
+        CheckAnalyticsService.Overview overview = new CheckAnalyticsService(dataManager).loadOverview();
+
+        // same Jmix version and parameters, but different evaluator => two cohorts => two trend lines
+        assertThat(overview.trends()).hasSize(2);
+        assertThat(overview.configCount()).isEqualTo(2);
     }
 
     @Test
@@ -240,7 +246,7 @@ class CheckAnalyticsServiceTest {
         CheckAnalyticsService service = new CheckAnalyticsService(dataManager);
         CheckAnalyticsService.ConfigOption option = new CheckAnalyticsService.ConfigOption(
                 CheckAnalyticsService.groupKey(run), "Config", "v2",
-                CheckAnalyticsService.comparisonCohortKey(run), "defs", "evaluator",
+                CheckAnalyticsService.comparisonCohortKey(run), "defs", "evaluator", "0.8",
                 CheckAnalyticsService.configFingerprint(run), 1);
 
         CheckAnalyticsService.ComparisonSummary summary =
@@ -282,7 +288,7 @@ class CheckAnalyticsServiceTest {
         CheckAnalyticsService service = new CheckAnalyticsService(dataManager);
         CheckAnalyticsService.ConfigOption option = new CheckAnalyticsService.ConfigOption(
                 CheckAnalyticsService.groupKey(first), "Config", "v2",
-                CheckAnalyticsService.comparisonCohortKey(first), "defs", "evaluator",
+                CheckAnalyticsService.comparisonCohortKey(first), "defs", "evaluator", "",
                 CheckAnalyticsService.configFingerprint(first), 2);
         CheckAnalyticsService.ComparisonResult result = service.compareConfigs(option, null);
 
@@ -327,8 +333,5 @@ class CheckAnalyticsServiceTest {
         return run;
     }
 
-    private static String legacyLabel(String label, String fingerprint) {
-        return label + " [cohort:" + fingerprint + "]";
-    }
 
 }

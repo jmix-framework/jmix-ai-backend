@@ -1,7 +1,6 @@
 package io.jmix.ai.backend.checks;
 
 import io.jmix.ai.backend.entity.CheckDef;
-import org.springframework.lang.Nullable;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -32,12 +31,6 @@ final class CheckFingerprints {
             digest.update(bytes);
         }
         return DEFINITION_PREFIX + "-" + shortHex(digest.digest());
-    }
-
-    @Nullable
-    static String fromLegacyLabel(@Nullable String label) {
-        String legacyHash = CheckConfigLabel.extractLegacyCohortHash(label);
-        return legacyHash != null ? DEFINITION_PREFIX + "-" + legacyHash : null;
     }
 
     static String shortHash(String value) {

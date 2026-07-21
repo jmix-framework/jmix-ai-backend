@@ -155,10 +155,6 @@ public class VectorStoreRepository {
         };
     }
 
-    public void delete(UUID id) {
-        jdbcTemplate.update("DELETE FROM vector_store WHERE id = '" + id + "'");
-    }
-
     public void deleteIds(Collection<UUID> ids) {
         if (ids.isEmpty()) {
             return;

@@ -166,7 +166,7 @@ public class CheckRunComparisonView extends StandardView {
                 : messageBundle.formatMessage("configOption.otherCohort", label);
     }
 
-    private void updateCohortWarning(ConfigOption base, ConfigOption candidate) {
+    void updateCohortWarning(ConfigOption base, ConfigOption candidate) {
         if (base == null || candidate == null || CheckAnalyticsService.canCompare(base, candidate)) {
             cohortWarning.setVisible(false);
             return;
@@ -181,6 +181,9 @@ public class CheckRunComparisonView extends StandardView {
         }
         if (!base.evaluatorConfig().equals(candidate.evaluatorConfig())) {
             differences.add(messageBundle.getMessage("cohortWarning.evaluator"));
+        }
+        if (!base.passThreshold().equals(candidate.passThreshold())) {
+            differences.add(messageBundle.getMessage("cohortWarning.passThreshold"));
         }
         if (differences.isEmpty()) {
             differences.add(messageBundle.getMessage("cohortWarning.parameters"));

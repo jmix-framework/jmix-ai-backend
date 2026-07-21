@@ -22,7 +22,7 @@ import java.util.stream.DoubleStream;
 @Component
 public class CheckAnalyticsService {
 
-    /** Fingerprint of runs that predate both the fingerprint column and the legacy label suffix. */
+    /** Fingerprint of runs that predate the fingerprint column. */
     static final String LEGACY_COHORT = "legacy";
 
     private final DataManager dataManager;
@@ -35,7 +35,7 @@ public class CheckAnalyticsService {
     public record RunPoint(@Nullable OffsetDateTime createdDate, double score, @Nullable Double accuracy) {
     }
 
-    /** Chronological run metrics of one configuration (same Jmix version and parameters). */
+    /** Chronological run metrics of one configuration (one comparison cohort plus parameters). */
     public record ConfigTrend(String label, String version, String fingerprint, List<RunPoint> points) {
     }
 
@@ -82,7 +82,7 @@ public class CheckAnalyticsService {
      * {@link #canCompare(ConfigOption, ConfigOption)}.
      */
     public record ConfigOption(String key, String description, String version, String comparisonCohort,
-                               String definitionFingerprint, String evaluatorConfig,
+                               String definitionFingerprint, String evaluatorConfig, String passThreshold,
                                String fingerprint, int runCount) {
     }
 
@@ -126,7 +126,7 @@ public class CheckAnalyticsService {
         List<CheckRun> runs = loadFinishedRuns();
         Map<String, List<CheckRun>> groups = new LinkedHashMap<>();
         for (CheckRun run : runs) {
-            groups.computeIfAbsent(configurationKey(run), key -> new ArrayList<>()).add(run);
+            groups.computeIfAbsent(groupKey(run), key -> new ArrayList<>()).add(run);
         }
         List<ConfigTrend> trends = new ArrayList<>(groups.size());
         groups.forEach((key, group) -> {
@@ -159,6 +159,7 @@ public class CheckAnalyticsService {
                     comparisonCohortKey(sample),
                     definitionFingerprint(sample),
                     defaultString(sample.getEvaluatorConfig()),
+                    defaultString(passThresholdKey(sample)),
                     configFingerprint(sample),
                     group.size()));
         });
@@ -181,9 +182,9 @@ public class CheckAnalyticsService {
     }
 
     /**
-     * Identity of a selectable configuration (one comparison drop-down item): the comparison
-     * cohort plus the exact parameters. Finer than {@link #configurationKey(CheckRun)} — the same
-     * parameters evaluated against different check suites form different options.
+     * Identity of a configuration: the comparison cohort plus the exact parameters. Groups both the
+     * comparison drop-down items and the Overview trend series, so the same parameters evaluated
+     * against different check suites, evaluators or thresholds form distinct configurations.
      */
     static String groupKey(CheckRun run) {
         String parameters = run.getParameters();
@@ -215,29 +216,18 @@ public class CheckAnalyticsService {
         return run.getPassThreshold() != null ? run.getPassThreshold().toString() : null;
     }
 
-    /** Identity of a configuration on the Overview trends: Jmix version plus parameters. */
-    static String configurationKey(CheckRun run) {
-        String parameters = run.getParameters();
-        return versionId(run) + "||"
-                + (parameters != null ? "1" + parameters : "0");
-    }
-
     /** Short hash of {@link #groupKey(CheckRun)}, shown in UI labels to disambiguate configurations. */
     static String configFingerprint(CheckRun run) {
         return CheckFingerprints.shortHash(groupKey(run));
     }
 
     /**
-     * The stored fingerprint of the active check definitions, falling back for pre-column runs
-     * to the hash embedded in the legacy label suffix, then to {@link #LEGACY_COHORT}.
+     * The stored fingerprint of the active check definitions; {@link #LEGACY_COHORT} for runs
+     * predating the fingerprint column.
      */
     private static String definitionFingerprint(CheckRun run) {
         String fingerprint = run.getDefinitionFingerprint();
-        if (fingerprint != null && !fingerprint.isBlank()) {
-            return fingerprint;
-        }
-        String legacyFingerprint = CheckFingerprints.fromLegacyLabel(run.getConfigLabel());
-        return legacyFingerprint != null ? legacyFingerprint : LEGACY_COHORT;
+        return fingerprint != null && !fingerprint.isBlank() ? fingerprint : LEGACY_COHORT;
     }
 
     private static String versionId(CheckRun run) {
@@ -398,7 +388,7 @@ public class CheckAnalyticsService {
     }
 
     static String displayConfigLabel(CheckRun run) {
-        return configLabel(CheckConfigLabel.resolve(run.getConfigLabel(), run.getParameters()));
+        return configLabel(CheckConfigLabel.resolveLabel(run.getConfigLabel(), run.getParameters()));
     }
 
     private static String configLabel(@Nullable String label) {

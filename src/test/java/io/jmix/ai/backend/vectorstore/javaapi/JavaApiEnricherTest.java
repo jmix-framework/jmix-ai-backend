@@ -54,7 +54,7 @@ class JavaApiEnricherTest {
                 """));
         TestEnricher enricher = new TestEnricher(chatModel);
 
-        JavaApiEnricher.Enrichment enrichment = enricher.enrich(CARD.format());
+        Enrichment enrichment = enricher.enrich(CARD.format());
 
         assertThat(enrichment).isNotNull();
         assertThat(enrichment.description()).isEqualTo("Authorization-aware data access facade.");
@@ -101,15 +101,34 @@ class JavaApiEnricherTest {
                 {"description": "Description.", "example": "```java\\nDataManager dm;\\n```"}
                 """));
 
-        JavaApiEnricher.Enrichment enrichment = new TestEnricher(chatModel).enrich(CARD.format());
+        Enrichment enrichment = new TestEnricher(chatModel).enrich(CARD.format());
 
         assertThat(enrichment).isNotNull();
         assertThat(enrichment.example()).isEqualTo("DataManager dm;");
     }
 
     @Test
+    void fromCacheJson_RejectsCachedEnrichmentWithoutDescription() {
+        assertThat(JavaApiEnricher.fromCacheJson("""
+                {"description": " ", "example": "DataManager dm;"}
+                """)).isNull();
+        assertThat(JavaApiEnricher.fromCacheJson("not-json")).isNull();
+    }
+
+    @Test
+    void fromCacheJson_NormalizesCachedEnrichmentLikeALiveResponse() {
+        Enrichment enrichment = JavaApiEnricher.fromCacheJson("""
+                {"description": " Cached description. ", "example": "```java\\nDataManager dm;\\n```"}
+                """);
+
+        assertThat(enrichment).isNotNull();
+        assertThat(enrichment.description()).isEqualTo("Cached description.");
+        assertThat(enrichment.example()).isEqualTo("DataManager dm;");
+    }
+
+    @Test
     void assembleCard_ReplacesDescriptionAndAppendsExample() {
-        JavaApiEnricher.Enrichment enrichment = new JavaApiEnricher.Enrichment(
+        Enrichment enrichment = new Enrichment(
                 "Authorization-aware\ndata access facade.", "DataManager dm;");
 
         String assembled = JavaApiEnricher.assembleCard(CARD, enrichment);
@@ -125,13 +144,13 @@ class JavaApiEnricherTest {
     @Test
     void assembleCard_FallsBackToDeterministicCard() {
         assertThat(JavaApiEnricher.assembleCard(CARD, null)).isEqualTo(CARD.format());
-        assertThat(JavaApiEnricher.assembleCard(CARD, new JavaApiEnricher.Enrichment(" ", "x")))
+        assertThat(JavaApiEnricher.assembleCard(CARD, new Enrichment(" ", "x")))
                 .isEqualTo(CARD.format());
     }
 
     @Test
     void assembleCard_StripsFencesFromCachedExample() {
-        JavaApiEnricher.Enrichment enrichment = new JavaApiEnricher.Enrichment(
+        Enrichment enrichment = new Enrichment(
                 "Description.", "```java\nDataManager dm;\n```");
 
         assertThat(JavaApiEnricher.assembleCard(CARD, enrichment))

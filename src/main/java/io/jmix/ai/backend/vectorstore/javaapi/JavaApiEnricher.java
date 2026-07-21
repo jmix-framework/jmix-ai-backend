@@ -1,9 +1,9 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.ai.backend.vectorstore.AbstractOpenAiEnricher;
+import io.jmix.ai.backend.vectorstore.NormalizationUtils;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -44,11 +44,6 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
             - Do not mention Javadoc or the card itself.
             """;
 
-    public record Enrichment(
-            @Nullable @JsonProperty(required = true, value = "description") String description,
-            @Nullable @JsonProperty(required = true, value = "example") String example) {
-    }
-
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /** Serializes the enrichment for the {@code EnrichmentCache} content. */
@@ -60,11 +55,15 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
         }
     }
 
-    /** Restores the enrichment from cached content, or null if unreadable (a cache miss). */
+    /**
+     * Restores the enrichment from cached content, or null if unreadable or semantically invalid
+     * (both a cache miss). Cached data passes the same gate as a live response, so a stale or
+     * hand-edited entry can never mark a card as enriched without a usable description.
+     */
     @Nullable
     public static Enrichment fromCacheJson(String json) {
         try {
-            return OBJECT_MAPPER.readValue(json, Enrichment.class);
+            return NormalizationUtils.canonicalEnrichment(OBJECT_MAPPER.readValue(json, Enrichment.class));
         } catch (JsonProcessingException e) {
             log.error("Failed to deserialize cached enrichment", e);
             return null;
@@ -111,14 +110,13 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
                 log.error("Enrichment response was empty");
                 return null;
             }
-            Enrichment enrichment = OUTPUT_CONVERTER.convert(content);
-            if (enrichment == null || StringUtils.isBlank(enrichment.description())) {
+            // the same gate cached payloads pass in fromCacheJson: live and cache cannot diverge
+            Enrichment enrichment = NormalizationUtils.canonicalEnrichment(OUTPUT_CONVERTER.convert(content));
+            if (enrichment == null) {
                 log.error("Enrichment response has no description: {}", content);
                 return null;
             }
-            return new Enrichment(
-                    enrichment.description().trim(),
-                    stripMarkdownFences(enrichment.example()));
+            return enrichment;
         } catch (Exception e) {
             log.error("Enrichment request failed", e);
             return null;
@@ -130,22 +128,16 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
      * the generated one, the example is appended to the code section, signatures stay verbatim.
      */
     public static String assembleCard(Snippet card, @Nullable Enrichment enrichment) {
-        if (enrichment == null || StringUtils.isBlank(enrichment.description())) {
+        // re-gate defensively: the enrichment may come from outside the canonical gate
+        Enrichment canonical = NormalizationUtils.canonicalEnrichment(enrichment);
+        if (canonical == null) {
             return card.format();
         }
         String code = card.code() == null ? "" : card.code();
-        String example = stripMarkdownFences(enrichment.example());
-        if (!StringUtils.isBlank(example)) {
-            code = code + "\n\n// Usage example:\n" + example;
+        if (!StringUtils.isBlank(canonical.example())) {
+            code = code + "\n\n// Usage example:\n" + canonical.example();
         }
-        String description = enrichment.description().replaceAll("\\s+", " ").trim();
-        return new Snippet(card.title(), description, card.language(), code, card.absoluteUrl()).format();
-    }
-
-    private static String stripMarkdownFences(@Nullable String text) {
-        if (text == null) {
-            return "";
-        }
-        return text.replaceAll("(?im)^\\s*```(?:java)?\\s*$", "").trim();
+        return new Snippet(card.title(), canonical.description(), card.language(), code, card.absoluteUrl())
+                .format();
     }
 }

@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.vectorstore;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.DataManager;
 import io.jmix.data.exception.UniqueConstraintViolationException;
 import org.junit.jupiter.api.Test;
@@ -26,11 +27,11 @@ class EnrichmentCacheRepositoryTest {
         EnrichmentCache concurrent = new EnrichmentCache();
         concurrent.setId(UUID.randomUUID());
         doReturn(Optional.empty(), Optional.of(concurrent))
-                .when(repository).find("docs-snippets", "page.html", "v2", "model:p3");
+                .when(repository).find(CorpusType.DOCS_SNIPPETS, "page.html", JmixVersion.V2, "model:p3");
         when(dataManager.create(EnrichmentCache.class)).thenReturn(attempted);
         when(dataManager.save(attempted)).thenThrow(new UniqueConstraintViolationException());
 
-        repository.save("docs-snippets", "page.html", "v2", "model:p3",
+        repository.save(CorpusType.DOCS_SNIPPETS, "page.html", JmixVersion.V2, "model:p3",
                 "hash", "content");
 
         verify(dataManager).save(concurrent);

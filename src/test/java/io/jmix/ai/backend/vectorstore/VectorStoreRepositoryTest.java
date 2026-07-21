@@ -44,11 +44,11 @@ class VectorStoreRepositoryTest {
     void loadsOnlyChunksOfTheRequestedVersion(JmixVersion version) {
         List<VectorStoreEntity> expected = List.of(new VectorStoreEntity());
         when(jdbcTemplate.query(anyString(), any(RowMapper.class),
-                eq("docs-snippets"), eq("search/search-properties.html"), eq(version.getId())))
+                eq(CorpusType.DOCS_SNIPPETS), eq("search/search-properties.html"), eq(version.getId())))
                 .thenReturn(expected);
 
         List<VectorStoreEntity> result = repository.loadSourceChunks(
-                "docs-snippets", "search/search-properties.html", version);
+                CorpusType.DOCS_SNIPPETS, "search/search-properties.html", version);
 
         assertThat(result).isSameAs(expected);
         verify(jdbcTemplate).query(
@@ -57,7 +57,7 @@ class VectorStoreRepositoryTest {
                         "AND metadata::jsonb ->> 'source' = ? " +
                         "AND metadata::jsonb ->> 'jmixVersion' = ?"),
                 any(RowMapper.class),
-                eq("docs-snippets"), eq("search/search-properties.html"), eq(version.getId()));
+                eq(CorpusType.DOCS_SNIPPETS), eq("search/search-properties.html"), eq(version.getId()));
     }
 
     @Test

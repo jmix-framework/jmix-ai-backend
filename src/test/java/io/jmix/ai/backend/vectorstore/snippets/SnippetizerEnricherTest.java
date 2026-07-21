@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.vectorstore.snippets;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ class SnippetizerEnricherTest {
             "<article><h2>Buttons</h2><p>How to create a button</p><pre>&lt;button text=\"OK\"/&gt;</pre></article>",
             Map.of("type", "docs-snippets",
                     "source", "flow-ui/vc/components/button.html",
+                    "jmixVersion", "v2",
                     "sourceHash", "hash1",
                     "url", "https://docs.jmix.io/jmix/flow-ui/vc/components/button.html",
                     "docPath", "Flow UI > Visual Components > Button"));
@@ -163,7 +165,7 @@ class SnippetizerEnricherTest {
         TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
         cached.setContent(snippetizer.toJson(List.of(
                 new Snippet("Invented", "Cached.", "xml", "<button text=\"Invented\"/>", "source"))));
-        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
                 "test-model:low:p4")).thenReturn(Optional.of(cached));
 
         try {
@@ -179,6 +181,35 @@ class SnippetizerEnricherTest {
     }
 
     @Test
+    void resolveAll_RegeneratesWhenCachedSnippetsFailTheLiveGate() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
+                {"snippets": [{"title": "Button", "description": "Grounded.",
+                  "language": "xml", "code": "<button text=\\"OK\\"/>"}]}
+                """));
+        EnrichmentCacheRepository cacheRepository = mock(EnrichmentCacheRepository.class);
+        EnrichmentCache cached = new EnrichmentCache();
+        cached.setContentHash("hash1");
+        TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
+        // the live path would filter a blank-title snippet, so the cached list must be a miss too
+        cached.setContent(snippetizer.toJson(List.of(
+                new Snippet(" ", "Blank title fails the gate.", "xml", "<button text=\"OK\"/>", "source"))));
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
+                "test-model:low:p4")).thenReturn(Optional.of(cached));
+
+        try {
+            Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
+                    document -> DocsHtmlConverter.toPlainText(document.getText()));
+
+            assertThat(result.get(PAGE.getId())).singleElement()
+                    .extracting(Snippet::title)
+                    .isEqualTo("Button");
+        } finally {
+            snippetizer.shutdownExecutor();
+        }
+    }
+
+    @Test
     void resolveAll_ReusesValidCachedSnippetWithoutCallingModel() {
         ChatModel chatModel = mock(ChatModel.class);
         EnrichmentCacheRepository cacheRepository = mock(EnrichmentCacheRepository.class);
@@ -187,7 +218,7 @@ class SnippetizerEnricherTest {
         cached.setContentHash("hash1");
         cached.setContent(snippetizer.toJson(List.of(
                 new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>", "source"))));
-        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
                 "test-model:low:p4")).thenReturn(Optional.of(cached));
 
         try {

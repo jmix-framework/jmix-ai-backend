@@ -1,65 +1,51 @@
 package io.jmix.ai.backend.checks;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.lang.Nullable;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Map;
 
-/** Resolves the display label stored with a check run, including legacy-label compatibility. */
+/** Resolves the display label stored with a check run. */
 final class CheckConfigLabel {
 
     private static final int MAX_DESCRIPTION_LENGTH = 200;
-    private static final Pattern LEGACY_COHORT_SUFFIX = Pattern.compile(
-            " \\[cohort:(?:[a-z0-9]+-)*([a-f0-9]{12})]$");
+    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
 
     private CheckConfigLabel() {
     }
 
     @Nullable
-    static String resolve(@Nullable String storedLabel, @Nullable String parameters) {
-        String label = stripLegacySuffix(storedLabel);
-        return label == null || label.isBlank() ? extract(parameters) : label;
+    static String resolveLabel(@Nullable String storedLabel, @Nullable String parameters) {
+        return storedLabel == null || storedLabel.isBlank() ? extractDescription(parameters) : storedLabel;
     }
 
     /**
-     * Reads the human-readable label from the {@code description:} line of the parameters YAML.
+     * Reads the human-readable label from the top-level {@code description} key of the parameters
+     * YAML. The label is decoration, so unlike {@code Parameters.getDescription()} malformed YAML
+     * yields no label instead of an exception.
      */
     @Nullable
-    static String extract(@Nullable String parameters) {
+    static String extractDescription(@Nullable String parameters) {
         if (parameters == null) {
             return null;
         }
-        for (String line : parameters.split("\n", 20)) {
-            String trimmed = line.trim();
-            if (trimmed.startsWith("description:")) {
-                String value = trimmed.substring("description:".length()).trim();
-                return value.length() > MAX_DESCRIPTION_LENGTH
-                        ? value.substring(0, MAX_DESCRIPTION_LENGTH)
-                        : value;
-            }
-        }
-        return null;
-    }
-
-    @Nullable
-    static String stripLegacySuffix(@Nullable String label) {
-        String result = label;
-        while (result != null) {
-            Matcher matcher = LEGACY_COHORT_SUFFIX.matcher(result);
-            if (!matcher.find()) {
-                break;
-            }
-            result = result.substring(0, matcher.start());
-        }
-        return result;
-    }
-
-    @Nullable
-    static String extractLegacyCohortHash(@Nullable String label) {
-        if (label == null) {
+        Object description;
+        try {
+            Map<?, ?> data = YAML_MAPPER.readValue(parameters, Map.class);
+            description = data != null ? data.get("description") : null;
+        } catch (Exception e) {
             return null;
         }
-        Matcher matcher = LEGACY_COHORT_SUFFIX.matcher(label);
-        return matcher.find() ? matcher.group(1) : null;
+        if (description == null) {
+            return null;
+        }
+        String value = description.toString().trim();
+        if (value.isEmpty()) {
+            return null;
+        }
+        return value.length() > MAX_DESCRIPTION_LENGTH
+                ? value.substring(0, MAX_DESCRIPTION_LENGTH)
+                : value;
     }
 }

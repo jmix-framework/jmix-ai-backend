@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.CorpusType;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
@@ -93,7 +94,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
         return "true".equals(document.getMetadata().get("enriched"));
     }
 
-    private record PendingEnrichment(Document document, Snippet card, String source, String jmixVersion,
+    private record PendingEnrichment(Document document, Snippet card, String source, JmixVersion jmixVersion,
                                      String contentHash) {
     }
 
@@ -109,9 +110,9 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
         for (Document document : documents) {
             Snippet card = Snippet.parse(document.getText());
             String source = getSourceFromDocument(document);
-            String jmixVersion = (String) document.getMetadata().get("jmixVersion");
+            JmixVersion jmixVersion = JmixVersion.fromId((String) document.getMetadata().get("jmixVersion"));
             String contentHash = (String) document.getMetadata().get("sourceHash");
-            Optional<JavaApiEnricher.Enrichment> cached = enrichmentCacheRepository
+            Optional<Enrichment> cached = enrichmentCacheRepository
                     .find(getType(), source, jmixVersion, modelName)
                     .filter(entry -> Objects.equals(contentHash, entry.getContentHash()))
                     .map(EnrichmentCache::getContent)
@@ -125,9 +126,9 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
 
         if (!pending.isEmpty()) {
             log.info("Generating enrichment for {} documents (parallelism {})", pending.size(), enrichmentParallelism);
-            CompletionService<JavaApiEnricher.Enrichment> completed =
+            CompletionService<Enrichment> completed =
                     new ExecutorCompletionService<>(enrichmentExecutor);
-            Map<Future<JavaApiEnricher.Enrichment>, PendingEnrichment> inFlight = new HashMap<>();
+            Map<Future<Enrichment>, PendingEnrichment> inFlight = new HashMap<>();
             int next = 0;
             int completedCount = 0;
             try {
@@ -137,9 +138,9 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
                 }
 
                 while (!inFlight.isEmpty()) {
-                    Future<JavaApiEnricher.Enrichment> future = completed.take();
+                    Future<Enrichment> future = completed.take();
                     PendingEnrichment item = inFlight.remove(future);
-                    JavaApiEnricher.Enrichment enrichment = getEnrichment(future, item.source());
+                    Enrichment enrichment = getEnrichment(future, item.source());
                     if (enrichment != null) {
                         // save on the caller thread: DataManager requires the caller's security context
                         enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
@@ -179,7 +180,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
     }
 
     @Nullable
-    private JavaApiEnricher.Enrichment getEnrichment(Future<JavaApiEnricher.Enrichment> future, String source) {
+    private Enrichment getEnrichment(Future<Enrichment> future, String source) {
         try {
             return future.get();
         } catch (InterruptedException e) {
@@ -191,7 +192,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
         }
     }
 
-    private Document withEnrichment(Document document, Snippet card, @Nullable JavaApiEnricher.Enrichment enrichment) {
+    private Document withEnrichment(Document document, Snippet card, @Nullable Enrichment enrichment) {
         if (enrichment == null) {
             return document;
         }

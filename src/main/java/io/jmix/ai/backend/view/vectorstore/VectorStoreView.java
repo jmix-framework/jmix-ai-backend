@@ -207,7 +207,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     }
 
     @Install(to = "vectorStoreDataGrid.removeAction", subject = "beforeActionPerformedHandler")
-    private void vectorStoreDataGridRemoveActionBeforeActionPerformedHandler(final RemoveOperation.BeforeActionPerformedEvent<VectorStoreEntity> beforeActionPerformedEvent) {
+    void vectorStoreDataGridRemoveActionBeforeActionPerformedHandler(final RemoveOperation.BeforeActionPerformedEvent<VectorStoreEntity> beforeActionPerformedEvent) {
         VectorStoreEntity selectedEntity = vectorStoreDataGrid.getSingleSelectedItem();
         if (selectedEntity == null)
             return;
