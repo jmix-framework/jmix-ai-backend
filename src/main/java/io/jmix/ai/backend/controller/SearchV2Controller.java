@@ -56,9 +56,8 @@ public class SearchV2Controller {
         if (version == null) {
             version = JmixVersion.V2;
         }
-        List<Document> retrieved = searchService.search(request.query(), version, request.maxResults());
-        List<Document> ranked = SearchResultsFormatter.sortByRelevance(retrieved);
-        List<Document> trimmedToBudget = SearchResultsFormatter.applyTokenBudget(ranked, request.tokens());
+        List<Document> sortedByRelevance = searchService.search(request.query(), version, request.maxResults());
+        List<Document> trimmedToBudget = SearchResultsFormatter.applyTokenBudget(sortedByRelevance, request.tokens());
 
         return trimmedToBudget.stream()
                 .map(document -> {

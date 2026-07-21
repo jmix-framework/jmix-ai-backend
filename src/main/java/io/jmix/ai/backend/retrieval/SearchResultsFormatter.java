@@ -13,12 +13,15 @@ import java.util.Objects;
  * Shapes retrieved documents into a context7-like search response: orders results by relevance
  * across tools, trims the list to a token budget and extracts a snippet title and source URL.
  */
-public class SearchResultsFormatter {
+public final class SearchResultsFormatter {
 
     /** Rough chars-per-token ratio used for the token budget. */
     static final int CHARS_PER_TOKEN = 4;
 
     private static final int FALLBACK_TITLE_LENGTH = 100;
+
+    private SearchResultsFormatter() {
+    }
 
     /**
      * Orders documents by rerank score (falling back to the similarity score) descending.

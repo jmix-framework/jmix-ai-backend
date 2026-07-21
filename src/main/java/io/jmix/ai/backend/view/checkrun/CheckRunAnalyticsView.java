@@ -40,9 +40,11 @@ import java.util.function.Function;
 @ViewDescriptor(path = "check-run-analytics-view.xml")
 public class CheckRunAnalyticsView extends StandardView {
 
-    // Category identity of a run point on the time axis: precise enough (year + seconds) that two
-    // distinct runs never share a slot, while runs of different configs at the same instant still
-    // align on one tick. Undated points get a unique synthetic key instead of collapsing together.
+    // Category identity of a run point on the time axis: runs of different configs at the same
+    // instant share a slot so they stay aligned on one tick. The accepted flip side is that runs
+    // of the SAME config created within one second collapse into a single point (the category
+    // string doubles as the axis label, so it cannot carry a disambiguating suffix). Undated
+    // points get a unique synthetic key instead of collapsing together.
     private static final DateTimeFormatter KEY_FORMAT = DateTimeFormatter.ofPattern("yy-MM-dd HH:mm:ss");
     private static final String UNDATED_KEY_PREFIX = "—#";
 
@@ -163,10 +165,11 @@ public class CheckRunAnalyticsView extends StandardView {
     }
 
     /**
-     * Aligns every run point onto the shared time axis. Each point keeps its own slot — keyed by a
-     * precise timestamp, or a unique synthetic key when undated — so two runs in the same minute,
-     * across years, or without a date are no longer collapsed onto one another. Runs of different
-     * configs at the same instant still share a slot, which keeps them aligned on the axis.
+     * Aligns every run point onto the shared time axis. Each point gets a second-precise slot —
+     * or a unique synthetic key when undated — so runs in the same minute, across years, or
+     * without a date are not collapsed onto one another. Runs of different configs at the same
+     * instant share a slot, which keeps them aligned on the axis; same-config runs within one
+     * second collapse (see {@link #KEY_FORMAT}).
      */
     static ChartModel buildModel(List<ConfigTrend> trends) {
         List<Map<String, RunPoint>> pointsByTrend = new ArrayList<>(trends.size());

@@ -65,8 +65,9 @@ class SearchControllersTest {
                 .metadata(Map.of("url", "https://example.com/high"))
                 .score(0.9)
                 .build();
+        // the service returns results already relevance-ordered; the controller must not reorder
         when(searchService.search("query", JmixVersion.V2, null))
-                .thenReturn(List.of(lessRelevant, mostRelevant));
+                .thenReturn(List.of(mostRelevant, lessRelevant));
         SearchV2Controller controller = new SearchV2Controller(searchService);
 
         List<SearchV2Controller.SearchResultDocument> result = controller.search(
