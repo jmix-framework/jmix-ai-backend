@@ -210,6 +210,30 @@ class CheckAnalyticsServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void overviewSeparatesRunsThatDifferOnlyByEvaluationCohort() {
+        CheckRun runA = checkRun("Config", "same-params");
+        runA.setScore(0.8);
+        runA.setEvaluatorConfig("evaluator-A");
+        CheckRun runB = checkRun("Config", "same-params");
+        runB.setScore(0.6);
+        runB.setEvaluatorConfig("evaluator-B");
+
+        DataManager dataManager = mock(DataManager.class);
+        FluentLoader<CheckRun> runLoader = mock(FluentLoader.class);
+        FluentLoader.ByQuery<CheckRun> runQuery = mock(FluentLoader.ByQuery.class);
+        when(dataManager.load(CheckRun.class)).thenReturn(runLoader);
+        when(runLoader.query("e.score is not null order by e.createdDate, e.id")).thenReturn(runQuery);
+        when(runQuery.list()).thenReturn(List.of(runA, runB));
+
+        CheckAnalyticsService.Overview overview = new CheckAnalyticsService(dataManager).loadOverview();
+
+        // same Jmix version and parameters, but different evaluator => two cohorts => two trend lines
+        assertThat(overview.trends()).hasSize(2);
+        assertThat(overview.configCount()).isEqualTo(2);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void comparisonAccuracyUsesTheStoredPassThreshold() {
         UUID runId = UUID.randomUUID();
         CheckRun run = checkRun("Config", "parameters");

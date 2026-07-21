@@ -35,7 +35,7 @@ public class CheckAnalyticsService {
     public record RunPoint(@Nullable OffsetDateTime createdDate, double score, @Nullable Double accuracy) {
     }
 
-    /** Chronological run metrics of one configuration (same Jmix version and parameters). */
+    /** Chronological run metrics of one configuration (one comparison cohort plus parameters). */
     public record ConfigTrend(String label, String version, String fingerprint, List<RunPoint> points) {
     }
 
@@ -126,7 +126,7 @@ public class CheckAnalyticsService {
         List<CheckRun> runs = loadFinishedRuns();
         Map<String, List<CheckRun>> groups = new LinkedHashMap<>();
         for (CheckRun run : runs) {
-            groups.computeIfAbsent(configurationKey(run), key -> new ArrayList<>()).add(run);
+            groups.computeIfAbsent(groupKey(run), key -> new ArrayList<>()).add(run);
         }
         List<ConfigTrend> trends = new ArrayList<>(groups.size());
         groups.forEach((key, group) -> {
@@ -182,9 +182,9 @@ public class CheckAnalyticsService {
     }
 
     /**
-     * Identity of a selectable configuration (one comparison drop-down item): the comparison
-     * cohort plus the exact parameters. Finer than {@link #configurationKey(CheckRun)} — the same
-     * parameters evaluated against different check suites form different options.
+     * Identity of a configuration: the comparison cohort plus the exact parameters. Groups both the
+     * comparison drop-down items and the Overview trend series, so the same parameters evaluated
+     * against different check suites, evaluators or thresholds form distinct configurations.
      */
     static String groupKey(CheckRun run) {
         String parameters = run.getParameters();
@@ -214,13 +214,6 @@ public class CheckAnalyticsService {
     @Nullable
     private static String passThresholdKey(CheckRun run) {
         return run.getPassThreshold() != null ? run.getPassThreshold().toString() : null;
-    }
-
-    /** Identity of a configuration on the Overview trends: Jmix version plus parameters. */
-    static String configurationKey(CheckRun run) {
-        String parameters = run.getParameters();
-        return versionId(run) + "||"
-                + (parameters != null ? "1" + parameters : "0");
     }
 
     /** Short hash of {@link #groupKey(CheckRun)}, shown in UI labels to disambiguate configurations. */
