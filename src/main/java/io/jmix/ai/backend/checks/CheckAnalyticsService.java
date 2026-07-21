@@ -388,7 +388,7 @@ public class CheckAnalyticsService {
     }
 
     static String displayConfigLabel(CheckRun run) {
-        return configLabel(CheckConfigLabel.resolve(run.getConfigLabel(), run.getParameters()));
+        return configLabel(CheckConfigLabel.resolveLabel(run.getConfigLabel(), run.getParameters()));
     }
 
     private static String configLabel(@Nullable String label) {

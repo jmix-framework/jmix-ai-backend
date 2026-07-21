@@ -91,7 +91,7 @@ public class CheckRunner {
     }
 
     private void prepareRunMetadata(CheckRun checkRun, List<CheckDef> definitions) {
-        String configLabel = CheckConfigLabel.resolve(
+        String configLabel = CheckConfigLabel.resolveLabel(
                 checkRun.getConfigLabel(), checkRun.getParameters());
         checkRun.setEvaluatorConfig(evaluatorConfig);
         checkRun.setPassThreshold(passThreshold);
