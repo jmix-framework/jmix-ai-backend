@@ -676,5 +676,85 @@
     "category": "multi-hop",
     "question": "My collection loader query needs a parameter that comes from a comboBox on the same view: how do I declare it in the data XML and reload the grid when the user changes the value?",
     "answer": "Declare the parameter placeholder in the loader query in the data section, e.g. <query><![CDATA[select e from Order e where e.status = :status]]></query>. In the controller subscribe to the comboBox value change (@Subscribe(\"statusComboBox\") on ComponentValueChangeEvent), then set the parameter and reload: ordersDl.setParameter(\"status\", event.getValue()); ordersDl.load(). CollectionLoader.setParameter and load() re-execute the query with the new value."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "1ef39a7c-eaf2-443f-8c35-f80b60a9b6c8",
+    "active": true,
+    "category": "beginner",
+    "question": "Как добавить новое поле в карточку клиента? Хочу, чтобы у клиента был ещё телефон.",
+    "answer": "Добавьте атрибут в JPA-сущность Customer (например, String phone) — в Jmix Studio это делается в Entity Designer командой Add Attribute; Studio сгенерирует Liquibase-миграцию для новой колонки. Затем добавьте поле на detail view: компонент textField с property=\"phone\" внутри formLayout, привязанного к контейнеру сущности. Studio может добавить поле на экран автоматически при создании атрибута."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "f9bae294-962e-4635-8fd9-97b3f1e2234f",
+    "active": true,
+    "category": "beginner",
+    "question": "How do I make a dropdown so the user can pick a status like \"New\", \"In progress\", \"Done\"?",
+    "answer": "Create an enumeration (an enum implementing EnumClass) with values NEW, IN_PROGRESS, DONE and use it as the type of an entity attribute; a detail view edits such an attribute with a select or comboBox automatically. For a standalone dropdown, use a comboBox or select component with the itemsEnum attribute pointing to the enum class. Display names of the values are localized in the message bundle."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "0b7518e2-2a1a-4267-ac73-1947c506a4ca",
+    "active": true,
+    "category": "beginner",
+    "question": "Я случайно удалил запись из таблицы. Можно её как-то вернуть?",
+    "answer": "Зависит от сущности. Если у неё включено мягкое удаление (soft delete — атрибуты с @DeletedDate/@DeletedBy), запись физически не удалена, а только помечена: её можно восстановить, загрузив с хинтом PersistenceHints.SOFT_DELETION = false, очистив deletedDate/deletedBy и сохранив. Если soft delete не настроен, запись удалена из базы безвозвратно и поможет только резервная копия."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "f488d9b6-ea2a-453b-b1ba-aa56cc3b2831",
+    "active": true,
+    "category": "beginner",
+    "question": "How can I export the data from a table to Excel?",
+    "answer": "Use the Grid Export Actions add-on. After adding it to the project, declare an export action on the dataGrid, e.g. <action id=\"excelExport\" type=\"grdexp_excelExport\"/> — the user gets a button that downloads the grid content as an Excel file. For formatted printable documents, the Reports add-on is the alternative."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "badf45b0-0a30-4fb8-955b-1e27e51b26b5",
+    "active": true,
+    "category": "beginner",
+    "question": "How do I make a field mandatory so the form can't be saved while it is empty?",
+    "answer": "Set required=\"true\" on the field component in the view XML (optionally with requiredMessage), or add a Bean Validation annotation such as @NotNull on the entity attribute — bound UI components then become required automatically. In Jmix Studio this is the Mandatory checkbox on the attribute."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "462e49ce-ef83-4a67-88af-7f5c73790691",
+    "active": true,
+    "category": "beginner",
+    "question": "Как добавить нового пользователя в приложение и задать ему пароль?",
+    "answer": "Через стандартный экран пользователей: в запущенном приложении откройте список Users (он входит в шаблон проекта), нажмите Create и задайте username и пароль в карточке. Права выдаются назначением ролей (resource roles) через role assignments. Программно пользователя можно создать через DataManager, закодировав пароль PasswordEncoder."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "61bd92bf-8a9e-4cde-b55e-949bcf913d19",
+    "active": true,
+    "category": "beginner",
+    "question": "Как сделать, чтобы приложение было на русском языке?",
+    "answer": "Подключите зависимость с готовыми переводами платформы (jmix-translations-ru), добавьте русскую локаль в свойство jmix.core.available-locales (например, en,ru) и переведите собственные сообщения приложения в messages_ru.properties. Пользователь выбирает язык на экране входа; локаль по умолчанию определяется порядком в available-locales."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "69e64a71-344a-4994-baf8-307eaa02a627",
+    "active": true,
+    "category": "beginner",
+    "question": "Как сделать поиск в таблице, чтобы находить клиента по имени?",
+    "answer": "Стандартный способ — компонент genericFilter над таблицей (есть в сгенерированных list view): пользователь сам добавляет условие по любому атрибуту. Для фиксированного поиска по имени добавьте propertyFilter с property=\"name\", operation=\"CONTAINS\" и dataLoader таблицы — при вводе значения список фильтруется."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "6bf3325a-3e15-4014-90c8-f4aae5ef8ed1",
+    "active": true,
+    "category": "beginner",
+    "question": "I want two fields to be on the same line in the form, not one under another. How do I do that?",
+    "answer": "formLayout arranges components in columns: configure its responsiveSteps, e.g. a responsiveStep with columns=\"2\", and the fields flow two per row. Alternatively place the two fields in an hbox. A single component can span several columns with colspan."
+  },
+  {
+    "_entityName": "CheckDef",
+    "id": "a642e0e8-c988-402f-9dfc-c15d7a79484c",
+    "active": true,
+    "category": "beginner",
+    "question": "Я поменял данные на экране, нажал кнопку, а изменения не сохранились. Почему?",
+    "answer": "Типовые причины: поле не привязано к данным (не указан property или dataContainer — значение живёт только на экране); кнопка не вызывает сохранение — нужна стандартная save-логика detail view или явный вызов dataContext.save(); данные изменены в коде, но не сохранены через DataManager.save(...). Правильный ответ должен указать на проверку привязки поля и наличия вызова сохранения; перечислять все причины не требуется."
   }
 ]
