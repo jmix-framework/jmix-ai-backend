@@ -1,8 +1,8 @@
 package io.jmix.ai.backend.vectorstore;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.DataManager;
-import io.jmix.core.FluentValueLoader;
 import io.jmix.data.exception.UniqueConstraintViolationException;
 import org.springframework.stereotype.Component;
 
@@ -23,12 +23,12 @@ public class EnrichmentCacheRepository {
         this.dataManager = dataManager;
     }
 
-    public Optional<EnrichmentCache> find(String type, String source, String jmixVersion, String modelName) {
+    public Optional<EnrichmentCache> find(String type, String source, JmixVersion jmixVersion, String modelName) {
         return dataManager.load(EnrichmentCache.class)
                 .query("e.type = :type and e.source = :source and e.jmixVersion = :jmixVersion and e.modelName = :modelName")
                 .parameter("type", type)
                 .parameter("source", source)
-                .parameter("jmixVersion", jmixVersion)
+                .parameter("jmixVersion", requireVersion(jmixVersion).getId())
                 .parameter("modelName", modelName)
                 .optional();
     }
@@ -36,7 +36,7 @@ public class EnrichmentCacheRepository {
     public void save(
             String type,
             String source,
-            String jmixVersion,
+            JmixVersion jmixVersion,
             String modelName,
             String contentHash,
             String content) {
@@ -99,22 +99,25 @@ public class EnrichmentCacheRepository {
     }
 
     private List<UUID> findIds(GenerationKey generation) {
-        String versionCondition = generation.jmixVersion() == null
-                ? "e.jmixVersion is null"
-                : "e.jmixVersion = :jmixVersion";
-        FluentValueLoader<UUID> loader = dataManager.loadValue("""
+        return dataManager.loadValue("""
                         select e.id
                         from EnrichmentCache e
                         where e.type = :type
                           and e.modelName = :modelName
-                          and %s
-                        """.formatted(versionCondition), UUID.class)
+                          and e.jmixVersion = :jmixVersion
+                        """, UUID.class)
                 .parameter("type", generation.type())
-                .parameter("modelName", generation.modelName());
-        if (generation.jmixVersion() != null) {
-            loader.parameter("jmixVersion", generation.jmixVersion());
+                .parameter("modelName", generation.modelName())
+                .parameter("jmixVersion", generation.jmixVersion())
+                .list();
+    }
+
+    private static JmixVersion requireVersion(JmixVersion jmixVersion) {
+        if (jmixVersion == null) {
+            throw new IllegalArgumentException("Enrichment cache entries are version-scoped:"
+                    + " jmixVersion is required");
         }
-        return loader.list();
+        return jmixVersion;
     }
 
     private void save(EnrichmentCache entity, String contentHash, String content) {

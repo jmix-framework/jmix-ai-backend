@@ -1,6 +1,8 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
+import io.jmix.ai.backend.vectorstore.CorpusType;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
@@ -88,7 +90,8 @@ class JavaApiEnrichedIngesterTest {
         cached.setContentHash("hash1");
         cached.setContent(JavaApiEnricher.toCacheJson(
                 new JavaApiEnricher.Enrichment("Cached description.", "DataManager dm;")));
-        when(enrichmentCacheRepository.find("javaapi-enriched", "io/jmix/core/DataManager.html", "v2", "test-model"))
+        when(enrichmentCacheRepository.find(CorpusType.JAVA_API_ENRICHED, "io/jmix/core/DataManager.html",
+                JmixVersion.V2, "test-model"))
                 .thenReturn(Optional.of(cached));
 
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
@@ -118,8 +121,8 @@ class JavaApiEnrichedIngesterTest {
                 .contains("DESCRIPTION: Generated description.")
                 .contains("dm.unconstrained();");
         verify(enricher).enrich(CARD.format());
-        verify(enrichmentCacheRepository).save("javaapi-enriched", "io/jmix/core/DataManager.html", "v2",
-                "test-model", "hash1",
+        verify(enrichmentCacheRepository).save(CorpusType.JAVA_API_ENRICHED, "io/jmix/core/DataManager.html",
+                JmixVersion.V2, "test-model", "hash1",
                 JavaApiEnricher.toCacheJson(new JavaApiEnricher.Enrichment("Generated description.", "dm.unconstrained();")));
     }
 

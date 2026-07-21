@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.vectorstore.snippets;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ class SnippetizerEnricherTest {
             "<article><h2>Buttons</h2><p>How to create a button</p><pre>&lt;button text=\"OK\"/&gt;</pre></article>",
             Map.of("type", "docs-snippets",
                     "source", "flow-ui/vc/components/button.html",
+                    "jmixVersion", "v2",
                     "sourceHash", "hash1",
                     "url", "https://docs.jmix.io/jmix/flow-ui/vc/components/button.html",
                     "docPath", "Flow UI > Visual Components > Button"));
@@ -163,7 +165,7 @@ class SnippetizerEnricherTest {
         TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
         cached.setContent(snippetizer.toJson(List.of(
                 new Snippet("Invented", "Cached.", "xml", "<button text=\"Invented\"/>", "source"))));
-        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
                 "test-model:low:p4")).thenReturn(Optional.of(cached));
 
         try {
@@ -187,7 +189,7 @@ class SnippetizerEnricherTest {
         cached.setContentHash("hash1");
         cached.setContent(snippetizer.toJson(List.of(
                 new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>", "source"))));
-        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", null,
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
                 "test-model:low:p4")).thenReturn(Optional.of(cached));
 
         try {

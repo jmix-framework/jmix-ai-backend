@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.vectorstore.javaapi;
 
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.CorpusType;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
@@ -93,7 +94,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
         return "true".equals(document.getMetadata().get("enriched"));
     }
 
-    private record PendingEnrichment(Document document, Snippet card, String source, String jmixVersion,
+    private record PendingEnrichment(Document document, Snippet card, String source, JmixVersion jmixVersion,
                                      String contentHash) {
     }
 
@@ -109,7 +110,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
         for (Document document : documents) {
             Snippet card = Snippet.parse(document.getText());
             String source = getSourceFromDocument(document);
-            String jmixVersion = (String) document.getMetadata().get("jmixVersion");
+            JmixVersion jmixVersion = JmixVersion.fromId((String) document.getMetadata().get("jmixVersion"));
             String contentHash = (String) document.getMetadata().get("sourceHash");
             Optional<JavaApiEnricher.Enrichment> cached = enrichmentCacheRepository
                     .find(getType(), source, jmixVersion, modelName)

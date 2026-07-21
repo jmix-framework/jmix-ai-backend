@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.ai.backend.entity.EnrichmentCache;
+import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.vectorstore.AbstractOpenAiEnricher;
 import io.jmix.ai.backend.vectorstore.EnrichmentCacheRepository;
 import io.jmix.ai.backend.vectorstore.Snippet;
@@ -341,8 +342,8 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
         return (String) document.getMetadata().get("source");
     }
 
-    private String jmixVersion(Document document) {
-        return (String) document.getMetadata().get("jmixVersion");
+    private JmixVersion jmixVersion(Document document) {
+        return JmixVersion.fromId((String) document.getMetadata().get("jmixVersion"));
     }
 
     String toJson(List<Snippet> snippets) {

@@ -34,6 +34,10 @@ import java.util.UUID;
  * {@code EnrichmentCacheCleanupService} keeps the active and the immediately previous generation
  * per {@code (type, jmixVersion)} scope (ordered by {@link #createdDate}, newest first) and deletes
  * older ones, so the table stays bounded across prompt/model iterations.
+ * <p>
+ * Deliberately opts out of the project's {@code @Version}/{@code @InstanceName} entity baseline:
+ * rows are cache entries with no UI representation, concurrent inserts are resolved through the
+ * unique key, and last-write-wins is the intended semantics for concurrent updates.
  */
 @JmixEntity
 @Table(name = "ENRICHMENT_CACHE", indexes = {
@@ -59,8 +63,8 @@ public class EnrichmentCache {
     @Column(name = "SOURCE", nullable = false, length = 1000)
     private String source;
 
-    /** Jmix version of the source ({@code v2}/{@code v3}); nullable. The same source in different versions is cached separately. */
-    @Column(name = "JMIX_VERSION", length = 10)
+    /** Jmix version of the source ({@code v2}/{@code v3}); required. The same source in different versions is cached separately. */
+    @Column(name = "JMIX_VERSION", nullable = false, length = 10)
     private String jmixVersion;
 
     /**
@@ -124,12 +128,12 @@ public class EnrichmentCache {
         this.source = source;
     }
 
-    public String getJmixVersion() {
-        return jmixVersion;
+    public JmixVersion getJmixVersion() {
+        return jmixVersion == null ? null : JmixVersion.fromId(jmixVersion);
     }
 
-    public void setJmixVersion(String jmixVersion) {
-        this.jmixVersion = jmixVersion;
+    public void setJmixVersion(JmixVersion jmixVersion) {
+        this.jmixVersion = jmixVersion == null ? null : jmixVersion.getId();
     }
 
     public String getModelName() {
