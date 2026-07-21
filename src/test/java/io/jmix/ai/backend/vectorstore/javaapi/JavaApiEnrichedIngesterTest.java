@@ -89,7 +89,7 @@ class JavaApiEnrichedIngesterTest {
         EnrichmentCache cached = new EnrichmentCache();
         cached.setContentHash("hash1");
         cached.setContent(JavaApiEnricher.toCacheJson(
-                new JavaApiEnricher.Enrichment("Cached description.", "DataManager dm;")));
+                new Enrichment("Cached description.", "DataManager dm;")));
         when(enrichmentCacheRepository.find(CorpusType.JAVA_API_ENRICHED, "io/jmix/core/DataManager.html",
                 JmixVersion.V2, "test-model"))
                 .thenReturn(Optional.of(cached));
@@ -112,7 +112,7 @@ class JavaApiEnrichedIngesterTest {
         stale.setContentHash("old-hash");
         when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.of(stale));
         when(enricher.enrich(anyString()))
-                .thenReturn(new JavaApiEnricher.Enrichment("Generated description.", "dm.unconstrained();"));
+                .thenReturn(new Enrichment("Generated description.", "dm.unconstrained();"));
 
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
 
@@ -123,7 +123,7 @@ class JavaApiEnrichedIngesterTest {
         verify(enricher).enrich(CARD.format());
         verify(enrichmentCacheRepository).save(CorpusType.JAVA_API_ENRICHED, "io/jmix/core/DataManager.html",
                 JmixVersion.V2, "test-model", "hash1",
-                JavaApiEnricher.toCacheJson(new JavaApiEnricher.Enrichment("Generated description.", "dm.unconstrained();")));
+                JavaApiEnricher.toCacheJson(new Enrichment("Generated description.", "dm.unconstrained();")));
     }
 
     @Test
@@ -131,7 +131,7 @@ class JavaApiEnrichedIngesterTest {
         when(enricher.getModelKey()).thenReturn("test-model");
         when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
         when(enricher.enrich(anyString()))
-                .thenReturn(new JavaApiEnricher.Enrichment(CARD.description(), ""));
+                .thenReturn(new Enrichment(CARD.description(), ""));
 
         List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
 
@@ -164,7 +164,7 @@ class JavaApiEnrichedIngesterTest {
         when(enricher.getModelKey()).thenReturn("test-model");
         when(enrichmentCacheRepository.find(any(), any(), any(), any())).thenReturn(Optional.empty());
         when(enricher.enrich(anyString()))
-                .thenAnswer(inv -> new JavaApiEnricher.Enrichment("Generated.", ""));
+                .thenAnswer(inv -> new Enrichment("Generated.", ""));
 
         List<Document> documents = List.of(cardDocument(), cardDocument(), cardDocument(), cardDocument());
 

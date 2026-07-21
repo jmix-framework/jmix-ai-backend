@@ -181,6 +181,35 @@ class SnippetizerEnricherTest {
     }
 
     @Test
+    void resolveAll_RegeneratesWhenCachedSnippetsFailTheLiveGate() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
+                {"snippets": [{"title": "Button", "description": "Grounded.",
+                  "language": "xml", "code": "<button text=\\"OK\\"/>"}]}
+                """));
+        EnrichmentCacheRepository cacheRepository = mock(EnrichmentCacheRepository.class);
+        EnrichmentCache cached = new EnrichmentCache();
+        cached.setContentHash("hash1");
+        TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
+        // the live path would filter a blank-title snippet, so the cached list must be a miss too
+        cached.setContent(snippetizer.toJson(List.of(
+                new Snippet(" ", "Blank title fails the gate.", "xml", "<button text=\"OK\"/>", "source"))));
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
+                "test-model:low:p4")).thenReturn(Optional.of(cached));
+
+        try {
+            Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
+                    document -> DocsHtmlConverter.toPlainText(document.getText()));
+
+            assertThat(result.get(PAGE.getId())).singleElement()
+                    .extracting(Snippet::title)
+                    .isEqualTo("Button");
+        } finally {
+            snippetizer.shutdownExecutor();
+        }
+    }
+
+    @Test
     void resolveAll_ReusesValidCachedSnippetWithoutCallingModel() {
         ChatModel chatModel = mock(ChatModel.class);
         EnrichmentCacheRepository cacheRepository = mock(EnrichmentCacheRepository.class);

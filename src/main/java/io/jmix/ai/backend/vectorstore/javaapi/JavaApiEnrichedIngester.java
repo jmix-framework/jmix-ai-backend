@@ -112,7 +112,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
             String source = getSourceFromDocument(document);
             JmixVersion jmixVersion = JmixVersion.fromId((String) document.getMetadata().get("jmixVersion"));
             String contentHash = (String) document.getMetadata().get("sourceHash");
-            Optional<JavaApiEnricher.Enrichment> cached = enrichmentCacheRepository
+            Optional<Enrichment> cached = enrichmentCacheRepository
                     .find(getType(), source, jmixVersion, modelName)
                     .filter(entry -> Objects.equals(contentHash, entry.getContentHash()))
                     .map(EnrichmentCache::getContent)
@@ -126,9 +126,9 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
 
         if (!pending.isEmpty()) {
             log.info("Generating enrichment for {} documents (parallelism {})", pending.size(), enrichmentParallelism);
-            CompletionService<JavaApiEnricher.Enrichment> completed =
+            CompletionService<Enrichment> completed =
                     new ExecutorCompletionService<>(enrichmentExecutor);
-            Map<Future<JavaApiEnricher.Enrichment>, PendingEnrichment> inFlight = new HashMap<>();
+            Map<Future<Enrichment>, PendingEnrichment> inFlight = new HashMap<>();
             int next = 0;
             int completedCount = 0;
             try {
@@ -138,9 +138,9 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
                 }
 
                 while (!inFlight.isEmpty()) {
-                    Future<JavaApiEnricher.Enrichment> future = completed.take();
+                    Future<Enrichment> future = completed.take();
                     PendingEnrichment item = inFlight.remove(future);
-                    JavaApiEnricher.Enrichment enrichment = getEnrichment(future, item.source());
+                    Enrichment enrichment = getEnrichment(future, item.source());
                     if (enrichment != null) {
                         // save on the caller thread: DataManager requires the caller's security context
                         enrichmentCacheRepository.save(getType(), item.source(), item.jmixVersion(), modelName,
@@ -180,7 +180,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
     }
 
     @Nullable
-    private JavaApiEnricher.Enrichment getEnrichment(Future<JavaApiEnricher.Enrichment> future, String source) {
+    private Enrichment getEnrichment(Future<Enrichment> future, String source) {
         try {
             return future.get();
         } catch (InterruptedException e) {
@@ -192,7 +192,7 @@ public class JavaApiEnrichedIngester extends JavaApiIngester {
         }
     }
 
-    private Document withEnrichment(Document document, Snippet card, @Nullable JavaApiEnricher.Enrichment enrichment) {
+    private Document withEnrichment(Document document, Snippet card, @Nullable Enrichment enrichment) {
         if (enrichment == null) {
             return document;
         }
