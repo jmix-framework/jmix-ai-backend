@@ -82,7 +82,7 @@ public class CheckAnalyticsService {
      * {@link #canCompare(ConfigOption, ConfigOption)}.
      */
     public record ConfigOption(String key, String description, String version, String comparisonCohort,
-                               String definitionFingerprint, String evaluatorConfig,
+                               String definitionFingerprint, String evaluatorConfig, String passThreshold,
                                String fingerprint, int runCount) {
     }
 
@@ -159,6 +159,7 @@ public class CheckAnalyticsService {
                     comparisonCohortKey(sample),
                     definitionFingerprint(sample),
                     defaultString(sample.getEvaluatorConfig()),
+                    defaultString(passThresholdKey(sample)),
                     configFingerprint(sample),
                     group.size()));
         });

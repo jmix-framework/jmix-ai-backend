@@ -197,11 +197,11 @@ class CheckAnalyticsServiceTest {
     @Test
     void configurationsFromDifferentEvaluationCohortsAreFlagged() {
         CheckAnalyticsService.ConfigOption baseline = new CheckAnalyticsService.ConfigOption(
-                "base", "Base", "v2", "first-cohort", "defs-1", "semantic-v3", "base123", 1);
+                "base", "Base", "v2", "first-cohort", "defs-1", "semantic-v3", "0.8", "base123", 1);
         CheckAnalyticsService.ConfigOption candidate = new CheckAnalyticsService.ConfigOption(
-                "candidate", "Candidate", "v2", "second-cohort", "defs-2", "semantic-v3", "candidate123", 1);
+                "candidate", "Candidate", "v2", "second-cohort", "defs-2", "semantic-v3", "0.8", "candidate123", 1);
         CheckAnalyticsService.ConfigOption sameCohort = new CheckAnalyticsService.ConfigOption(
-                "other", "Other", "v2", "first-cohort", "defs-1", "semantic-v3", "other123", 1);
+                "other", "Other", "v2", "first-cohort", "defs-1", "semantic-v3", "0.8", "other123", 1);
 
         assertThat(CheckAnalyticsService.canCompare(baseline, candidate)).isFalse();
         assertThat(CheckAnalyticsService.canCompare(baseline, sameCohort)).isTrue();
@@ -240,7 +240,7 @@ class CheckAnalyticsServiceTest {
         CheckAnalyticsService service = new CheckAnalyticsService(dataManager);
         CheckAnalyticsService.ConfigOption option = new CheckAnalyticsService.ConfigOption(
                 CheckAnalyticsService.groupKey(run), "Config", "v2",
-                CheckAnalyticsService.comparisonCohortKey(run), "defs", "evaluator",
+                CheckAnalyticsService.comparisonCohortKey(run), "defs", "evaluator", "0.8",
                 CheckAnalyticsService.configFingerprint(run), 1);
 
         CheckAnalyticsService.ComparisonSummary summary =
@@ -282,7 +282,7 @@ class CheckAnalyticsServiceTest {
         CheckAnalyticsService service = new CheckAnalyticsService(dataManager);
         CheckAnalyticsService.ConfigOption option = new CheckAnalyticsService.ConfigOption(
                 CheckAnalyticsService.groupKey(first), "Config", "v2",
-                CheckAnalyticsService.comparisonCohortKey(first), "defs", "evaluator",
+                CheckAnalyticsService.comparisonCohortKey(first), "defs", "evaluator", "",
                 CheckAnalyticsService.configFingerprint(first), 2);
         CheckAnalyticsService.ComparisonResult result = service.compareConfigs(option, null);
 
