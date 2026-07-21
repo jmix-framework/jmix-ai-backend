@@ -40,15 +40,6 @@ class CheckFingerprintsTest {
     }
 
     @Test
-    void readsDefinitionFingerprintFromLegacyLabel() {
-        String label = "Config [cohort:semantic-v3-123456789abc]";
-
-        assertThat(CheckFingerprints.fromLegacyLabel(label))
-                .isEqualTo("definitions-v1-123456789abc");
-        assertThat(CheckConfigLabel.stripLegacySuffix(label)).isEqualTo("Config");
-    }
-
-    @Test
     void shortHashRemainsCompatible() {
         assertThat(CheckFingerprints.shortHash("abc")).isEqualTo("ba7816bf8f01");
     }

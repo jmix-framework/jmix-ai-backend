@@ -22,7 +22,7 @@ import java.util.stream.DoubleStream;
 @Component
 public class CheckAnalyticsService {
 
-    /** Fingerprint of runs that predate both the fingerprint column and the legacy label suffix. */
+    /** Fingerprint of runs that predate the fingerprint column. */
     static final String LEGACY_COHORT = "legacy";
 
     private final DataManager dataManager;
@@ -222,16 +222,12 @@ public class CheckAnalyticsService {
     }
 
     /**
-     * The stored fingerprint of the active check definitions, falling back for pre-column runs
-     * to the hash embedded in the legacy label suffix, then to {@link #LEGACY_COHORT}.
+     * The stored fingerprint of the active check definitions; {@link #LEGACY_COHORT} for runs
+     * predating the fingerprint column.
      */
     private static String definitionFingerprint(CheckRun run) {
         String fingerprint = run.getDefinitionFingerprint();
-        if (fingerprint != null && !fingerprint.isBlank()) {
-            return fingerprint;
-        }
-        String legacyFingerprint = CheckFingerprints.fromLegacyLabel(run.getConfigLabel());
-        return legacyFingerprint != null ? legacyFingerprint : LEGACY_COHORT;
+        return fingerprint != null && !fingerprint.isBlank() ? fingerprint : LEGACY_COHORT;
     }
 
     private static String versionId(CheckRun run) {

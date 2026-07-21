@@ -52,24 +52,6 @@ class CheckAnalyticsServiceTest {
     }
 
     @Test
-    void historicalSuffixAndDedicatedFingerprintUseTheSameCohort() {
-        String parameters = "description: Same config\nmodel:\n  name: gpt-5";
-        String historicalFingerprint = "semantic-v3-aaaaaaaaaaaa";
-        String currentFingerprint = "definitions-v1-aaaaaaaaaaaa";
-        String evaluatorConfig = "semantic-v3|model=gpt-5-mini|temperature=0.0";
-        CheckRun historical = checkRun(legacyLabel("Same config", historicalFingerprint), parameters);
-        historical.setEvaluatorConfig(evaluatorConfig);
-        CheckRun current = checkRun("Same config", parameters);
-        current.setDefinitionFingerprint(currentFingerprint);
-        current.setEvaluatorConfig(evaluatorConfig);
-
-        assertThat(CheckAnalyticsService.groupKey(historical))
-                .isEqualTo(CheckAnalyticsService.groupKey(current));
-        assertThat(CheckAnalyticsService.displayConfigLabel(historical)).isEqualTo("Same config");
-        assertThat(CheckAnalyticsService.displayConfigLabel(current)).isEqualTo("Same config");
-    }
-
-    @Test
     void configFingerprintIsStableAndIncludesFullConfigAndCohort() {
         String parameters = "description: Same config\nmodel:\n  name: first";
         CheckRun first = checkRun("Same config", parameters);
@@ -351,8 +333,5 @@ class CheckAnalyticsServiceTest {
         return run;
     }
 
-    private static String legacyLabel(String label, String fingerprint) {
-        return label + " [cohort:" + fingerprint + "]";
-    }
 
 }

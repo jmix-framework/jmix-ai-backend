@@ -7,12 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CheckConfigLabelTest {
 
     @Test
-    void resolvesStoredLabelWithoutLegacySuffix() {
-        String label = "Config"
-                + " [cohort:semantic-v3-aaaaaaaaaaaa]"
-                + " [cohort:semantic-v3-bbbbbbbbbbbb]";
-
-        assertThat(CheckConfigLabel.resolve(label, "description: Fallback")).isEqualTo("Config");
+    void prefersTheStoredLabelOverParameters() {
+        assertThat(CheckConfigLabel.resolve("Config", "description: Fallback")).isEqualTo("Config");
     }
 
     @Test
