@@ -82,6 +82,33 @@ class SearchControllersTest {
         verify(searchService).search("query", JmixVersion.V2, null);
     }
 
+    @Test
+    void v2EndpointPreservesTheServiceOrderWithoutResorting() {
+        Document lessRelevant = Document.builder()
+                .id("low")
+                .text("TITLE: Low result\nDESCRIPTION: low")
+                .metadata(Map.of("url", "https://example.com/low"))
+                .score(0.2)
+                .build();
+        Document mostRelevant = Document.builder()
+                .id("high")
+                .text("TITLE: High result\nDESCRIPTION: high")
+                .metadata(Map.of("url", "https://example.com/high"))
+                .score(0.9)
+                .build();
+        // deliberately contradicts the scores: ordering is owned by the service and the
+        // controller must pass it through - resorting by relevance would flip this list
+        when(searchService.search("query", JmixVersion.V2, null))
+                .thenReturn(List.of(lessRelevant, mostRelevant));
+        SearchV2Controller controller = new SearchV2Controller(searchService);
+
+        List<SearchV2Controller.SearchResultDocument> result = controller.search(
+                new SearchV2Controller.SearchRequest("query", null, null, null));
+
+        assertThat(result).extracting(SearchV2Controller.SearchResultDocument::id)
+                .containsExactly("low", "high");
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {-1, 0, 100_001})
     void v2EndpointRejectsInvalidTokenBudget(int tokens) {
