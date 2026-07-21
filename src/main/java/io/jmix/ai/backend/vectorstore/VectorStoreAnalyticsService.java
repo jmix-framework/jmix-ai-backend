@@ -5,6 +5,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,9 +73,14 @@ public class VectorStoreAnalyticsService {
             bucketStarts.add(min + index * width);
         }
 
+        // ties on count break by name: SQL row order is unspecified, so without a tie-breaker the
+        // top-N split and series order could change between refreshes
         List<Map.Entry<String, List<Integer>>> namedTopics = sizesByTopic.entrySet().stream()
                 .filter(entry -> entry.getKey() != null)
-                .sorted((first, second) -> Integer.compare(second.getValue().size(), first.getValue().size()))
+                .sorted(Comparator.comparingInt(
+                                (Map.Entry<String, List<Integer>> entry) -> entry.getValue().size())
+                        .reversed()
+                        .thenComparing(Map.Entry::getKey))
                 .toList();
         List<TopicSizeSeries> series = new ArrayList<>();
         List<Integer> otherSizes = new ArrayList<>(sizesByTopic.getOrDefault(null, List.of()));
@@ -119,7 +125,7 @@ public class VectorStoreAnalyticsService {
         return new TopicSizeSeries(topic, sizes.size(), average, List.copyOf(bucketCounts));
     }
 
-    /** Coverage of every documentation topic by AI snippets, sorted by total count descending. */
+    /** Coverage of every documentation topic by AI snippets, sorted by total count descending (name breaks ties). */
     public TopicCoverageSummary loadTopicCoverage() {
         Map<String, int[]> countsByTopic = new LinkedHashMap<>();
         for (Object[] row : vectorStoreRepository.countSnippetTopicByVersion()) {
@@ -141,7 +147,8 @@ public class VectorStoreAnalyticsService {
 
         List<TopicCoverage> topics = countsByTopic.entrySet().stream()
                 .map(entry -> new TopicCoverage(entry.getKey(), entry.getValue()[0], entry.getValue()[1]))
-                .sorted((first, second) -> Integer.compare(total(second), total(first)))
+                .sorted(Comparator.comparingInt(VectorStoreAnalyticsService::total).reversed()
+                        .thenComparing(TopicCoverage::topic))
                 .toList();
         int maxCount = topics.stream()
                 .mapToInt(topic -> Math.max(topic.v2(), topic.v3()))

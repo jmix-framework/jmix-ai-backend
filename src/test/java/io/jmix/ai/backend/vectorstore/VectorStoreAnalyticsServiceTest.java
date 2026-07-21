@@ -78,6 +78,27 @@ class VectorStoreAnalyticsServiceTest {
     }
 
     @Test
+    void breaksEqualTopicCountsByNameForStableTopSelection() {
+        List<Object[]> rows = new java.util.ArrayList<>();
+        // 13 topics with identical counts, supplied in reverse name order: without the name
+        // tie-breaker the top-12 would follow the unspecified SQL row order
+        for (int topic = 13; topic >= 1; topic--) {
+            rows.add(new Object[]{"topic-%02d".formatted(topic), 100});
+        }
+        when(repository.snippetTopicTokenSizes()).thenReturn(rows);
+
+        VectorStoreAnalyticsService.SnippetSizeBreakdown result = service.loadSnippetSizeBreakdown();
+
+        assertThat(result.series()).hasSize(13);
+        assertThat(result.series().subList(0, 12))
+                .extracting(VectorStoreAnalyticsService.TopicSizeSeries::topic)
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(1, 12)
+                        .mapToObj("topic-%02d"::formatted)
+                        .toList());
+        assertThat(result.series().get(12).topic()).isNull();
+    }
+
+    @Test
     void returnsEmptyBreakdownWhenCorpusIsEmpty() {
         when(repository.snippetTopicTokenSizes()).thenReturn(List.of());
 
@@ -104,6 +125,17 @@ class VectorStoreAnalyticsServiceTest {
         assertThat(result.maxCount()).isEqualTo(5);
         assertThat(result.totalV2()).isEqualTo(6);
         assertThat(result.totalV3()).isEqualTo(5);
+    }
+
+    @Test
+    void breaksEqualCoverageTotalsByName() {
+        when(repository.countSnippetTopicByVersion()).thenReturn(List.of(
+                new Object[]{"security", "v2", 3},
+                new Object[]{"data-access", "v2", 3}));
+
+        assertThat(service.loadTopicCoverage().topics()).containsExactly(
+                new VectorStoreAnalyticsService.TopicCoverage("data-access", 3, 0),
+                new VectorStoreAnalyticsService.TopicCoverage("security", 3, 0));
     }
 
     @Test
