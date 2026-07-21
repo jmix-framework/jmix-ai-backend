@@ -258,7 +258,25 @@ public abstract class AbstractIngester implements Ingester {
 
     protected boolean isContentSame(Document document, VectorStoreEntity entity) {
         return Objects.equals(entity.getMetadataMap().get("sourceHash"), document.getMetadata().get("sourceHash"))
-                && Objects.equals(currentGenerationKey(), entity.getMetadataMap().get("generationKey"));
+                && Objects.equals(currentGenerationKey(), entity.getMetadataMap().get("generationKey"))
+                && Objects.equals(pageUrl(document.getMetadata().get("url")),
+                        pageUrl(entity.getMetadataMap().get("url")));
+    }
+
+    /**
+     * The chunk's page location for change detection: its url metadata without the section
+     * anchor that chunkers may append. A source whose url changed while the content stayed the
+     * same (e.g. a docs site move) must be re-ingested, or its chunks would cite the old
+     * location forever.
+     */
+    @Nullable
+    private static String pageUrl(@Nullable Object url) {
+        if (url == null) {
+            return null;
+        }
+        String text = url.toString();
+        int anchor = text.indexOf('#');
+        return anchor < 0 ? text : text.substring(0, anchor);
     }
 
     /**

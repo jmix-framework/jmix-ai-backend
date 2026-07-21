@@ -111,13 +111,16 @@ class SnippetizerEnricherTest {
     }
 
     @Test
-    void jsonRoundTrip() {
+    void jsonRoundTrip_BindsSnippetsToTheCurrentUrl() {
         TestSnippetizer snippetizer = new TestSnippetizer(mock(ChatModel.class));
         List<Snippet> snippets = List.of(
-                new Snippet("T1", "D1", "java", "int a = 1;", "https://example.com/1"),
-                new Snippet("T2", "D2", null, null, "https://example.com/2"));
+                new Snippet("T1", "D1", "java", "int a = 1;", "https://old.example.com/1"),
+                new Snippet("T2", "D2", null, null, "https://old.example.com/2"));
 
-        assertThat(snippetizer.fromJson(snippetizer.toJson(snippets))).isEqualTo(snippets);
+        assertThat(snippetizer.fromJson(snippetizer.toJson(snippets), "https://example.com/current"))
+                .containsExactly(
+                        new Snippet("T1", "D1", "java", "int a = 1;", "https://example.com/current"),
+                        new Snippet("T2", "D2", null, null, "https://example.com/current"));
     }
 
     @Test
@@ -126,9 +129,20 @@ class SnippetizerEnricherTest {
         String json = snippetizer.toJson(List.of(
                 new Snippet("Create\n  a Button", "D", null, null, "https://example.com")));
 
-        assertThat(snippetizer.fromJson(json)).singleElement()
+        assertThat(snippetizer.fromJson(json, "https://example.com")).singleElement()
                 .extracting(Snippet::title)
                 .isEqualTo("Create a Button");
+    }
+
+    @Test
+    void fromJson_BindsPayloadWithoutUrlToTheCurrentUrl() {
+        TestSnippetizer snippetizer = new TestSnippetizer(mock(ChatModel.class));
+        // a legacy cached payload predating the absoluteUrl field deserializes it as null
+        String json = "[{\"title\": \"T\", \"description\": \"D\", \"language\": null, \"code\": null}]";
+
+        assertThat(snippetizer.fromJson(json, "https://example.com/current")).singleElement()
+                .extracting(Snippet::absoluteUrl)
+                .isEqualTo("https://example.com/current");
     }
 
     @Test
@@ -216,8 +230,10 @@ class SnippetizerEnricherTest {
         TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
         EnrichmentCache cached = new EnrichmentCache();
         cached.setContentHash("hash1");
+        // the URL cached at generation time is stale: the page has moved since
         cached.setContent(snippetizer.toJson(List.of(
-                new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>", "source"))));
+                new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>",
+                        "https://old.docs.example/button.html"))));
         when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
                 "test-model:low:p4")).thenReturn(Optional.of(cached));
 
@@ -226,8 +242,8 @@ class SnippetizerEnricherTest {
                     document -> DocsHtmlConverter.toPlainText(document.getText()));
 
             assertThat(result.get(PAGE.getId())).singleElement()
-                    .extracting(Snippet::code)
-                    .isEqualTo("<button text=\"OK\"/>");
+                    .isEqualTo(new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>",
+                            "https://docs.jmix.io/jmix/flow-ui/vc/components/button.html"));
             verifyNoInteractions(chatModel);
         } finally {
             snippetizer.shutdownExecutor();

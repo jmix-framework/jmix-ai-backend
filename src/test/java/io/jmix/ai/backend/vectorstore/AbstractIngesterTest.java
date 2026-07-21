@@ -124,6 +124,24 @@ class AbstractIngesterTest {
     }
 
     @Test
+    void shouldDetectUrlChangeOfUnchangedContent() {
+        Document document = new Document("1", "content",
+                Map.of("sourceHash", "hash1", "url", "https://docs.example/2.x/page.html"));
+
+        VectorStoreEntity entity = new VectorStoreEntity();
+        entity.setMetadata("""
+                        {"sourceHash": "hash1", "url": "https://docs.example/1.x/page.html"}
+                        """);
+        assertThat(ingester.isContentSame(document, entity)).isFalse();
+
+        // a section anchor appended by the chunker is not a page change
+        entity.setMetadata("""
+                        {"sourceHash": "hash1", "url": "https://docs.example/2.x/page.html#section"}
+                        """);
+        assertThat(ingester.isContentSame(document, entity)).isTrue();
+    }
+
+    @Test
     void shouldUpdateAllDocuments() {
         List<String> sources = List.of("source1", "source2");
         Document doc1 = new Document("1", "content1", Map.of("source", "source1", "sourceHash", "hash1"));

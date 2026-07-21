@@ -153,7 +153,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
                     .find(type, source(document), jmixVersion(document), getModelKey())
                     .filter(entry -> Objects.equals(contentHash, entry.getContentHash()))
                     .map(EnrichmentCache::getContent)
-                    .map(this::fromJson)
+                    .map(json -> fromJson(json, absoluteUrl(document)))
                     .filter(snippets -> containsOnlyVerbatimCode(snippets, content));
             if (cached.isPresent()) {
                 result.put(document.getId(), cached.get());
@@ -228,7 +228,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
 
     @Nullable
     private List<Snippet> snippetizePart(Document document, String content, int partNumber, int partCount) {
-        String url = Objects.toString(document.getMetadata().get("url"), source(document));
+        String url = absoluteUrl(document);
         String topic = Objects.toString(document.getMetadata().get("docPath"), "");
         String partInfo = partCount == 1 ? "" : "\nPage content part: %d/%d".formatted(partNumber, partCount);
         String userMessage = "Page topic path: %s\nPage URL: %s%s\n\nPage content:\n%s"
@@ -336,6 +336,11 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
         return (String) document.getMetadata().get("source");
     }
 
+    /** The current citation link of the page (its url metadata), falling back to the source path. */
+    private String absoluteUrl(Document document) {
+        return Objects.toString(document.getMetadata().get("url"), source(document));
+    }
+
     private JmixVersion jmixVersion(Document document) {
         return JmixVersion.fromId((String) document.getMetadata().get("jmixVersion"));
     }
@@ -349,14 +354,20 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     }
 
     /**
-     * Restores snippets from cached content, or null if unreadable or semantically invalid (both
-     * a cache miss). Cached data passes the same gate as a live response, so a stale or
-     * hand-edited entry can never resurface snippets the live path would have rejected.
+     * Restores snippets from cached content bound to the given current URL of the page, or null
+     * if unreadable or semantically invalid (both a cache miss). Cached data passes the same gate
+     * as a live response, so a stale or hand-edited entry can never resurface snippets the live
+     * path would have rejected. The URL is deterministic page metadata, not generated payload:
+     * it may change while the content stays the same (e.g. a docs site move), so the cached
+     * value is always replaced with the current one.
      */
     @Nullable
-    List<Snippet> fromJson(String json) {
+    List<Snippet> fromJson(String json, String absoluteUrl) {
         try {
-            return NormalizationUtils.canonicalSnippets(OBJECT_MAPPER.readValue(json, SNIPPET_LIST_TYPE));
+            return NormalizationUtils.canonicalSnippets(OBJECT_MAPPER.readValue(json, SNIPPET_LIST_TYPE).stream()
+                    .map(snippet -> new Snippet(
+                            snippet.title(), snippet.description(), snippet.language(), snippet.code(), absoluteUrl))
+                    .toList());
         } catch (Exception e) {
             log.error("Failed to deserialize cached snippets", e);
             return null;
