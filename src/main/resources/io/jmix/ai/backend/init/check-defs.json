@@ -682,127 +682,119 @@
     "id": "1ef39a7c-eaf2-443f-8c35-f80b60a9b6c8",
     "active": true,
     "category": "beginner",
-    "question": "Как добавить новое поле в карточку клиента? Хочу, чтобы у клиента был ещё телефон.",
-    "answer": "Добавьте атрибут в JPA-сущность Customer (например, String phone) — в Jmix Studio это Add Attribute в Entity Designer. На экраны поле добавляется действием Add to Views у атрибута или вручную: textField с property=\"phone\" в formLayout detail view. Колонку в БД создаст Liquibase-миграция — Studio предложит сгенерировать changelog при проверке модели данных перед следующим запуском."
+    "question": "I want to store a customer's phone number. I think I've added the field to the entity, but it doesn't show up in the customer card. What else do I need to change so it appears and actually gets saved?",
+    "answer": "The entity attribute alone is not enough — two pieces are usually missing: the view and the database column. Add the field to the detail view: a textField with property=\"phone\" inside the formLayout (in Studio, the Add to Views action on the attribute does this). And make sure the Liquibase migration adding the column was generated and applied — Studio offers the changelog when it checks the data model before a run; without the column the value cannot be saved. Optionally add a column to the list view's dataGrid. An answer that first asks which part is missing (view or migration) is also correct."
   },
   {
     "_entityName": "CheckDef",
     "id": "f9bae294-962e-4635-8fd9-97b3f1e2234f",
     "active": true,
     "category": "beginner",
-    "question": "How do I make a dropdown so the user can pick a status like \"New\", \"In progress\", \"Done\"?",
-    "answer": "Create an enumeration (an enum implementing EnumClass) with values NEW, IN_PROGRESS, DONE and use it as the type of an entity attribute; a detail view edits such an attribute with a select or comboBox automatically. For a standalone dropdown, use a comboBox or select component with the itemsEnum attribute pointing to the enum class. Display names of the values are localized in the message bundle."
+    "question": "An order must have only three statuses: \"New\", \"In progress\" and \"Done\". I also want a new order to start as \"New\", but existing orders must not change when opened. What's the right way to do this?",
+    "answer": "Model the status as an enumeration (an enum class used as the attribute type) — bound UI components then offer a dropdown (select/comboBox) with exactly these values, localized in the message bundle. Set the default only for new instances: subscribe to InitEntityEvent in the detail view and set the status there — this event fires only when a new entity is created, so existing orders are untouched. A field initializer in the entity class is an acceptable alternative for the default. Setting the status unconditionally when the view opens would be wrong: it would overwrite existing orders."
   },
   {
     "_entityName": "CheckDef",
     "id": "0b7518e2-2a1a-4267-ac73-1947c506a4ca",
     "active": true,
     "category": "beginner",
-    "question": "Я случайно удалил запись из таблицы. Можно её как-то вернуть?",
-    "answer": "Зависит от сущности. Если у неё включено мягкое удаление (soft delete — атрибуты с @DeletedDate/@DeletedBy), запись только помечена удалённой: при установленном Data Tools add-on откройте Entity Inspector, выберите сущность, включите показ удалённых записей и выполните Restore. Для программного восстановления есть механизм EntityRestore. Если soft delete не настроен, запись удалена из базы физически — вернуть её можно только из резервной копии."
+    "question": "Удалил клиента, а потом оказалось, что он ещё нужен. В таблице его больше нет. В Jmix есть что-то вроде корзины или теперь только базу восстанавливать?",
+    "answer": "Встроенной «корзины» нет, но ответ зависит от сущности. Если у неё включено мягкое удаление (soft delete — атрибуты с @DeletedDate/@DeletedBy), запись не удалена физически, а помечена: при установленном Data Tools add-on откройте Entity Inspector, включите показ удалённых записей и выполните Restore; программно есть механизм EntityRestore. Если soft delete у сущности не настроен, средствами приложения запись не вернуть — только восстановление базы из резервной копии. Правильный ответ различает эти два случая."
   },
   {
     "_entityName": "CheckDef",
     "id": "f488d9b6-ea2a-453b-b1ba-aa56cc3b2831",
     "active": true,
     "category": "beginner",
-    "question": "How can I export the data from a table to Excel?",
-    "answer": "Use the Grid Export Actions add-on. After adding it to the project, declare an export action on the dataGrid, e.g. <action id=\"excelExport\" type=\"grdexp_excelExport\"/> — the user gets a button that downloads the grid content as an Excel file. For formatted printable documents, the Reports add-on is the alternative."
+    "question": "Managers are asking for a \"Download to Excel\" button above the orders table. Ideally it should export exactly what is currently filtered. Is there a standard way?",
+    "answer": "Yes — the Grid Export Actions add-on. Add it to the project and declare the export action on the orders dataGrid, e.g. <action id=\"excelExport\" type=\"grdexp_excelExport\"/>; the user gets a button that downloads the grid content as an Excel file, and the export works on the grid's data — with modes for the selected rows, the current page or all rows of the (filtered) list. The Reports add-on is a valid alternative for formatted printable documents, but for a plain table dump the export action is the standard answer."
   },
   {
     "_entityName": "CheckDef",
     "id": "badf45b0-0a30-4fb8-955b-1e27e51b26b5",
     "active": true,
     "category": "beginner",
-    "question": "How do I make a field mandatory so the form can't be saved while it is empty?",
-    "answer": "Set required=\"true\" on the field component in the view XML (optionally with requiredMessage), or add a Bean Validation annotation such as @NotNull on the entity attribute — bound UI components then become required automatically. In Jmix Studio this is the Mandatory checkbox on the attribute."
+    "question": "Сейчас можно сохранить клиента вообще без имени, и потом в списке непонятно, кто это. Как запретить такое и показать нормальную подсказку?",
+    "answer": "Сделайте имя обязательным: required=\"true\" на поле формы (с requiredMessage для понятной подсказки) и/или Bean Validation аннотация @NotNull на атрибуте сущности — привязанные компоненты становятся обязательными автоматически, и сохранение с пустым полем блокируется с сообщением. В Studio это флаг Mandatory у атрибута. Дополнительно полезно пометить имя @InstanceName, чтобы клиент нормально отображался в списках и ссылках, но обязательная часть ответа — required/@NotNull."
   },
   {
     "_entityName": "CheckDef",
     "id": "462e49ce-ef83-4a67-88af-7f5c73790691",
     "active": true,
     "category": "beginner",
-    "question": "Как добавить нового пользователя в приложение и задать ему пароль?",
-    "answer": "В запущенном приложении откройте список Users (входит в шаблон проекта), нажмите Create и задайте username и пароль в карточке. Затем назначьте роли через role assignments: как минимум UI: minimal access — без неё пользователь не сможет войти в интерфейс — и прикладные resource-роли, дающие права на нужные экраны и сущности."
+    "question": "I created a new employee in Users and set a password, but they can't log in. And when they finally do, the menu is empty. Which permissions did I forget?",
+    "answer": "Roles are missing — assign them in the user's role assignments. Two levels matter: the UI: minimal access resource role is required just to log in to the UI at all, and application resource roles grant the actual content — menu items, views and entity operations; without them the menu stays empty. Application roles are defined as @ResourceRole interfaces with view/menu/entity policies (or use the built-in full access role for testing). The answer must cover both steps: minimal access for the login and resource roles for the menu."
   },
   {
     "_entityName": "CheckDef",
     "id": "61bd92bf-8a9e-4cde-b55e-949bcf913d19",
     "active": true,
     "category": "beginner",
-    "question": "Как сделать, чтобы приложение было на русском языке?",
-    "answer": "Подключите зависимость с готовыми переводами платформы (jmix-translations-ru), добавьте русскую локаль в свойство jmix.core.available-locales (например, en,ru) и переведите собственные сообщения приложения в messages_ru.properties. Пользователь выбирает язык на экране входа; локаль по умолчанию определяется порядком в available-locales."
+    "question": "Добавил русский язык, на экране входа он выбирается, но мои поля и часть кнопок всё равно по-английски. Что ещё нужно перевести или подключить?",
+    "answer": "Перевод состоит из двух независимых частей. Стандартные тексты платформы (кнопки, системные экраны, сообщения) переводит add-on jmix-translations-ru — его нужно подключить зависимостью. Собственные тексты приложения (названия полей, экранов, пунктов меню) переводятся вручную: создайте messages_ru.properties рядом с messages.properties и заполните те же ключи по-русски. Локаль ru должна быть перечислена в jmix.core.available-locales. Если отдельные надписи остались по-английски — для них либо нет ключа в messages_ru.properties, либо текст захардкожен в XML/Java вместо msg://-ключа."
   },
   {
     "_entityName": "CheckDef",
     "id": "69e64a71-344a-4994-baf8-307eaa02a627",
     "active": true,
     "category": "beginner",
-    "question": "Как сделать поиск в таблице, чтобы находить клиента по имени?",
-    "answer": "Стандартный способ — компонент genericFilter над таблицей (есть в сгенерированных list view): пользователь сам добавляет условие по любому атрибуту. Для фиксированного поиска по имени добавьте propertyFilter с property=\"name\", operation=\"CONTAINS\" и dataLoader таблицы — при вводе значения список фильтруется."
+    "question": "Клиентов стало много. Хочу обычную строку поиска над таблицей, чтобы менеджер мог ввести часть имени или телефона. Как это обычно делают в Jmix?",
+    "answer": "Штатный вариант — genericFilter над таблицей: пользователь сам добавляет условия по атрибутам. Если нужна именно одна строка поиска сразу по нескольким полям, добавьте текстовое поле и в контроллере подставляйте его значение параметром в запрос лоадера (условие вида lower(e.name) like :search or lower(e.phone) like :search, затем customersDl.setParameter(...) и load()). Вариант с propertyFilter (property, operation=\"CONTAINS\", dataLoader) корректен для поиска по одному конкретному атрибуту. Любой из этих путей — правильный ответ."
   },
   {
     "_entityName": "CheckDef",
     "id": "6bf3325a-3e15-4014-90c8-f4aae5ef8ed1",
     "active": true,
     "category": "beginner",
-    "question": "I want two fields to be on the same line in the form, not one under another. How do I do that?",
-    "answer": "formLayout arranges components in columns: configure its responsiveSteps, e.g. a responsiveStep with columns=\"2\", and the fields flow two per row. Alternatively place the two fields in an hbox. A single component can span several columns with colspan."
+    "question": "In the customer card the phone and email fields go one under another and take half the screen. How do I put them side by side, so the form still works on a narrow window?",
+    "answer": "formLayout arranges fields in columns and is responsive by design — configure its responsiveSteps: one column from width 0 and two columns from some minWidth, e.g. <responsiveSteps><responsiveStep minWidth=\"0\" columns=\"1\"/><responsiveStep minWidth=\"40em\" columns=\"2\"/></responsiveSteps>. On a wide screen phone and email sit side by side, on a narrow one they stack. A plain hbox also puts two fields on one line but does not adapt to the width by itself, so responsiveSteps is the better answer to this question."
   },
   {
     "_entityName": "CheckDef",
     "id": "a642e0e8-c988-402f-9dfc-c15d7a79484c",
     "active": true,
     "category": "beginner",
-    "question": "Я поменял данные на экране, нажал кнопку, а изменения не сохранились. Почему?",
-    "answer": "Вопрос недоопределён, поэтому корректны два поведения. Первое — назвать типовые причины: поле не привязано к данным (не указан property или dataContainer — значение живёт только на экране); кнопка не вызывает сохранение — нужна стандартная save-логика detail view или явный вызов dataContext.save(); данные изменены в коде, но не сохранены через DataManager.save(...). Второе — задать уточняющие вопросы (какой экран, какая кнопка, была ли ошибка валидации), обозначив те же области проверки. Перечислять все причины не требуется; достаточно привязки данных и вызова сохранения."
+    "question": "Я добавил свою кнопку «Сохранить». Она нажимается без ошибок, но после обновления страницы возвращается старое значение. С чего начать проверку?",
+    "answer": "Хороший ответ начинается с диагностики, а не с готового вердикта; корректно и спросить, и сразу предложить план проверки. Проверить стоит: что реально делает обработчик кнопки — своя логика должна явно вызывать dataContext.save() (или использоваться стандартное save-действие detail view); привязано ли поле к данным (property/dataContainer) — непривязанное значение живёт только в компоненте; не изменяется ли в коде другой экземпляр сущности, который никто не сохраняет через DataManager.save(...); не было ли ошибки валидации и что в логах. Ответ не обязан угадать единственную причину — достаточно осмысленного плана проверки, включающего привязку данных и фактический вызов сохранения."
   },
   {
     "_entityName": "CheckDef",
     "id": "34362d1d-f967-4335-b1f5-c51bf0a4f827",
     "active": true,
     "category": "beginner",
-    "question": "A customer can have many orders. How do I link them and show the customer's orders right in the customer card?",
-    "answer": "Link the entities with a reference: give Order a customer attribute of type Customer (many-to-one, @JoinColumn). To show the orders in the customer card, add an inverse collection on Customer — @OneToMany(mappedBy = \"customer\") — and mark it @Composition if orders are edited and saved together with the customer. In the customer detail view declare a nested container <collection property=\"orders\"/> with a dataGrid bound to it. Without an inverse collection, load the orders with a separate collection loader whose query takes the customer as a parameter."
-  },
-  {
-    "_entityName": "CheckDef",
-    "id": "10a8d575-bbde-4747-9bcf-d28b06d682c2",
-    "active": true,
-    "category": "beginner",
-    "question": "I want every new order to start with the \"New\" status, but editing an existing order must not reset its status. How do I do that?",
-    "answer": "Initialize the value for new instances only: in the detail view subscribe to InitEntityEvent — @Subscribe public void onInitEntity(InitEntityEvent<Order> event) { event.getEntity().setStatus(OrderStatus.NEW); }. The event fires only when a new entity is created, so editing an existing order does not touch its status. An alternative is a field initializer right in the entity class: values loaded from the database overwrite it."
+    "question": "I want to open a customer and see all their orders right in the customer card: add a new one, open an existing one, delete a wrong one. Right now customers and orders live on separate screens. How do I connect them?",
+    "answer": "Link the entities: give Order a customer reference (many-to-one), and add the inverse collection on Customer — @OneToMany(mappedBy = \"customer\") marked @Composition, so orders are edited and saved together with their customer. In the customer detail view declare a nested <collection property=\"orders\"/> container, bind a dataGrid to it and add the standard create/edit/remove actions — create and edit open the order detail in a dialog, remove deletes from the composition. Loading orders with a separate collection loader parameterized by the customer is an acceptable alternative when composition semantics are not wanted."
   },
   {
     "_entityName": "CheckDef",
     "id": "c14ae74d-0c4a-41a1-9649-79902389866b",
     "active": true,
     "category": "beginner",
-    "question": "How do I make sure two customers can't be created with the same email, and show a friendly message instead of a scary error?",
-    "answer": "Uniqueness is enforced by the database: put a unique index/constraint on the email column (tick Unique on the attribute in Studio; the Liquibase migration is generated for you). Jmix intercepts the unique constraint violation and shows a message that is localized by the constraint name: add a message key like databaseUniqueConstraintViolation.<INDEX_NAME> (e.g. databaseUniqueConstraintViolation.IDX_CUSTOMER_UNQ_EMAIL) with a friendly text."
+    "question": "Sometimes two managers create the same customer at the same time and we end up with records sharing one email. How do I forbid duplicates, but show a clear message instead of a scary database error?",
+    "answer": "Enforce uniqueness in the database — a unique index/constraint on the email column (tick Unique on the attribute in Studio; the Liquibase changelog is generated). An application-level check alone cannot prevent two concurrent saves, which is exactly the described case. Jmix intercepts the unique constraint violation and shows a message localizable by the constraint name: add a message key like databaseUniqueConstraintViolation.<INDEX_NAME> (e.g. databaseUniqueConstraintViolation.IDX_CUSTOMER_UNQ_EMAIL) with a friendly text."
   },
   {
     "_entityName": "CheckDef",
     "id": "dd0c8700-3307-49be-b60b-87d1bb9e170b",
     "active": true,
     "category": "beginner",
-    "question": "I want to show a full name built from the first and last name, without storing an extra column in the database. How?",
-    "answer": "Create a computed attribute: a getter method without JPA annotations, annotated with @JmixProperty and @DependsOnProperties({\"firstName\", \"lastName\"}), e.g. public String getFullName() { return firstName + \" \" + lastName; }. No database column is created, and the attribute works in the UI like a regular property (a dataGrid column, a form field). If the full name should be the display name of the entity, annotate the method with @InstanceName."
+    "question": "In the customers table I want a single column like \"John Smith\", although the first and last name are stored separately. Do I really have to add another column to the database?",
+    "answer": "No extra column is needed. Add a computed read-only attribute: a getter method without JPA annotations, annotated with @JmixProperty and @DependsOnProperties({\"firstName\", \"lastName\"}), returning the combined name — it can be used as a dataGrid column like a regular property. If the combined name should also represent the customer everywhere (pickers, headers, references), annotate the method with @InstanceName. A custom column renderer in that one grid is an acceptable alternative, but the computed attribute is reusable across the UI."
   },
   {
     "_entityName": "CheckDef",
     "id": "a91b118e-c008-40eb-8852-b75832d0d5de",
     "active": true,
     "category": "beginner",
-    "question": "How can I see who changed an order, when, and which fields exactly?",
-    "answer": "Add the Audit add-on: its Entity Log records entity changes. Enable logging for Order and the attributes you care about on the Entity Log setup screen; every change is then recorded — who, when, which attribute, the old and the new value — and browsable on the Entity Log screen. If you don't need the history and only want \"who created / who last modified\", the @CreatedBy/@CreatedDate/@LastModifiedBy/@LastModifiedDate attributes are enough."
+    "question": "Менеджер говорит, что вчера у заказа была другая сумма. Можно где-нибудь посмотреть, кто её поменял, когда и какое значение было раньше?",
+    "answer": "Это задача аудита — подключите Audit add-on: его Entity Log записывает изменения сущностей. Включите логирование для Order и атрибута суммы на экране настройки Entity Log — дальше по каждому изменению фиксируется, кто, когда, какой атрибут и какие были старое и новое значения; история просматривается на экране Entity Log. Честный ответ упоминает ограничение: лог собирается только с момента включения, вчерашнее изменение до настройки уже не восстановить — атрибуты @LastModifiedBy/@LastModifiedDate покажут лишь последнего автора без прежнего значения."
   },
   {
     "_entityName": "CheckDef",
     "id": "0528df73-7e9d-4d6d-94d6-537dde4ca5e1",
     "active": true,
     "category": "beginner",
-    "question": "How do I automatically find overdue orders every day at 9 AM and process them?",
-    "answer": "Put the processing into a Spring bean and run it on a schedule. The simple option is a method with @Scheduled(cron = \"0 0 9 * * *\") (plus @EnableScheduling in a configuration class); to access data from a scheduler the method needs system authentication — the @Authenticated annotation or SystemAuthenticator. If the schedule must be manageable from the UI or run in a cluster, use the Quartz add-on. Both options are correct."
+    "question": "Every morning I need to find overdue orders and change their status, even if nobody is logged into the app. What is the right way to run such processing inside Jmix?",
+    "answer": "Put the processing into a Spring bean and schedule it on the server — it must not depend on anyone being logged in. The simple option is a method with @Scheduled(cron = \"0 0 9 * * *\") plus @EnableScheduling in a configuration class; to access data from a scheduled method it needs system authentication — the @Authenticated annotation or SystemAuthenticator. Use the Quartz add-on instead when schedules must be managed from the UI or coordinated across a cluster. Both options are correct; inside the job the status change is ordinary DataManager work."
   }
 ]
