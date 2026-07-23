@@ -16,11 +16,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,11 +49,22 @@ public class JavaApiIngester extends AbstractIngester {
     private static final Logger log = LoggerFactory.getLogger(JavaApiIngester.class);
     private static final int MAX_CARD_CHUNK_SIZE = 4_000;
     private static final String CARD_FORMAT_VERSION = "card-v3";
+    /**
+     * Pages of {@code @Internal} API, generated from the framework sources (see the file header):
+     * the published Javadoc HTML does not render the annotation, so it cannot be filtered from
+     * the pages themselves.
+     */
+    static final String INTERNAL_BLACKLIST_RESOURCE = "/io/jmix/ai/backend/javaapi/internal-blacklist.txt";
+    /** Exceptions to the blacklist: {@code @Internal} pages the official docs teach to use. */
+    static final String INTERNAL_WHITELIST_RESOURCE = "/io/jmix/ai/backend/javaapi/internal-whitelist.txt";
 
     private final Map<JmixVersion, String> baseUrls = new EnumMap<>(JmixVersion.class);
     private final String classListPage;
     private final Set<String> moduleWhitelist;
     private final List<String> pathBlacklist;
+    private final Set<String> internalPages;
+    private final Set<String> internalPackages;
+    private final Set<String> internalExceptions;
     private final int limit;
 
     private final RestTemplate restTemplate;
@@ -76,8 +94,29 @@ public class JavaApiIngester extends AbstractIngester {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
+        Set<String> pages = new HashSet<>();
+        Set<String> packages = new HashSet<>();
+        loadInternalList(INTERNAL_BLACKLIST_RESOURCE)
+                .forEach(line -> (line.endsWith("/") ? packages : pages).add(line));
+        this.internalPages = Set.copyOf(pages);
+        this.internalPackages = Set.copyOf(packages);
+        this.internalExceptions = Set.copyOf(loadInternalList(INTERNAL_WHITELIST_RESOURCE));
         this.limit = limit;
         this.restTemplate = restTemplate;
+    }
+
+    private static List<String> loadInternalList(String resource) {
+        try (InputStream in = JavaApiIngester.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                throw new IllegalStateException("Missing resource " + resource);
+            }
+            return new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)).lines()
+                    .map(String::trim)
+                    .filter(line -> !line.isEmpty() && !line.startsWith("#"))
+                    .toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read " + resource, e);
+        }
     }
 
     private void putBaseUrl(JmixVersion version, String baseUrl) {
@@ -136,7 +175,7 @@ public class JavaApiIngester extends AbstractIngester {
     }
 
     boolean isAllowedSource(String source) {
-        if (isPathBlacklisted(source)) {
+        if (isPathBlacklisted(source) || isInternalPage(source)) {
             return false;
         }
         if (moduleWhitelist.isEmpty()) {
@@ -149,7 +188,7 @@ public class JavaApiIngester extends AbstractIngester {
     boolean isAllowedReference(String source, String href) {
         try {
             String resolvedPath = URI.create(source).resolve(href).getPath();
-            return !isPathBlacklisted(resolvedPath);
+            return !isPathBlacklisted(resolvedPath) && !isInternalPage(resolvedPath);
         } catch (IllegalArgumentException e) {
             return false;
         }
@@ -157,6 +196,27 @@ public class JavaApiIngester extends AbstractIngester {
 
     private boolean isPathBlacklisted(String path) {
         return pathBlacklist.stream().anyMatch(path::contains);
+    }
+
+    /**
+     * True for pages of {@code @Internal} API: the page itself, any page in an {@code @Internal}
+     * package, and nested-class pages ({@code Outer.Inner.html}) of an {@code @Internal} type.
+     * Whitelisted pages (internal API the official docs teach to use) are never internal.
+     */
+    boolean isInternalPage(String page) {
+        int slash = page.lastIndexOf('/') + 1;
+        String directory = page.substring(0, slash);
+        String fileName = page.substring(slash);
+        int firstDot = fileName.indexOf('.');
+        // for a nested-class page the outer class page is "<first segment>.html"
+        String outerPage = firstDot < 0 ? page : directory + fileName.substring(0, firstDot) + ".html";
+
+        if (internalExceptions.contains(page) || internalExceptions.contains(outerPage)) {
+            return false;
+        }
+        return internalPages.contains(page)
+                || internalPackages.contains(directory)
+                || internalPages.contains(outerPage);
     }
 
     @Override

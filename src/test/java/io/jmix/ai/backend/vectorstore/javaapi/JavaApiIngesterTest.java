@@ -116,4 +116,50 @@ class JavaApiIngesterTest {
         assertThat(ingester.isAllowedReference(source, "UnconstrainedDataManager.html")).isTrue();
         assertThat(ingester.isAllowedReference(source, "impl/DataManagerImpl.html")).isFalse();
     }
+
+    // the published Javadoc HTML does not render @Internal, so the pages of internal API are
+    // excluded by the generated resource list (see internal-blacklist.txt) rather than by content
+    @Test
+    void internalBlacklistExcludesInternalApiPages() {
+        // class-level @Internal type
+        assertThat(ingester.isAllowedSource("io/jmix/core/AccessLogger.html")).isFalse();
+        // nested-class page of an @Internal type
+        assertThat(ingester.isAllowedSource("io/jmix/core/AccessLogger.Nested.html")).isFalse();
+        // page in an @Internal package
+        assertThat(ingester.isAllowedSource("io/jmix/core/common/event/sys/VoidSubscription.html")).isFalse();
+        // public API stays
+        assertThat(ingester.isAllowedSource("io/jmix/core/DataManager.html")).isTrue();
+        assertThat(ingester.isAllowedSource("io/jmix/core/FetchPlan.html")).isTrue();
+    }
+
+    @Test
+    void internalBlacklistExcludesInternalReferences() {
+        String source = "io/jmix/core/DataManager.html";
+
+        assertThat(ingester.isAllowedReference(source, "AccessLogger.html")).isFalse();
+        assertThat(ingester.isAllowedReference(source, "FetchPlan.html")).isTrue();
+    }
+
+    // @Internal API the official docs teach to use stays in the corpus (internal-whitelist.txt)
+    @Test
+    void internalWhitelistOverridesTheBlacklist() {
+        JavaApiIngester flowuiIngester = new JavaApiIngester(
+                "https://docs.jmix.io/api/2.8", "", "allclasses-index.html", "core,flowui",
+                "/impl/,/antlr2/", 0, vectorStore, timeSource, vectorStoreRepository, restTemplate);
+
+        // class-level @Internal, taught by dyn-attr/dynattr-api.html
+        assertThat(flowuiIngester.isAllowedSource("io/jmix/core/entity/EntityValues.html")).isTrue();
+        // covered by a package-level ban, taught by flow-ui/vc/components/multiValuePicker.html
+        assertThat(flowuiIngester.isAllowedSource("io/jmix/flowui/app/multivaluepicker/MultiValueSelectView.html"))
+                .isTrue();
+        // nested-class page follows its whitelisted outer class
+        assertThat(flowuiIngester.isAllowedSource(
+                "io/jmix/flowui/app/multivaluepicker/MultiValueSelectView.MultiValueSelectContext.html"))
+                .isTrue();
+        // a sibling in the same banned package stays banned
+        assertThat(flowuiIngester.isAllowedSource("io/jmix/flowui/app/multivaluepicker/MultiValueSelectDialog.html"))
+                .isFalse();
+        // mentioned in the docs only as a logger name - stays banned
+        assertThat(flowuiIngester.isAllowedSource("io/jmix/core/AccessLogger.html")).isFalse();
+    }
 }

@@ -1,0 +1,35 @@
+# Exceptions to internal-blacklist.txt: @Internal API pages that stay in the javaapi
+# corpora because the official documentation teaches application code to use them
+# (code samples with @Autowired / extends / implements, or values returned by a
+# documented API). Verified empirically against the docs corpus; a mention alone is
+# not enough — e.g. AccessLogger and JmixModulesProcessor appear in the docs only as
+# logger names in logging configuration and remain blacklisted.
+#
+# Each entry lists the docs page that teaches the class. Nested-class pages
+# (Outer.Inner.html) of a whitelisted class are kept together with it.
+#
+# When regenerating internal-blacklist.txt for a new Jmix version, re-check this list:
+# an entry whose class is no longer @Internal can simply be removed.
+
+# dyn-attr/dynattr-api.html — dynamic attribute values via EntityValues.getValue()/setValue()
+io/jmix/core/entity/EntityValues.html
+# flow-ui/facets/urlQueryParameters.html — custom binder extends AbstractUrlQueryParametersBinder
+io/jmix/flowui/facet/urlqueryparameters/AbstractUrlQueryParametersBinder.html
+# flow-ui/exception-handlers.html — documented default handler and customization point
+io/jmix/flowui/exception/DefaultUiExceptionHandler.html
+# flow-ui/vc/components/genericFilter.html — returned by documented addConfiguration(...)
+io/jmix/flowui/component/genericfilter/configuration/DesignTimeConfiguration.html
+# flow-ui/vc/components/genericFilter.html — created by the documented configuration builder
+io/jmix/flowui/component/genericfilter/configuration/RunTimeConfiguration.html
+# flow-ui/vc/components/genericFilter.html — @Autowired in programmatic filter samples
+io/jmix/flowui/component/propertyfilter/SingleFilterSupport.html
+# flow-ui/vc/components/genericFilter-components.html — @Autowired in JPQL filter samples
+io/jmix/flowui/component/jpqlfilter/JpqlFilterSupport.html
+# flow-ui/vc/components/genericFilter-components.html — "should implement the FilterConverter interface"
+io/jmix/flowui/component/genericfilter/converter/FilterConverter.html
+# flow-ui/vc/components/genericFilter-components.html — filter component registration sample
+io/jmix/flowui/component/propertyfilter/PropertyFilterConverter.html
+# separate-tiers-guide/index.html — @Autowired in the refresh-token exception handler sample
+io/jmix/flowui/sys/LogoutSupport.html
+# flow-ui/vc/components/multiValuePicker.html — custom select view implements MultiValueSelectView
+io/jmix/flowui/app/multivaluepicker/MultiValueSelectView.html
