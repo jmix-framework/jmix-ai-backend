@@ -12,7 +12,10 @@ import java.util.List;
 /** Fingerprints persisted with check runs and used to group compatible analytics cohorts. */
 final class CheckFingerprints {
 
-    private static final String DEFINITION_PREFIX = "definitions-v1";
+    // set to the date of the change whenever the canonicalization/hashing scheme changes; dated
+    // (not "vN") so it cannot be confused with Jmix versions, and never reuse a value — runs
+    // stamped by the old scheme would look comparable to new ones
+    private static final String DEFINITION_PREFIX = "definitions-fingerprint-version-2026-07-26";
     private static final int SHORT_HASH_LENGTH = 12;
 
     private CheckFingerprints() {

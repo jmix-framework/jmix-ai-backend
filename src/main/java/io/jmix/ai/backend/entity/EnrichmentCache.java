@@ -69,7 +69,7 @@ public class EnrichmentCache {
 
     /**
      * The enricher's {@code getModelKey()}: model name, reasoning effort <em>and</em> prompt
-     * version combined (e.g. {@code gpt-5.4-nano:low:p2}) — despite the column name, NOT just the
+     * version combined (e.g. {@code gpt-5.4-nano:low:prompt-version-2026-07-26}) — despite the column name, NOT just the
      * model. Part of the cache key, so bumping the prompt version or switching the model produces
      * a new generation rather than overwriting existing rows.
      */

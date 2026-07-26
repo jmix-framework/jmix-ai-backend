@@ -69,6 +69,6 @@ class CheckRunComparisonViewTest {
 
     private static ConfigOption option(String comparisonCohort, String passThreshold) {
         return new ConfigOption("key", "Config", "v2", comparisonCohort,
-                "defs", "semantic-v3", passThreshold, "fp", 1);
+                "defs", "semantic-evaluator-version-2026-07-26", passThreshold, "fp", 1);
     }
 }

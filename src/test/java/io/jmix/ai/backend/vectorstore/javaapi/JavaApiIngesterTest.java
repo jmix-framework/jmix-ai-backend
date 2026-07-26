@@ -63,7 +63,7 @@ class JavaApiIngesterTest {
         assertThat(chunks.getFirst().getText()).isEqualTo(CARD.format());
         assertThat(chunks.getFirst().getMetadata())
                 .doesNotContainKey("enriched")
-                .containsEntry("generationKey", "card-v3");
+                .containsEntry("generationKey", "javaapi-card-format-version-2026-07-26");
     }
 
     @Test

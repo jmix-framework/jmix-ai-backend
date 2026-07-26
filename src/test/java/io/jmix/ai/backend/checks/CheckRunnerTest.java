@@ -104,7 +104,7 @@ public class CheckRunnerTest {
         CheckRun updatedCheckRun = dataManager.load(Id.of(checkRun)).one();
         assertThat(updatedCheckRun.getScore()).isCloseTo(0.5, org.assertj.core.data.Offset.offset(0.0001));
         assertThat(updatedCheckRun.getEvaluatorConfig())
-                .isEqualTo("semantic-v3|model=test-judge|temperature=0.0");
+                .isEqualTo("semantic-evaluator-version-2026-07-26|model=test-judge|temperature=0.0");
         assertThat(updatedCheckRun.getPassThreshold()).isEqualTo(0.8);
         assertThat(updatedCheckRun.getDefinitionFingerprint())
                 .isEqualTo(CheckFingerprints.forDefinitions(List.of(checkDef1, checkDef2)));
@@ -310,7 +310,7 @@ public class CheckRunnerTest {
 
         @Override
         public String configurationSnapshot() {
-            return "semantic-v3|model=test-judge|temperature=0.0";
+            return "semantic-evaluator-version-2026-07-26|model=test-judge|temperature=0.0";
         }
 
         @Override

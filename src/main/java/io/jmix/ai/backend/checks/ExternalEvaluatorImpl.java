@@ -30,7 +30,10 @@ import java.util.regex.Pattern;
 public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalEvaluatorImpl.class);
-    private static final String EVALUATOR_VERSION = "semantic-v3";
+    // set to the date of the change whenever SYSTEM_PROMPT or the scoring rules change; part of
+    // the persisted evaluatorConfig, so runs judged by different rules land in different cohorts.
+    // Dated (not "vN") so it cannot be confused with Jmix versions; never reuse a value.
+    private static final String EVALUATOR_VERSION = "semantic-evaluator-version-2026-07-26";
     private static final Pattern JSON_OBJECT_PATTERN = Pattern.compile("\\{.*}", Pattern.DOTALL);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final double LANGUAGE_MISMATCH_MAX_SCORE = 0.2;

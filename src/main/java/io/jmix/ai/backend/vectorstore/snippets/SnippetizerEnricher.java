@@ -51,11 +51,15 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     static final int MAX_INPUT_CHARS = 60_000;
     static final int MAX_COVERAGE_CHARS = 8_000;
 
-    // bump when the snippetization prompt changes so cached snippets are regenerated
-    private static final String PROMPT_VERSION = "p4";
-    // bump when validation, the stored snippet format or the DocsHtmlConverter output changes;
-    // cached LLM output can still be reused
-    private static final String CORPUS_FORMAT_VERSION = "verbatim-code-coverage-v3";
+    // set to the date of the change when the snippetization prompt changes: invalidates the
+    // snippet cache (paid LLM regeneration); never reuse a value
+    private static final String PROMPT_VERSION = "prompt-version-2026-07-26";
+    // set to the date of the change whenever validation, the stored snippet format or the
+    // DocsHtmlConverter output changes; rebuilds the chunks while reusing cached LLM output
+    // (unlike a PROMPT_VERSION change). Dated (not "vN") so it cannot be confused with Jmix
+    // versions, and a value must never be reused — a reused value would make chunks built by
+    // the old code look current.
+    private static final String SNIPPET_FORMAT_VERSION = "snippet-format-version-2026-07-26";
 
     private static final String SYSTEM_PROMPT = """
             You convert a page of Jmix framework documentation into small self-contained snippets for a code-search index.
@@ -129,7 +133,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     }
 
     public String getGenerationKey() {
-        return getModelKey() + ":" + CORPUS_FORMAT_VERSION;
+        return getModelKey() + ":" + SNIPPET_FORMAT_VERSION;
     }
 
     /**

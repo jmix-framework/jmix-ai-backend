@@ -69,7 +69,7 @@ class SnippetsIngestersTest {
 
     @Test
     void docsSnippets_ProducesSnippetDocumentsWithPathPrefix() {
-        when(snippetizer.getGenerationKey()).thenReturn("model:p3:verbatim-code-coverage-v1");
+        when(snippetizer.getGenerationKey()).thenReturn("test-generation-key");
         Document page = docsPage();
         List<Snippet> snippets = List.of(
                 new Snippet("Create a Button", "How to declare a button.", "xml", "<button/>", "https://docs/v2/flow-ui/button.html"),
@@ -85,14 +85,14 @@ class SnippetsIngestersTest {
                 .contains("<button/>");
         assertThat(chunks.getFirst().getMetadata())
                 .containsEntry("enriched", "true")
-                .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                .containsEntry("generationKey", "test-generation-key")
                 .containsEntry("type", "docs-snippets");
         assertThat(chunks.get(1).getText()).contains("TITLE: Button click handler");
         assertThat(chunks.get(2).getText()).startsWith("Path: Flow UI > Button\n\n")
                 .contains("The button component allows users to trigger actions");
         assertThat(chunks.get(2).getMetadata())
                 .containsEntry("coverage", "true")
-                .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                .containsEntry("generationKey", "test-generation-key")
                 .doesNotContainKey("enriched");
     }
 
@@ -116,7 +116,7 @@ class SnippetsIngestersTest {
                 "jmixVersion", "v2",
                 "url", "https://docs/v2/large.html",
                 "docPath", "Large page"));
-        when(snippetizer.getGenerationKey()).thenReturn("model:p3:verbatim-code-coverage-v1");
+        when(snippetizer.getGenerationKey()).thenReturn("test-generation-key");
         when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of(
                 "large-doc", List.of(new Snippet("Large", "Summary.", null, null,
                         "https://docs/v2/large.html"))));
@@ -132,7 +132,7 @@ class SnippetsIngestersTest {
             assertThat(chunk.getText().length())
                     .isLessThanOrEqualTo(SnippetizerEnricher.MAX_COVERAGE_CHARS);
             assertThat(chunk.getMetadata())
-                    .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                    .containsEntry("generationKey", "test-generation-key")
                     .doesNotContainKey("enriched");
         });
         assertThat(coverage.stream()
@@ -173,7 +173,7 @@ class SnippetsIngestersTest {
 
     @Test
     void uiSamplesSnippets_ProducesSnippetDocuments() {
-        when(snippetizer.getGenerationKey()).thenReturn("model:p3:verbatim-code-coverage-v1");
+        when(snippetizer.getGenerationKey()).thenReturn("test-generation-key");
         Document page = samplePage();
         when(snippetizer.resolveAll(eq("uisamples-snippets"), anyList(), any()))
                 .thenReturn(Map.of("sample-1", List.of(
@@ -185,11 +185,11 @@ class SnippetsIngestersTest {
         assertThat(chunks.getFirst().getText()).startsWith("TITLE: Button sample");
         assertThat(chunks.getFirst().getMetadata())
                 .containsEntry("enriched", "true")
-                .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1");
+                .containsEntry("generationKey", "test-generation-key");
         assertThat(chunks.get(1).getText()).isEqualTo(page.getText());
         assertThat(chunks.get(1).getMetadata())
                 .containsEntry("coverage", "true")
-                .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                .containsEntry("generationKey", "test-generation-key")
                 .doesNotContainKey("enriched");
     }
 
@@ -213,7 +213,7 @@ class SnippetsIngestersTest {
                 "sourceHash", "hash-large",
                 "jmixVersion", "v2",
                 "url", "https://us/v2/sample/large-sample"));
-        when(snippetizer.getGenerationKey()).thenReturn("model:p3:verbatim-code-coverage-v1");
+        when(snippetizer.getGenerationKey()).thenReturn("test-generation-key");
         when(snippetizer.resolveAll(any(), anyList(), any())).thenReturn(Map.of(
                 "large-sample", List.of(new Snippet(
                         "Large sample", "Summary.", null, null,
@@ -229,7 +229,7 @@ class SnippetsIngestersTest {
                     .isLessThanOrEqualTo(SnippetizerEnricher.MAX_COVERAGE_CHARS);
             assertThat(chunk.getMetadata())
                     .containsEntry("coverage", "true")
-                    .containsEntry("generationKey", "model:p3:verbatim-code-coverage-v1")
+                    .containsEntry("generationKey", "test-generation-key")
                     .doesNotContainKey("enriched");
         });
         assertThat(coverage.stream().map(Document::getText).collect(Collectors.joining()))

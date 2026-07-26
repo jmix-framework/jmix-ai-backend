@@ -147,9 +147,9 @@ class SnippetizerEnricherTest {
 
     @Test
     void modelKeyIncludesReasoningEffort() {
-        assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:p4");
+        assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:prompt-version-2026-07-26");
         assertThat(new TestSnippetizer(mock(ChatModel.class)).getGenerationKey())
-                .isEqualTo("test-model:low:p4:verbatim-code-coverage-v3");
+                .isEqualTo("test-model:low:prompt-version-2026-07-26:snippet-format-version-2026-07-26");
     }
 
     @Test
@@ -180,7 +180,7 @@ class SnippetizerEnricherTest {
         cached.setContent(snippetizer.toJson(List.of(
                 new Snippet("Invented", "Cached.", "xml", "<button text=\"Invented\"/>", "source"))));
         when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
-                "test-model:low:p4")).thenReturn(Optional.of(cached));
+                "test-model:low:prompt-version-2026-07-26")).thenReturn(Optional.of(cached));
 
         try {
             Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
@@ -209,7 +209,7 @@ class SnippetizerEnricherTest {
         cached.setContent(snippetizer.toJson(List.of(
                 new Snippet(" ", "Blank title fails the gate.", "xml", "<button text=\"OK\"/>", "source"))));
         when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
-                "test-model:low:p4")).thenReturn(Optional.of(cached));
+                "test-model:low:prompt-version-2026-07-26")).thenReturn(Optional.of(cached));
 
         try {
             Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
@@ -235,7 +235,7 @@ class SnippetizerEnricherTest {
                 new Snippet("Button", "Cached.", "xml", "<button text=\"OK\"/>",
                         "https://old.docs.example/button.html"))));
         when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
-                "test-model:low:p4")).thenReturn(Optional.of(cached));
+                "test-model:low:prompt-version-2026-07-26")).thenReturn(Optional.of(cached));
 
         try {
             Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),

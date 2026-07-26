@@ -20,7 +20,7 @@ class CheckFingerprintsTest {
 
         String fingerprint = CheckFingerprints.forDefinitions(List.of(first, second));
 
-        assertThat(fingerprint).isEqualTo("definitions-v1-6a6cbbf13d01");
+        assertThat(fingerprint).isEqualTo("definitions-fingerprint-version-2026-07-26-6a6cbbf13d01");
         assertThat(CheckFingerprints.forDefinitions(List.of(second, first))).isEqualTo(fingerprint);
 
         second.setAnswer("Changed answer");

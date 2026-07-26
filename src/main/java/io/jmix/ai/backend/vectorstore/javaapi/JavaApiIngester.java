@@ -48,7 +48,10 @@ public class JavaApiIngester extends AbstractIngester {
 
     private static final Logger log = LoggerFactory.getLogger(JavaApiIngester.class);
     private static final int MAX_CARD_CHUNK_SIZE = 4_000;
-    private static final String CARD_FORMAT_VERSION = "card-v3";
+    // set to the date of the change whenever the card format changes; dated (not "vN") so it
+    // cannot be confused with Jmix versions, and a value must never be reused — a reused value
+    // would make chunks built by the old code look current
+    private static final String CARD_FORMAT_VERSION = "javaapi-card-format-version-2026-07-26";
     /**
      * Pages of {@code @Internal} API, generated from the framework sources (see the file header):
      * the published Javadoc HTML does not render the annotation, so it cannot be filtered from

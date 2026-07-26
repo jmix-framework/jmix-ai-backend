@@ -139,7 +139,7 @@ class JavaApiEnrichedIngesterTest {
             assertThat(chunk.getText()).isEqualTo(CARD.format());
             assertThat(chunk.getMetadata())
                     .containsEntry("enriched", "true")
-                    .containsEntry("generationKey", "card-v3:test-model");
+                    .containsEntry("generationKey", "javaapi-card-format-version-2026-07-26:test-model");
         });
     }
 

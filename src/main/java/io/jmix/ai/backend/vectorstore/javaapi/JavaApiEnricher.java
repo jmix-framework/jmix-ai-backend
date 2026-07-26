@@ -73,8 +73,9 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
     private static final BeanOutputConverter<Enrichment> OUTPUT_CONVERTER =
             new BeanOutputConverter<>(Enrichment.class);
 
-    // bump on SYSTEM_PROMPT changes: invalidates the enrichment cache and rebuilds existing chunks
-    private static final String PROMPT_VERSION = "p2";
+    // set to the date of the change on SYSTEM_PROMPT changes: invalidates the enrichment cache
+    // (paid LLM regeneration) and rebuilds existing chunks; never reuse a value
+    private static final String PROMPT_VERSION = "prompt-version-2026-07-26";
 
     public JavaApiEnricher(
             @Value("${javaapi.enrichment.model}") String modelName,
