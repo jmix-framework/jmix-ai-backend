@@ -149,7 +149,7 @@ class SnippetizerEnricherTest {
     void modelKeyIncludesReasoningEffort() {
         assertThat(new TestSnippetizer(mock(ChatModel.class)).getModelKey()).isEqualTo("test-model:low:p4");
         assertThat(new TestSnippetizer(mock(ChatModel.class)).getGenerationKey())
-                .isEqualTo("test-model:low:p4:verbatim-code-coverage-v2");
+                .isEqualTo("test-model:low:p4:verbatim-code-coverage-v3");
     }
 
     @Test

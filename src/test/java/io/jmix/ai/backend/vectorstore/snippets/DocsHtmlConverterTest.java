@@ -12,7 +12,7 @@ class DocsHtmlConverterTest {
                 <article class="doc">
                 <h1>Button</h1>
                 <p>The <code>button</code> component &lt;triggers&gt; actions.</p>
-                <ul><li>First item</li><li>Second item</li></ul>
+                <div class="ulist"><ul><li><p>First item</p></li><li><p>Second item</p></li></ul></div>
                 <div class="listingblock"><pre class="highlightjs">&lt;button id="helloButton"
                         text="Say Hello"/&gt; <i class="conum" data-value="1"></i><b>(1)</b></pre></div>
                 <p>After code.</p>
@@ -36,6 +36,44 @@ class DocsHtmlConverterTest {
                 <button id="helloButton"
                         text="Say Hello"/>
                 ```""");
+    }
+
+    @Test
+    void keepsBareListItemsOnTheirMarkerLine() {
+        String text = DocsHtmlConverter.toPlainText("<ul><li>First item</li><li>Second item</li></ul>");
+
+        assertThat(text).isEqualTo("- First item\n\n- Second item");
+    }
+
+    @Test
+    void numbersOrderedListItems() {
+        String text = DocsHtmlConverter.toPlainText(
+                "<div class=\"olist\"><ol><li><p>Step one</p></li><li><p>Step two</p></li></ol></div>");
+
+        assertThat(text)
+                .contains("1. Step one")
+                .contains("2. Step two");
+    }
+
+    @Test
+    void keepsTableCellsOnTheirRowLine() {
+        // Asciidoctor table markup: cells hold <p class="tableblock"> content
+        String text = DocsHtmlConverter.toPlainText("""
+                <table class="tableblock">
+                <tbody>
+                <tr><th><p class="tableblock">Name</p></th><th><p class="tableblock">Description</p></th></tr>
+                <tr><td><p class="tableblock">icon</p></td><td><p class="tableblock">Sets the icon</p></td></tr>
+                <tr><td><p class="tableblock">text</p></td><td><p class="tableblock">Sets the caption</p></td></tr>
+                </tbody>
+                </table>
+                """);
+
+        assertThat(text).isEqualTo("""
+                Name | Description
+
+                icon | Sets the icon
+
+                text | Sets the caption""");
     }
 
     @Test

@@ -86,6 +86,22 @@ public class JavadocPageParserTest {
         assertThat(signatureOf(v3, "contentEquals")).isEqualTo("contentEquals(@Nullable FetchPlan that)");
     }
 
+    /**
+     * The class Javadoc of {@code @Subscribe} carries its usage example in a {@code <pre>} block,
+     * whose newlines {@code Element.text()} preserves — the parser must collapse them because a
+     * description spans exactly one {@code DESCRIPTION:} card line ({@code Snippet.parse} keeps
+     * only the first line on the enrichment round-trip).
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"v2", "v3"})
+    void collapsesPreBlockNewlinesInDescription(String version) {
+        JavadocClassDoc classDoc = parser.parse(loadResource(version + "/Subscribe.html"));
+
+        assertThat(classDoc.description())
+                .doesNotContain("\n")
+                .contains("Example: @Subscribe(\"demoButton\") protected void onDemoButtonClick");
+    }
+
     private static String signatureOf(JavadocClassDoc classDoc, String memberName) {
         return classDoc.methods().stream()
                 .map(JavadocClassDoc.Member::signature)

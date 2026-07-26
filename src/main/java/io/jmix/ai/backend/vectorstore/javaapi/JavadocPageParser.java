@@ -127,6 +127,9 @@ public class JavadocPageParser {
     }
 
     private String normalize(String text) {
-        return text.replace('\u00A0', ' ').trim();
+        // Every parsed value lands on a single card line (Snippet.parse relies on it), but
+        // Element.text() preserves newlines inside <pre> \u2014 e.g. a usage example in the class
+        // Javadoc of @Subscribe \u2014 so whitespace runs are collapsed here.
+        return text.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
     }
 }

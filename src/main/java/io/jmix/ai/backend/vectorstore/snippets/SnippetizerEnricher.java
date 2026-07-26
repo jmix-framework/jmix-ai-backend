@@ -53,8 +53,9 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
 
     // bump when the snippetization prompt changes so cached snippets are regenerated
     private static final String PROMPT_VERSION = "p4";
-    // bump when validation or the stored snippet format changes; cached LLM output can still be reused
-    private static final String CORPUS_FORMAT_VERSION = "verbatim-code-coverage-v2";
+    // bump when validation, the stored snippet format or the DocsHtmlConverter output changes;
+    // cached LLM output can still be reused
+    private static final String CORPUS_FORMAT_VERSION = "verbatim-code-coverage-v3";
 
     private static final String SYSTEM_PROMPT = """
             You convert a page of Jmix framework documentation into small self-contained snippets for a code-search index.

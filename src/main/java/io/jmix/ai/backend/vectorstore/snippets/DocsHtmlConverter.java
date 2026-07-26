@@ -39,9 +39,22 @@ public class DocsHtmlConverter {
                     } else if (tag.matches("h[1-6]")) {
                         textBuf.append("\n\n");
                     } else if (tag.equals("li")) {
-                        textBuf.append("\n- ");
+                        Element parent = el.parent();
+                        if (parent != null && parent.normalName().equals("ol")) {
+                            textBuf.append('\n').append(el.elementSiblingIndex() + 1).append(". ");
+                        } else {
+                            textBuf.append("\n- ");
+                        }
+                    } else if (tag.equals("td") || tag.equals("th")) {
+                        if (el.elementSiblingIndex() > 0) {
+                            textBuf.append(" | ");
+                        }
                     } else if (el.isBlock() || tag.equals("br")) {
-                        textBuf.append('\n');
+                        // Asciidoctor wraps list-item and table-cell content in <p>; its block
+                        // break must not detach the text from the "- " marker or the "|" row.
+                        // A space instead (normalize collapses it) so compact markup like
+                        // <li>text<p>more</p> cannot glue words together.
+                        textBuf.append(opensListItemOrCell(el) ? " " : "\n");
                     }
                 } else if (node instanceof TextNode textNode && !insidePre(textNode)) {
                     textBuf.append(textNode.text());
@@ -50,9 +63,29 @@ public class DocsHtmlConverter {
 
             @Override
             public void tail(Node node, int depth) {
-                if (node instanceof Element el && el.isBlock()) {
+                if (node instanceof Element el && el.isBlock() && !partOfTableRow(el)) {
                     textBuf.append('\n');
                 }
+            }
+
+            private boolean opensListItemOrCell(Element el) {
+                Element parent = el.parent();
+                if (parent == null) {
+                    return false;
+                }
+                String parentTag = parent.normalName();
+                return (parentTag.equals("li") || parentTag.equals("td") || parentTag.equals("th"))
+                        && el.elementSiblingIndex() == 0;
+            }
+
+            private boolean partOfTableRow(Element el) {
+                String tag = el.normalName();
+                if (tag.equals("td") || tag.equals("th")) {
+                    return true;
+                }
+                Element parent = el.parent();
+                String parentTag = parent != null ? parent.normalName() : "";
+                return parentTag.equals("td") || parentTag.equals("th");
             }
 
             private boolean insidePre(Node node) {
