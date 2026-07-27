@@ -153,6 +153,24 @@ class SnippetizerEnricherTest {
     }
 
     @Test
+    void snippetize_DropsOnlyTheSnippetWithModifiedCode() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
+                {"snippets": [
+                  {"title": "Honest code", "description": "Copied verbatim.", "language": "xml", "code": "<button text=\\"OK\\"/>"},
+                  {"title": "Reformatted", "description": "Model changed the spacing.", "language": "xml", "code": "<button   text=\\"OK\\"/>"},
+                  {"title": "Text only", "description": "No code at all.", "language": "", "code": ""}
+                ]}
+                """));
+
+        List<Snippet> snippets = new TestSnippetizer(chatModel).snippetize(
+                PAGE, DocsHtmlConverter.toPlainText(PAGE.getText()));
+
+        assertThat(snippets).extracting(Snippet::title)
+                .containsExactly("Honest code", "Text only");
+    }
+
+    @Test
     void snippetize_RejectsCodeThatIsNotPresentInSource() {
         ChatModel chatModel = mock(ChatModel.class);
         when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""

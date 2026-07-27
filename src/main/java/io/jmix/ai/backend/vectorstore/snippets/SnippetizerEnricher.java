@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Splits ingested pages (documentation, UI samples) into small self-contained context7-like
@@ -107,6 +108,8 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
     private final int parallelism;
     private final EnrichmentCacheRepository enrichmentCacheRepository;
     private final ExecutorService executor;
+    // per-batch visibility of gate rejections; reset by resolveAll, incremented by worker threads
+    private final AtomicInteger droppedNonVerbatim = new AtomicInteger();
 
     public SnippetizerEnricher(
             @Value("${snippets.enrichment.model}") String modelName,
@@ -146,6 +149,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
      */
     public Map<String, List<Snippet>> resolveAll(String type, List<Document> documents,
                                                  java.util.function.Function<Document, String> contentExtractor) {
+        droppedNonVerbatim.set(0);
         Map<String, List<Snippet>> result = new HashMap<>();
         Map<String, String> contentByDocumentId = new HashMap<>();
         List<Document> pending = new ArrayList<>();
@@ -208,6 +212,10 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
         } finally {
             inFlight.keySet().forEach(future -> future.cancel(true));
         }
+        if (droppedNonVerbatim.get() > 0) {
+            log.warn("Snippetization dropped {} non-verbatim snippets across the batch of {} documents",
+                    droppedNonVerbatim.get(), documents.size());
+        }
         return result;
     }
 
@@ -259,11 +267,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
             if (snippets == null) {
                 return null;
             }
-            if (!containsOnlyVerbatimCode(snippets, content)) {
-                log.error("Snippetization invented or modified code for {}", url);
-                return null;
-            }
-            return snippets;
+            return retainVerbatimCode(snippets, content, url);
         } catch (Exception e) {
             log.error("Snippetization request failed for {}", url, e);
             return null;
@@ -299,6 +303,32 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
             start = end;
         }
         return parts;
+    }
+
+    /**
+     * Drops the snippets whose code is not copied verbatim from the source page: an invented or
+     * reformatted code block must not reach the corpus, but it no longer discards the page's other
+     * snippets. Null when nothing survives — the page falls back to plain-text chunking.
+     * <p>
+     * The cache read path deliberately stays all-or-nothing ({@link #containsOnlyVerbatimCode}):
+     * there a failing snippet means the page or the converter drifted since the payload was
+     * cached, and the correct response is regeneration, not silent dropping.
+     */
+    @Nullable
+    List<Snippet> retainVerbatimCode(@Nullable List<Snippet> snippets, @Nullable String sourceContent, String url) {
+        if (snippets == null || snippets.isEmpty() || sourceContent == null) {
+            return null;
+        }
+        List<Snippet> kept = snippets.stream()
+                .filter(snippet -> StringUtils.isBlank(snippet.code()) || sourceContent.contains(snippet.code()))
+                .toList();
+        int dropped = snippets.size() - kept.size();
+        if (dropped > 0) {
+            droppedNonVerbatim.addAndGet(dropped);
+            log.warn("Dropped {} of {} snippets with invented or modified code for {}",
+                    dropped, snippets.size(), url);
+        }
+        return kept.isEmpty() ? null : kept;
     }
 
     static boolean containsOnlyVerbatimCode(@Nullable List<Snippet> snippets, @Nullable String sourceContent) {
