@@ -244,12 +244,12 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
                     new UserMessage(userMessage))));
             String text = getContent(response);
             if (StringUtils.isBlank(text)) {
-                log.error("Snippetization response was empty for {}", url);
+                log.warn("Snippetization response was empty for {}", url);
                 return null;
             }
             SnippetizationResponse parsed = OUTPUT_CONVERTER.convert(text);
             if (parsed == null || parsed.snippets() == null || parsed.snippets().isEmpty()) {
-                log.error("Snippetization returned no snippets for {}", url);
+                log.warn("Snippetization returned no snippets for {}", url);
                 return null;
             }
             // the same gate cached payloads pass in fromJson: live and cache cannot diverge

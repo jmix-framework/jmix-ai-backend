@@ -108,13 +108,13 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
                     new UserMessage(cardText))));
             String content = getContent(response);
             if (StringUtils.isBlank(content)) {
-                log.error("Enrichment response was empty");
+                log.warn("Enrichment response was empty");
                 return null;
             }
             // the same gate cached payloads pass in fromCacheJson: live and cache cannot diverge
             Enrichment enrichment = NormalizationUtils.canonicalEnrichment(OUTPUT_CONVERTER.convert(content));
             if (enrichment == null) {
-                log.error("Enrichment response has no description: {}", content);
+                log.warn("Enrichment response has no description: {}", content);
                 return null;
             }
             return enrichment;
