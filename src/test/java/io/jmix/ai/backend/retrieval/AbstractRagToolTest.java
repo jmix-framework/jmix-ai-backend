@@ -21,6 +21,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.verify;
@@ -89,7 +90,7 @@ class AbstractRagToolTest {
 
         tool.execute("query", null);
 
-        verifySearchTopK(10);
+        verifySearchTopK(20);
         verify(reranker).rerank("query", candidates, 3, reader);
         assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
     }
@@ -128,7 +129,7 @@ class AbstractRagToolTest {
 
         tool.execute("query", 500);
 
-        verifySearchTopK(100);
+        verifySearchTopK(200);
         verify(reranker).rerank("query", candidates, 50, reader);
     }
 
@@ -156,7 +157,7 @@ class AbstractRagToolTest {
 
         String result = tool.execute("query", 3);
 
-        verifySearchTopK(6);
+        verifySearchTopK(12);
         assertThat(retrievedDocuments).containsExactlyElementsOf(candidates.subList(0, 3));
         assertThat(result).isEqualTo("text-0\n\ntext-1\n\ntext-2");
     }
@@ -172,6 +173,36 @@ class AbstractRagToolTest {
         toolParameters.putAll(overrides);
         return new ParametersReader(Map.of(
                 "tools", Map.of("documentation_retriever", toolParameters)));
+    }
+
+    /**
+     * One page's snippets must not flood the candidate pool: at most
+     * {@link AbstractRagTool#MAX_CHUNKS_PER_SOURCE} chunks per source survive, the freed slots
+     * are refilled by other pages, and the similarity order is preserved.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void capsFloodedSourcePageBeforeReranking() {
+        ParametersReader reader = reader(Map.of("topK", 4, "topReranked", 2));
+        DocsTool tool = tool(reader, new ArrayList<>());
+        List<Document> candidates = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            candidates.add(Document.builder().id("flood-" + i).text("flood-" + i)
+                    .metadata(Map.of("source", "flooding.html")).score(1.0 - i * 0.01).build());
+        }
+        candidates.add(Document.builder().id("other").text("other")
+                .metadata(Map.of("source", "other.html")).score(0.5).build());
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
+        when(postRetrievalProcessor.process(eq("query"), same(candidates))).thenReturn(candidates);
+        when(reranker.rerank(eq("query"), anyList(), eq(2), eq(reader))).thenReturn(List.of());
+
+        tool.execute("query", null);
+
+        org.mockito.ArgumentCaptor<List<Document>> rerankInput =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(reranker).rerank(eq("query"), rerankInput.capture(), eq(2), eq(reader));
+        assertThat(rerankInput.getValue()).extracting(Document::getId)
+                .containsExactly("flood-0", "flood-1", "flood-2", "other");
     }
 
     private DocsTool tool(ParametersReader reader, List<Document> retrievedDocuments) {

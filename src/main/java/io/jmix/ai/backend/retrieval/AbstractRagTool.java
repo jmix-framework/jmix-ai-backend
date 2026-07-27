@@ -17,7 +17,10 @@ import org.springframework.util.ReflectionUtils;
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -25,6 +28,11 @@ public abstract class AbstractRagTool {
 
     /** Upper bound on how many snippets a caller (the model or the search API) may request per tool call. */
     public static final int MAX_RESULTS_CAP = 50;
+    // A page's snippets are many and small, so a topically-close page can flood the whole
+    // candidate pool by itself (cosine search is blind to pages). The candidates are fetched
+    // with a margin and capped per source page, so the reranker always sees several distinct
+    // pages to choose from.
+    static final int MAX_CHUNKS_PER_SOURCE = 3;
     private static final String MAX_RESULTS_DESCRIPTION =
             "Optional: how many snippets to return (1-" + MAX_RESULTS_CAP
                     + "). Omit to use the configured default. The tool description states the "
@@ -134,7 +142,8 @@ public abstract class AbstractRagTool {
             SearchRequest.Builder requestBuilder = SearchRequest.builder()
                     .query(queryText)
                     .similarityThreshold(similarityThreshold)
-                    .topK(topK);
+                    // overfetch: the per-source cap below needs spare candidates to refill from
+                    .topK(topK * 2);
 
             FilterExpressionBuilder fb = new FilterExpressionBuilder();
             var typeFilter = fb.eq("type", type);
@@ -160,6 +169,8 @@ public abstract class AbstractRagTool {
                 listener.onLog("All documents filtered out by PostRetrievalProcessor");
                 return getNoResultsMessage();
             }
+
+            documents = capPerSource(documents, topK);
 
             // Reranking
             List<Document> filteredDocuments;
@@ -207,6 +218,32 @@ public abstract class AbstractRagTool {
         } finally {
             listener.onToolCallEnd(toolName, System.currentTimeMillis() - startTime);
         }
+    }
+
+    /**
+     * Keeps at most {@link #MAX_CHUNKS_PER_SOURCE} best-ranked chunks per source page and trims
+     * the list back to {@code limit}, preserving the similarity order. Documents without a
+     * {@code source} are never capped.
+     */
+    private List<Document> capPerSource(List<Document> documents, int limit) {
+        Map<Object, Integer> chunksPerSource = new HashMap<>();
+        List<Document> capped = new ArrayList<>(Math.min(documents.size(), limit));
+        int flooded = 0;
+        for (Document document : documents) {
+            Object source = document.getMetadata().getOrDefault("source", document.getId());
+            if (chunksPerSource.merge(source, 1, Integer::sum) > MAX_CHUNKS_PER_SOURCE) {
+                flooded++;
+                continue;
+            }
+            capped.add(document);
+            if (capped.size() == limit) {
+                break;
+            }
+        }
+        if (flooded > 0) {
+            listener.onLog("Per-source cap dropped %d flooded chunks".formatted(flooded));
+        }
+        return capped;
     }
 
     private static List<EventStreamValueHolder.DocScore> toDocScores(List<Document> documents) {
