@@ -33,7 +33,7 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     // set to the date of the change whenever SYSTEM_PROMPT or the scoring rules change; part of
     // the persisted evaluatorConfig, so runs judged by different rules land in different cohorts.
     // Dated (not "vN") so it cannot be confused with Jmix versions; never reuse a value.
-    private static final String EVALUATOR_VERSION = "semantic-evaluator-version-2026-07-26";
+    private static final String EVALUATOR_VERSION = "semantic-evaluator-version-2026-07-28";
     private static final Pattern JSON_OBJECT_PATTERN = Pattern.compile("\\{.*}", Pattern.DOTALL);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final double LANGUAGE_MISMATCH_MAX_SCORE = 0.2;
@@ -70,6 +70,10 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
             - Accept a shorter answer and alternative correct wording or API when it fully answers
               the question. Exact identifiers and signatures matter when the question asks for them.
             - Penalize missing required facts, contradictions, invented APIs and irrelevant content.
+            - If the actual answer denies a mechanism or capability that the reference describes —
+              claims it does not exist, is not supported, or "only supports" something narrower —
+              that is a contradiction of the reference: score at most 0.3, even when a workaround
+              in the answer achieves the user's goal.
             - Use only these scores: 1.0 = fully correct; 0.9 = correct with a minor non-material
               issue; 0.7 = partially correct or missing a required fact; 0.3 = mostly incorrect;
               0.0 = incorrect, empty, or an inappropriate refusal.

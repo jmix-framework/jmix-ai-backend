@@ -54,7 +54,7 @@ class CheckRunnerUnitTest {
         ExternalEvaluator evaluator = new ExternalEvaluator() {
             @Override
             public String configurationSnapshot() {
-                return "semantic-evaluator-version-2026-07-26|model=test-judge|temperature=0.0";
+                return "semantic-evaluator-version-2026-07-28|model=test-judge|temperature=0.0";
             }
 
             @Override
@@ -75,7 +75,7 @@ class CheckRunnerUnitTest {
 
         assertThat(evaluatedQuestion).hasValue(checkDef.getQuestion());
         assertThat(checkRun.getEvaluatorConfig())
-                .isEqualTo("semantic-evaluator-version-2026-07-26|model=test-judge|temperature=0.0");
+                .isEqualTo("semantic-evaluator-version-2026-07-28|model=test-judge|temperature=0.0");
         assertThat(checkRun.getPassThreshold()).isEqualTo(0.8);
         assertThat(checkRun.getConfigLabel()).isEqualTo("test-config");
         assertThat(checkRun.getDefinitionFingerprint())

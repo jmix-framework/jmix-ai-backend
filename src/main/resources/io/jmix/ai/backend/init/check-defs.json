@@ -535,7 +535,7 @@
     "active": true,
     "category": "code",
     "question": "Покажи пример загрузки через `DataManager` заказов со статусом `NEW`, отсортированных по дате создания от новых к старым.",
-    "answer": "Используйте dataManager.load(Order.class).query(\"select o from app_Order o where o.status = :status order by o.createdDate desc\").parameter(\"status\", OrderStatus.NEW).list(). Имя JPQL-сущности, поле даты и тип статуса зависят от приложения; строка \"NEW\" допустима, если статус хранится строкой."
+    "answer": "Используйте dataManager.load(Order.class).query(\"select o from app_Order o where o.status = :status order by o.createdDate desc\").parameter(\"status\", OrderStatus.NEW).list(). Имя JPQL-сущности, поле даты и тип статуса зависят от приложения; строка \"NEW\" допустима, если статус хранится строкой. Также корректна сокращённая форма запроса: строка может начинаться с условия по свойству, например query(\"e.status = :status order by e.createdDate desc\") — Jmix автоматически достраивает её до полного JPQL (строка должна начинаться с select, from, where, order by или условия вида e.property = :param)."
   },
   {
     "_entityName": "CheckDef",
@@ -796,5 +796,29 @@
     "category": "beginner",
     "question": "Every morning I need to find overdue orders and change their status, even if nobody is logged into the app. What is the right way to run such processing inside Jmix?",
     "answer": "Put the processing into a Spring bean and schedule it on the server — it must not depend on anyone being logged in. The simple option is a method with @Scheduled(cron = \"0 0 9 * * *\") plus @EnableScheduling in a configuration class; to access data from a scheduled method it needs system authentication — the @Authenticated annotation or SystemAuthenticator. Use the Quartz add-on instead when schedules must be managed from the UI or coordinated across a cluster. Both options are correct; inside the job the status change is ordinary DataManager work."
+  },
+  {
+    "id": "a615eb80-c45e-4184-8ae0-32170a710ef8",
+    "active": true,
+    "jmixVersion": null,
+    "category": "api bait",
+    "question": "Слышал, что фасет `urlQueryParameters` поддерживает только фильтры и пагинацию — как тогда сохранить произвольное текстовое значение в URL текущего view?",
+    "answer": "Это не так: фасет `urlQueryParameters` поддерживает произвольные значения через кастомный биндер. Объявите фасет в XML view, создайте класс на основе `AbstractUrlQueryParametersBinder`: в нём слушайте изменение значения (например, у `TextField`) и вызывайте `fireQueryParametersChanged(new UrlQueryParametersFacet.UrlQueryParametersChangeEvent(this, queryParameters))`, а восстановление значения из URL выполняйте в `updateState(QueryParameters)`. Биндер регистрируется в контроллере: `urlQueryParameters.registerBinder(new MyBinder())` (обычно в `InitEvent`). Готовые вложенные элементы (`pagination`, `genericFilter`, `propertyFilter`) — частные случаи того же механизма."
+  },
+  {
+    "id": "de0ff19c-7c02-403a-b3a8-605834b28aa1",
+    "active": true,
+    "jmixVersion": null,
+    "category": "api bait",
+    "question": "Правда ли, что в `dataManager.load(...).query(...)` обязательно передавать полный JPQL с `select` и `from`, иначе запрос не выполнится?",
+    "answer": "Нет. Помимо полного JPQL, `query()` принимает сокращённую форму: строка может начинаться с `select`, `from`, `where`, `order by` или сразу с условия по свойству вида `e.property = :param` — Jmix автоматически достраивает остальное. Например: `dataManager.load(Order.class).query(\"e.status = :status order by e.createdDate desc\").parameter(\"status\", OrderStatus.NEW).list()`. Полный вариант `select o from app_Order o where ...` также корректен."
+  },
+  {
+    "id": "f7ce066a-70da-4087-8ed3-75c2d8d1dd4f",
+    "active": true,
+    "jmixVersion": null,
+    "category": "api bait",
+    "question": "Мне сказали, что в Jmix нельзя выполнить произвольный SQL-запрос — только JPQL через DataManager. Это правда?",
+    "answer": "Нет. Для произвольного SQL в Jmix-приложении используется стандартный Spring `JdbcTemplate` (или `NamedParameterJdbcTemplate`): внедрите бин и выполняйте запросы напрямую — этот подход описан в документации (Data Access > JDBC). `DataManager`/JPQL — основной путь работы с сущностями, но прямой SQL полностью поддерживается."
   }
 ]

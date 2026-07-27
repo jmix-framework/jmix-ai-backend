@@ -39,9 +39,9 @@ class CheckAnalyticsServiceTest {
     void groupIdentityIncludesEvaluatorConfigAndSeparatesLegacyRuns() {
         CheckRun legacy = checkRun("Config", "parameters");
         CheckRun first = checkRun("Config", "parameters");
-        first.setEvaluatorConfig("semantic-evaluator-version-2026-07-26|model=first|temperature=0.0");
+        first.setEvaluatorConfig("semantic-evaluator-version-2026-07-28|model=first|temperature=0.0");
         CheckRun second = checkRun("Config", "parameters");
-        second.setEvaluatorConfig("semantic-evaluator-version-2026-07-26|model=second|temperature=0.0");
+        second.setEvaluatorConfig("semantic-evaluator-version-2026-07-28|model=second|temperature=0.0");
 
         assertThat(CheckAnalyticsService.groupKey(first))
                 .isNotEqualTo(CheckAnalyticsService.groupKey(second))
@@ -179,11 +179,11 @@ class CheckAnalyticsServiceTest {
     @Test
     void configurationsFromDifferentEvaluationCohortsAreFlagged() {
         CheckAnalyticsService.ConfigOption baseline = new CheckAnalyticsService.ConfigOption(
-                "base", "Base", "v2", "first-cohort", "defs-1", "semantic-evaluator-version-2026-07-26", "0.8", "base123", 1);
+                "base", "Base", "v2", "first-cohort", "defs-1", "semantic-evaluator-version-2026-07-28", "0.8", "base123", 1);
         CheckAnalyticsService.ConfigOption candidate = new CheckAnalyticsService.ConfigOption(
-                "candidate", "Candidate", "v2", "second-cohort", "defs-2", "semantic-evaluator-version-2026-07-26", "0.8", "candidate123", 1);
+                "candidate", "Candidate", "v2", "second-cohort", "defs-2", "semantic-evaluator-version-2026-07-28", "0.8", "candidate123", 1);
         CheckAnalyticsService.ConfigOption sameCohort = new CheckAnalyticsService.ConfigOption(
-                "other", "Other", "v2", "first-cohort", "defs-1", "semantic-evaluator-version-2026-07-26", "0.8", "other123", 1);
+                "other", "Other", "v2", "first-cohort", "defs-1", "semantic-evaluator-version-2026-07-28", "0.8", "other123", 1);
 
         assertThat(CheckAnalyticsService.canCompare(baseline, candidate)).isFalse();
         assertThat(CheckAnalyticsService.canCompare(baseline, sameCohort)).isTrue();
@@ -222,7 +222,7 @@ class CheckAnalyticsServiceTest {
         run.setId(runId);
         run.setScore(0.7);
         run.setAccuracy(1.0);
-        run.setEvaluatorConfig("semantic-evaluator-version-2026-07-26|model=judge|temperature=0.0");
+        run.setEvaluatorConfig("semantic-evaluator-version-2026-07-28|model=judge|temperature=0.0");
         run.setPassThreshold(0.8);
         Check check = new Check();
         check.setQuestion("common");

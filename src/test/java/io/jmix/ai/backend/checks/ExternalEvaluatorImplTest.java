@@ -21,7 +21,7 @@ class ExternalEvaluatorImplTest {
                 "gpt-test", 0.25, "test-api-key");
 
         assertThat(evaluator.configurationSnapshot())
-                .isEqualTo("semantic-evaluator-version-2026-07-26|model=gpt-test|temperature=0.25");
+                .isEqualTo("semantic-evaluator-version-2026-07-28|model=gpt-test|temperature=0.25");
     }
 
     @Test

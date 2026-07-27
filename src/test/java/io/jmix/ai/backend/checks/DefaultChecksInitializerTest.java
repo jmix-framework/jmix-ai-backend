@@ -57,11 +57,11 @@ class DefaultChecksInitializerTest {
         // retired in changeset 1, deliberately reactivated in changeset 2 as an adversarial check
         Set<UUID> reactivatedIds = Set.of(UUID.fromString("018c1f8e-3b80-7fa0-e283-af1a2b3c4d5e"));
 
-        assertThat(definitions).hasSize(96);
-        assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(74);
+        assertThat(definitions).hasSize(99);
+        assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(77);
         assertThat(inactiveDefinitionIds).hasSize(22);
         assertThat(versionedIds).hasSize(6);
-        assertThat(definitions).filteredOn(definition -> definition.jmixVersion() == null).hasSize(90);
+        assertThat(definitions).filteredOn(definition -> definition.jmixVersion() == null).hasSize(93);
         assertThat(Set.copyOf(migratedIds)).isEqualTo(Stream.concat(
                 inactiveDefinitionIds.stream(), reactivatedIds.stream()).collect(Collectors.toSet()));
         assertThat(definitions).extracting(DefaultChecksInitializer.DefaultCheck::id).doesNotHaveDuplicates();
