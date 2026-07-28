@@ -41,24 +41,22 @@ class DefaultChecksInitializerTest {
 
         List<DefaultChecksInitializer.DefaultCheck> definitions =
                 DefaultChecksInitializer.missingDefinitions(json, Set.of(), new ObjectMapper());
-        Set<UUID> inactiveDefinitionIds = definitions.stream()
-                .filter(definition -> Boolean.FALSE.equals(definition.active()))
-                .map(DefaultChecksInitializer.DefaultCheck::id)
-                .collect(Collectors.toSet());
         Set<UUID> versionedIds = definitions.stream()
                 .filter(definition -> definition.jmixVersion() == JmixVersion.V2)
                 .map(DefaultChecksInitializer.DefaultCheck::id)
                 .collect(Collectors.toSet());
 
-        assertThat(definitions).hasSize(99);
-        assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(98);
+        // the whole suite runs: every bundled definition is active
+        assertThat(definitions).hasSize(98);
+        assertThat(definitions).allMatch(DefaultChecksInitializer.DefaultCheck::active);
         assertThat(versionedIds).hasSize(6);
-        assertThat(definitions).filteredOn(definition -> definition.jmixVersion() == null).hasSize(93);
-        // the whole suite is active except one definition whose question text duplicates another;
-        // the reactivation migration must keep exactly that definition off in existing databases
-        assertThat(Set.copyOf(QUOTED_UUID.matcher(reactivationMigration).results()
-                .map(result -> UUID.fromString(result.group(1)))
-                .toList())).isEqualTo(inactiveDefinitionIds);
+        assertThat(definitions).filteredOn(definition -> definition.jmixVersion() == null).hasSize(92);
+        // the definition the migration soft-deletes must be gone from the bundled JSON as well
+        assertThat(QUOTED_UUID.matcher(reactivationMigration).results()
+                .map(result -> UUID.fromString(result.group(1))))
+                .isNotEmpty()
+                .doesNotContainAnyElementsOf(definitions.stream()
+                        .map(DefaultChecksInitializer.DefaultCheck::id).toList());
         assertThat(definitions).extracting(DefaultChecksInitializer.DefaultCheck::id).doesNotHaveDuplicates();
         assertThat(definitions).allSatisfy(definition -> {
             assertThat(definition.category()).isNotBlank();

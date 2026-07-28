@@ -305,14 +305,6 @@
   },
   {
     "_entityName": "CheckDef",
-    "id": "579dca5a-d68b-41fd-beeb-0b91dfe9a6ae",
-    "active": false,
-    "category": "fact",
-    "question": "Для чего используется аннотация @Install в Jmix?",
-    "answer": "@Install применяется в контроллерах экранов Jmix, чтобы передавать делегаты и обработчики в предопределённые точки расширения визуальных и дата-компонентов. Аннотированный метод подключается через @Install(to = \"componentOrLoaderId\", subject = \"...\"), например dataLoadDelegate для лоадера или renderer/validator/instanceName-провайдер для компонента."
-  },
-  {
-    "_entityName": "CheckDef",
     "id": "bec829a6-e27d-4c66-8f87-2fee3e406cee",
     "active": "true",
     "category": "fact",

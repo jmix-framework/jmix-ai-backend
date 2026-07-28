@@ -7,20 +7,22 @@
         objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
     <!-- Reverses 11-040000-retire-ambiguous-checks: the questions retired there are back in the
          suite. Their rewritten counterparts stay active as well, so overlapping topics are now
-         probed by both wordings. -->
+         probed by both the original and the precise wording. -->
     <changeSet id="1" author="jmix-ai-backend">
         <update tableName="CHECK_DEF">
             <column name="ACTIVE" valueBoolean="true"/>
             <where>ACTIVE = false</where>
         </update>
     </changeSet>
-    <!-- The only definition left inactive: its question text is byte-identical to the active
-         0fab7a68 record, so running both would ask the same question twice in every run and
-         count it twice in the averages. -->
+    <!-- 579dca5a asked the same question as 0fab7a68 byte for byte, with an outdated reference
+         answer (Jmix 1 "screen" wording, and it attributed Renderer to @Install instead of
+         @Supply). Dropped as a duplicate; the question itself stays in the suite under 0fab7a68.
+         Soft delete, so existing check results keep resolving their definition. -->
     <changeSet id="2" author="jmix-ai-backend">
         <update tableName="CHECK_DEF">
+            <column name="DELETED_DATE" valueComputed="CURRENT_TIMESTAMP"/>
             <column name="ACTIVE" valueBoolean="false"/>
-            <where>ID = '579dca5a-d68b-41fd-beeb-0b91dfe9a6ae'</where>
+            <where>ID = '579dca5a-d68b-41fd-beeb-0b91dfe9a6ae' AND DELETED_DATE IS NULL</where>
         </update>
     </changeSet>
 </databaseChangeLog>
