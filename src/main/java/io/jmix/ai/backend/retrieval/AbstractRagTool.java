@@ -170,22 +170,25 @@ public abstract class AbstractRagTool {
                 return getNoResultsMessage();
             }
 
-            documents = capPerSource(documents, topK);
-
-            // Reranking
+            // Reranking. The reranker judges every candidate: capping per source beforehand would
+            // hide relevant chunks from it by raw cosine alone — the page that legitimately holds
+            // most of the answer loses its less obvious parts (a job page keeps its "how to
+            // schedule" snippets and drops the "authenticate the job" one). The cap is applied to
+            // the reranked list instead, where dropped chunks can be replaced by the next best
+            // ones the reranker already scored.
             List<Document> filteredDocuments;
 
             long rerankStart = System.currentTimeMillis();
-            List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked, parametersReader);
+            List<Reranker.Result> rerankResults =
+                    reranker.rerank(queryText, documents, topReranked * 2, parametersReader);
             long rerankMs = System.currentTimeMillis() - rerankStart;
 
             if (rerankResults == null) {
                 listener.onLog("Reranking failed, filtering by minScore");
-                filteredDocuments = documents.stream()
+                filteredDocuments = capPerSource(documents.stream()
                         .filter(document ->
                                 minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                        .limit(fallbackLimit != null ? fallbackLimit : Long.MAX_VALUE)
-                        .toList();
+                        .toList(), fallbackLimit != null ? fallbackLimit : topK);
                 listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
             } else {
                 List<Reranker.Result> filteredRerankResults = rerankResults.stream()
@@ -196,11 +199,13 @@ public abstract class AbstractRagTool {
                     result.document().getMetadata().put("rerankScore", result.score());
                 }
 
-                filteredDocuments = filteredRerankResults.stream()
+                filteredDocuments = capPerSource(filteredRerankResults.stream()
                         .map(Reranker.Result::document)
-                        .toList();
+                        .toList(), topReranked);
+                List<Document> selected = filteredDocuments;
                 listener.onToolReranked(toolName,
                         filteredRerankResults.stream()
+                                .filter(rr -> selected.contains(rr.document()))
                                 .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), RetrievalUtils.getUrlOrSource(rr.document())))
                                 .toList(),
                         rerankMs);

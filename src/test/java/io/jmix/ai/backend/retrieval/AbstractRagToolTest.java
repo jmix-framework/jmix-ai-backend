@@ -85,13 +85,13 @@ class AbstractRagToolTest {
         List<Document> retrievedDocuments = new ArrayList<>();
         DocsTool tool = tool(reader, retrievedDocuments);
         List<Document> candidates = prepareCandidates(4);
-        when(reranker.rerank("query", candidates, 3, reader))
+        when(reranker.rerank("query", candidates, 6, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
         tool.execute("query", null);
 
         verifySearchTopK(20);
-        verify(reranker).rerank("query", candidates, 3, reader);
+        verify(reranker).rerank("query", candidates, 6, reader);
         assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
     }
 
@@ -103,7 +103,7 @@ class AbstractRagToolTest {
                 "topReranked", 3));
         DocsTool tool = tool(reader, new ArrayList<>());
         List<Document> candidates = prepareCandidates(1);
-        when(reranker.rerank("query", candidates, 3, reader))
+        when(reranker.rerank("query", candidates, 6, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
         tool.execute("query", null);
@@ -124,13 +124,13 @@ class AbstractRagToolTest {
         ParametersReader reader = reader(Map.of("topK", 10, "topReranked", 3));
         DocsTool tool = tool(reader, new ArrayList<>());
         List<Document> candidates = prepareCandidates(4);
-        when(reranker.rerank("query", candidates, 50, reader))
+        when(reranker.rerank("query", candidates, 100, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
         tool.execute("query", 500);
 
         verifySearchTopK(200);
-        verify(reranker).rerank("query", candidates, 50, reader);
+        verify(reranker).rerank("query", candidates, 100, reader);
     }
 
     @Test
@@ -139,7 +139,7 @@ class AbstractRagToolTest {
         List<Document> retrievedDocuments = new ArrayList<>();
         DocsTool tool = tool(reader, retrievedDocuments);
         List<Document> candidates = prepareCandidates(5);
-        when(reranker.rerank("query", candidates, 2, reader)).thenReturn(null);
+        when(reranker.rerank("query", candidates, 4, reader)).thenReturn(null);
 
         String result = tool.execute("query", null);
 
@@ -153,7 +153,7 @@ class AbstractRagToolTest {
         List<Document> retrievedDocuments = new ArrayList<>();
         DocsTool tool = tool(reader, retrievedDocuments);
         List<Document> candidates = prepareCandidates(6);
-        when(reranker.rerank("query", candidates, 3, reader)).thenReturn(null);
+        when(reranker.rerank("query", candidates, 6, reader)).thenReturn(null);
 
         String result = tool.execute("query", 3);
 
@@ -176,15 +176,16 @@ class AbstractRagToolTest {
     }
 
     /**
-     * One page's snippets must not flood the candidate pool: at most
-     * {@link AbstractRagTool#MAX_CHUNKS_PER_SOURCE} chunks per source survive, the freed slots
-     * are refilled by other pages, and the similarity order is preserved.
+     * One page must not fill the whole answer: the reranker judges every candidate, and at most
+     * {@link AbstractRagTool#MAX_CHUNKS_PER_SOURCE} chunks per source survive into the selection,
+     * with the freed slots refilled from the rest of the reranked list.
      */
     @Test
     @SuppressWarnings("unchecked")
-    void capsFloodedSourcePageBeforeReranking() {
-        ParametersReader reader = reader(Map.of("topK", 4, "topReranked", 2));
-        DocsTool tool = tool(reader, new ArrayList<>());
+    void capsFloodedSourcePageInTheRerankedSelection() {
+        ParametersReader reader = reader(Map.of("topK", 4, "topReranked", 4));
+        List<Document> retrieved = new ArrayList<>();
+        DocsTool tool = tool(reader, retrieved);
         List<Document> candidates = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             candidates.add(Document.builder().id("flood-" + i).text("flood-" + i)
@@ -194,14 +195,20 @@ class AbstractRagToolTest {
                 .metadata(Map.of("source", "other.html")).score(0.5).build());
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
         when(postRetrievalProcessor.process(eq("query"), same(candidates))).thenReturn(candidates);
-        when(reranker.rerank(eq("query"), anyList(), eq(2), eq(reader))).thenReturn(List.of());
+        // the reranker ranks the flooding page above the other one; the cap must still let the
+        // other page through and must not pad the result with a fourth flooding chunk
+        when(reranker.rerank(eq("query"), anyList(), eq(8), eq(reader))).thenReturn(
+                candidates.stream().map(document -> new Reranker.Result(document, 0.9)).toList());
 
         tool.execute("query", null);
 
         org.mockito.ArgumentCaptor<List<Document>> rerankInput =
                 org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(reranker).rerank(eq("query"), rerankInput.capture(), eq(2), eq(reader));
+        verify(reranker).rerank(eq("query"), rerankInput.capture(), eq(8), eq(reader));
         assertThat(rerankInput.getValue()).extracting(Document::getId)
+                .describedAs("the reranker judges every candidate, uncapped")
+                .containsExactlyElementsOf(candidates.stream().map(Document::getId).toList());
+        assertThat(retrieved).extracting(Document::getId)
                 .containsExactly("flood-0", "flood-1", "flood-2", "other");
     }
 
