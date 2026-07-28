@@ -18,7 +18,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,8 +35,8 @@ class DefaultChecksInitializerTest {
     void bundledDefinitionsHaveExpectedActiveCohort() throws Exception {
         String json = new String(Objects.requireNonNull(getClass().getResourceAsStream(
                 "/io/jmix/ai/backend/init/check-defs.json")).readAllBytes(), StandardCharsets.UTF_8);
-        String retirementMigration = new String(Objects.requireNonNull(getClass().getResourceAsStream(
-                "/io/jmix/ai/backend/liquibase/changelog/2026/07/11-040000-retire-ambiguous-checks.xml"))
+        String reactivationMigration = new String(Objects.requireNonNull(getClass().getResourceAsStream(
+                "/io/jmix/ai/backend/liquibase/changelog/2026/07/28-120000-reactivate-retired-checks.xml"))
                 .readAllBytes(), StandardCharsets.UTF_8);
 
         List<DefaultChecksInitializer.DefaultCheck> definitions =
@@ -46,24 +45,20 @@ class DefaultChecksInitializerTest {
                 .filter(definition -> Boolean.FALSE.equals(definition.active()))
                 .map(DefaultChecksInitializer.DefaultCheck::id)
                 .collect(Collectors.toSet());
-        List<UUID> migratedIds = QUOTED_UUID.matcher(retirementMigration).results()
-                .map(result -> UUID.fromString(result.group(1)))
-                .toList();
         Set<UUID> versionedIds = definitions.stream()
                 .filter(definition -> definition.jmixVersion() == JmixVersion.V2)
                 .map(DefaultChecksInitializer.DefaultCheck::id)
                 .collect(Collectors.toSet());
 
-        // retired in changeset 1, deliberately reactivated in changeset 2 as an adversarial check
-        Set<UUID> reactivatedIds = Set.of(UUID.fromString("018c1f8e-3b80-7fa0-e283-af1a2b3c4d5e"));
-
         assertThat(definitions).hasSize(99);
-        assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(77);
-        assertThat(inactiveDefinitionIds).hasSize(22);
+        assertThat(definitions).filteredOn(DefaultChecksInitializer.DefaultCheck::active).hasSize(98);
         assertThat(versionedIds).hasSize(6);
         assertThat(definitions).filteredOn(definition -> definition.jmixVersion() == null).hasSize(93);
-        assertThat(Set.copyOf(migratedIds)).isEqualTo(Stream.concat(
-                inactiveDefinitionIds.stream(), reactivatedIds.stream()).collect(Collectors.toSet()));
+        // the whole suite is active except one definition whose question text duplicates another;
+        // the reactivation migration must keep exactly that definition off in existing databases
+        assertThat(Set.copyOf(QUOTED_UUID.matcher(reactivationMigration).results()
+                .map(result -> UUID.fromString(result.group(1)))
+                .toList())).isEqualTo(inactiveDefinitionIds);
         assertThat(definitions).extracting(DefaultChecksInitializer.DefaultCheck::id).doesNotHaveDuplicates();
         assertThat(definitions).allSatisfy(definition -> {
             assertThat(definition.category()).isNotBlank();

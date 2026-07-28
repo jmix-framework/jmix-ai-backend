@@ -54,7 +54,7 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
 
     // set to the date of the change when the snippetization prompt changes: invalidates the
     // snippet cache (paid LLM regeneration); never reuse a value
-    private static final String PROMPT_VERSION = "prompt-version-2026-07-26";
+    private static final String PROMPT_VERSION = "prompt-version-2026-07-28";
     // set to the date of the change whenever validation, the stored snippet format or the
     // DocsHtmlConverter output changes; rebuilds the chunks while reusing cached LLM output
     // (unlike a PROMPT_VERSION change). Dated (not "vN") so it cannot be confused with Jmix
