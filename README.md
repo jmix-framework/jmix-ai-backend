@@ -105,7 +105,8 @@ Content-Type: application/json
 ```
 
 Each v2 result contains `id`, `title`, `source` and `content`. The optional `jmix_version` field
-selects the corpus. The optional `max_results` field (1 to 50) caps the total number of returned
+selects the corpus and defaults to `v3` — unlike `POST /api/search`, which keeps defaulting to `v2`
+for its existing clients. The optional `max_results` field (1 to 50) caps the total number of returned
 snippets across all tools, so the caller decides how much context it wants without depending on how
 many tools the server has enabled. The optional `tokens` field accepts values from 1 to 100000 and
 applies an approximate, best-effort response budget using four characters per token to the

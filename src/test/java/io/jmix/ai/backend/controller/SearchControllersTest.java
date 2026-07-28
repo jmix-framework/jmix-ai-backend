@@ -66,7 +66,7 @@ class SearchControllersTest {
                 .score(0.9)
                 .build();
         // the service returns results already relevance-ordered; the controller must not reorder
-        when(searchService.search("query", JmixVersion.V2, null))
+        when(searchService.search("query", JmixVersion.V3, null))
                 .thenReturn(List.of(mostRelevant, lessRelevant));
         SearchV2Controller controller = new SearchV2Controller(searchService);
 
@@ -79,7 +79,25 @@ class SearchControllersTest {
             assertThat(item.source()).isEqualTo("https://example.com/high");
             assertThat(item.content()).isEqualTo(mostRelevant.getText());
         });
-        verify(searchService).search("query", JmixVersion.V2, null);
+        verify(searchService).search("query", JmixVersion.V3, null);
+    }
+
+    /**
+     * The frozen v1 contract keeps defaulting to v2 for its existing clients; a caller that opted
+     * into v2 of the API and named no version gets the current Jmix release instead.
+     */
+    @Test
+    void endpointDefaultsDifferPerApiVersion() {
+        when(searchService.search("query", JmixVersion.V3, null)).thenReturn(List.of());
+        when(searchService.search("query", JmixVersion.V2)).thenReturn(List.of());
+
+        new SearchV2Controller(searchService).search(
+                new SearchV2Controller.SearchRequest("query", null, null, null));
+        new SearchController(searchService).search(
+                new SearchController.SearchRequest("query", null));
+
+        verify(searchService).search("query", JmixVersion.V3, null);
+        verify(searchService).search("query", JmixVersion.V2);
     }
 
     @Test
@@ -98,7 +116,7 @@ class SearchControllersTest {
                 .build();
         // deliberately contradicts the scores: ordering is owned by the service and the
         // controller must pass it through - resorting by relevance would flip this list
-        when(searchService.search("query", JmixVersion.V2, null))
+        when(searchService.search("query", JmixVersion.V3, null))
                 .thenReturn(List.of(lessRelevant, mostRelevant));
         SearchV2Controller controller = new SearchV2Controller(searchService);
 

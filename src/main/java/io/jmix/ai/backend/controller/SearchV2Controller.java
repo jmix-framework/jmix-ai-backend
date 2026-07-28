@@ -54,7 +54,9 @@ public class SearchV2Controller {
                     "Unknown Jmix version: " + request.jmixVersion());
         }
         if (version == null) {
-            version = JmixVersion.V2;
+            // v2 clients are frozen on SearchController and its v2 default; a caller that opted into
+            // this endpoint without naming a version gets the current Jmix release
+            version = JmixVersion.V3;
         }
         List<Document> sortedByRelevance = searchService.search(request.query(), version, request.maxResults());
         List<Document> trimmedToBudget = SearchResultsFormatter.applyTokenBudget(sortedByRelevance, request.tokens());
