@@ -56,11 +56,11 @@ public class PostRetrievalProcessor {
                             Map.of("userQuery", userQuery, "document", document)
                     );
                 } catch (Exception e) {
-                    log.error("Rule {} evaluation failed for document {}", rule.name(), RetrievalUtils.getUrlOrSource(document), e);
+                    log.error("Rule {} evaluation failed for document {}", rule.name(), Utils.getUrlOrSource(document), e);
                 }
                 if (result != null && !result) {
                     if (logger != null) {
-                        logger.accept("Rule '" + rule.name + "' filtered out " + RetrievalUtils.getUrlOrSource(document));
+                        logger.accept("Rule '" + rule.name + "' filtered out " + Utils.getUrlOrSource(document));
                     }
                     return false;
                 }

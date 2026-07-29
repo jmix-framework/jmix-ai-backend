@@ -8,7 +8,6 @@ import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
-import io.jmix.ai.backend.vectorstore.EnrichmentCacheCleanupService;
 import io.jmix.ai.backend.vectorstore.Ingester;
 import io.jmix.ai.backend.vectorstore.IngesterManager;
 import io.jmix.ai.backend.vectorstore.VectorStoreRepository;
@@ -57,8 +56,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     @Autowired
     private VectorStoreRepository vectorStoreRepository;
     @Autowired
-    private EnrichmentCacheCleanupService enrichmentCacheCleanupService;
-    @Autowired
     private Notifications notifications;
     @Autowired
     private DefaultUiExceptionHandler defaultUiExceptionHandler;
@@ -73,8 +70,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private DataGrid<VectorStoreEntity> vectorStoreDataGrid;
     @ViewComponent
     private UrlQueryParametersFacet urlQueryParameters;
-    @ViewComponent
-    private MessageBundle messageBundle;
 
     @Subscribe
     public void onInit(final InitEvent event) {
@@ -166,26 +161,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                 .open();
     }
 
-    @Subscribe(id = "cleanupCacheButton", subject = "clickListener")
-    public void onCleanupCacheButtonClick(final ClickEvent<JmixButton> event) {
-        dialogs.createOptionDialog()
-                .withHeader(messageBundle.getMessage("cacheCleanup.confirmHeader"))
-                .withText(messageBundle.getMessage("cacheCleanup.confirmText"))
-                .withActions(
-                        new DialogAction(DialogAction.Type.YES).withHandler(e ->
-                                cleanupCacheInBackground()),
-                        new DialogAction(DialogAction.Type.NO)
-                )
-                .open();
-    }
-
-    private void cleanupCacheInBackground() {
-        dialogs.createBackgroundTaskDialog(new CleanupCacheTask())
-                .withHeader(messageBundle.getMessage("cacheCleanup.runningHeader"))
-                .withText(messageBundle.getMessage("cacheCleanup.runningText"))
-                .open();
-    }
-
     @Subscribe(id = "removeAllButton", subject = "clickListener")
     public void onRemoveAllButtonClick(final ClickEvent<JmixButton> event) {
         dialogs.createOptionDialog()
@@ -203,20 +178,17 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
 
     @Install(to = "vectorStoreDataGrid.removeAction", subject = "delegate")
     public void vectorStoreDataGridRemoveActionDelegate(final Collection<VectorStoreEntity> collection) {
-        deleteSourceChunks(loadSelectedSourceChunks(collection.iterator().next()));
+        List<VectorStoreEntity> entities = getEntitiesOfTheSameSource(collection.iterator().next());
+        vectorStoreRepository.delete(entities);
     }
 
     @Install(to = "vectorStoreDataGrid.removeAction", subject = "beforeActionPerformedHandler")
-    void vectorStoreDataGridRemoveActionBeforeActionPerformedHandler(final RemoveOperation.BeforeActionPerformedEvent<VectorStoreEntity> beforeActionPerformedEvent) {
+    private void vectorStoreDataGridRemoveActionBeforeActionPerformedHandler(final RemoveOperation.BeforeActionPerformedEvent<VectorStoreEntity> beforeActionPerformedEvent) {
         VectorStoreEntity selectedEntity = vectorStoreDataGrid.getSingleSelectedItem();
         if (selectedEntity == null)
             return;
 
-        List<VectorStoreEntity> entities = loadSelectedSourceChunks(selectedEntity);
-        if (entities.isEmpty()) {
-            beforeActionPerformedEvent.preventAction();
-            return;
-        }
+        List<VectorStoreEntity> entities = getEntitiesOfTheSameSource(selectedEntity);
         if (entities.size() > 1) {
             beforeActionPerformedEvent.preventAction();
             dialogs.createOptionDialog()
@@ -226,7 +198,7 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
                             new DialogAction(DialogAction.Type.OK)
                                     .withVariant(ActionVariant.PRIMARY)
                                     .withHandler(e -> {
-                                        deleteSourceChunks(entities);
+                                        vectorStoreRepository.delete(entities);
                                         vectorStoreDl.load();
                                     }),
                             new DialogAction(DialogAction.Type.CANCEL)
@@ -235,49 +207,12 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         }
     }
 
-    List<VectorStoreEntity> loadSelectedSourceChunks(VectorStoreEntity selectedEntity) {
-        Map<String, Object> metadata;
-        try {
-            metadata = selectedEntity.getMetadataMap();
-        } catch (RuntimeException e) {
-            return invalidSourceMetadata();
-        }
-        if (metadata == null) {
-            return invalidSourceMetadata();
-        }
-
-        Object typeValue = metadata.get("type");
-        Object sourceValue = metadata.get("source");
-        if (!(typeValue instanceof String type) || StringUtils.isBlank(type)
-                || !(sourceValue instanceof String source) || StringUtils.isBlank(source)) {
-            return invalidSourceMetadata();
-        }
-
-        JmixVersion version = null;
-        Object versionValue = metadata.get("jmixVersion");
-        if (versionValue != null) {
-            if (!(versionValue instanceof String versionId) || StringUtils.isBlank(versionId)) {
-                return invalidSourceMetadata();
-            }
-            version = JmixVersion.fromId(versionId);
-            if (version == null || !version.getId().equals(versionId)) {
-                return invalidSourceMetadata();
-            }
-        }
-        return vectorStoreRepository.loadSourceChunks(type, source, version);
-    }
-
-    private void deleteSourceChunks(List<VectorStoreEntity> entities) {
-        vectorStoreRepository.deleteIds(entities.stream()
-                .map(VectorStoreEntity::getId)
-                .toList());
-    }
-
-    private List<VectorStoreEntity> invalidSourceMetadata() {
-        notifications.create(messageBundle.getMessage("remove.invalidSourceMetadata"))
-                .withType(Notifications.Type.ERROR)
-                .show();
-        return List.of();
+    private List<VectorStoreEntity> getEntitiesOfTheSameSource(VectorStoreEntity selectedEntity) {
+        Map<String, Object> metadata = selectedEntity.getMetadataMap();
+        String type = (String) metadata.get("type");
+        String source = (String) metadata.get("source");
+        List<VectorStoreEntity> entities = vectorStoreRepository.loadList("type == '%s' && source == '%s'".formatted(type, source));
+        return entities;
     }
 
     @Subscribe(id = "filterClearButton", subject = "clickListener")
@@ -315,19 +250,16 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
     private class UpdateByTypeAndVersionTask extends UpdateTask {
 
         private final String type;
-        @Nullable
         private final JmixVersion version;
 
-        private UpdateByTypeAndVersionTask(String type, @Nullable JmixVersion version) {
+        private UpdateByTypeAndVersionTask(String type, JmixVersion version) {
             this.type = type;
             this.version = version;
         }
 
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-            return version == null
-                    ? ingesterManager.updateByType(type)
-                    : ingesterManager.updateByTypeAndVersion(type, version);
+            return ingesterManager.updateByTypeAndVersion(type, version);
         }
     }
 
@@ -342,33 +274,6 @@ public class VectorStoreView extends StandardListView<VectorStoreEntity> {
         @Override
         public String run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
             return ingesterManager.updateByEntity(entity);
-        }
-    }
-
-    private class CleanupCacheTask extends BackgroundTask<Integer, EnrichmentCacheCleanupService.CleanupResult> {
-
-        private CleanupCacheTask() {
-            super(60, TimeUnit.MINUTES);
-        }
-
-        @Override
-        public EnrichmentCacheCleanupService.CleanupResult run(TaskLifeCycle<Integer> taskLifeCycle) {
-            return enrichmentCacheCleanupService.cleanup();
-        }
-
-        @Override
-        public void done(EnrichmentCacheCleanupService.CleanupResult result) {
-            notifications.show(messageBundle.formatMessage(
-                    "cacheCleanup.success",
-                    result.deletedEntries(),
-                    result.deletedGenerations(),
-                    result.skippedScopes()));
-        }
-
-        @Override
-        public boolean handleException(Exception ex) {
-            defaultUiExceptionHandler.handle(ex);
-            return true;
         }
     }
 

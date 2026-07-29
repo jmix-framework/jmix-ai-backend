@@ -15,8 +15,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,66 +31,45 @@ class IngesterSpecificBehaviorTest {
     private VectorStoreRepository vectorStoreRepository;
     
     @Test
-    void shouldKeepCompleteCurrentGeneration() {
+    void shouldCheckContentAndSkipExistingUnchangedDocuments() {
         TestIngester ingester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository));
         Document document = new Document("1", "content", Map.of("source", "test", "sourceHash", "hash1"));
         
         VectorStoreEntity entity = new VectorStoreEntity();
-        entity.setId(UUID.randomUUID());
         entity.setMetadata("""
-                        {
-                            "source": "test",
-                            "sourceHash": "hash1",
-                            "ingestionId": "complete-run",
-                            "ingestionChunkCount": 1
-                        }
+                        {"sourceHash": "hash1"}
                         """);
-        VectorStoreEntity oldEntity = new VectorStoreEntity();
-        oldEntity.setId(UUID.randomUUID());
-        oldEntity.setMetadata("""
-                {
-                    "source": "test",
-                    "sourceHash": "old-hash"
-                }
-                """);
-        doReturn(List.of("test")).when(ingester).loadSources(null);
-        doReturn(document).when(ingester).loadDocument("test", null);
-        when(vectorStoreRepository.loadList(anyString())).thenReturn(List.of(entity, oldEntity));
-
-        String result = ingester.updateAll();
-
-        verify(vectorStore, never()).add(anyList());
-        verify(vectorStoreRepository, never()).delete(anyString());
-        verify(vectorStoreRepository).deleteIds(List.of(oldEntity.getId()));
-        assertThat(result).isEqualTo("loaded: 1, added: 0 documents in 0 chunks");
+        List<VectorStoreEntity> entities = List.of(entity);
+        
+        when(vectorStoreRepository.loadList(any())).thenReturn(entities);
+        
+        boolean result = ingester.checkContent(document);
+        
+        verify(vectorStoreRepository).loadList(any());
+        verify(vectorStoreRepository, never()).delete(any(UUID.class));
+        assertThat(result).isFalse();
     }
 
     @Test
-    void shouldReplaceIncompleteCurrentGeneration() {
+    void shouldDeleteAndReplaceChangedDocuments() {
         TestIngester ingester = spy(new TestIngester(vectorStore, timeSource, vectorStoreRepository));
-        Document document = new Document("1", "content", Map.of("source", "test", "sourceHash", "hash1"));
-        Document chunk = new Document("2", "chunk", Map.of("type", "test", "source", "test"));
+        Document document = new Document("1", "content", Map.of("source", "test", "sourceHash", "newHash"));
         
+        UUID entityId = UUID.randomUUID();
         VectorStoreEntity entity = new VectorStoreEntity();
-        entity.setId(UUID.randomUUID());
+        entity.setId(entityId);
         entity.setMetadata("""
-                        {
-                            "source": "test",
-                            "sourceHash": "hash1",
-                            "ingestionId": "partial-run",
-                            "ingestionChunkCount": 2
-                        }
+                        {"sourceHash": "oldHash"}
                         """);
-        doReturn(List.of("test")).when(ingester).loadSources(null);
-        doReturn(document).when(ingester).loadDocument("test", null);
-        doReturn(List.of(chunk)).when(ingester).splitToChunks(List.of(document));
-        when(vectorStoreRepository.loadList(anyString())).thenReturn(List.of(entity));
-
-        String result = ingester.updateAll();
-
-        verify(vectorStore).add(anyList());
-        verify(vectorStoreRepository).deleteIds(List.of(entity.getId()));
-        assertThat(result).isEqualTo("loaded: 1, added: 1 documents in 1 chunks");
+        List<VectorStoreEntity> entities = List.of(entity);
+        
+        when(vectorStoreRepository.loadList(any())).thenReturn(entities);
+        
+        boolean result = ingester.checkContent(document);
+        
+        verify(vectorStoreRepository).loadList(any());
+        verify(vectorStoreRepository).delete(entityId);
+        assertThat(result).isTrue();
     }
     
     // Test implementation of AbstractIngester
@@ -124,6 +102,11 @@ class IngesterSpecificBehaviorTest {
         @Override
         protected List<Document> splitToChunks(List<Document> documents) {
             return List.of();
+        }
+
+        @Override
+        protected boolean checkContent(Document document) {
+            return super.checkContent(document);
         }
     }
 }

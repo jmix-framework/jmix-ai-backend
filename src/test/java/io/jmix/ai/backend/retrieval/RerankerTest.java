@@ -76,8 +76,6 @@ class RerankerTest {
         assertThat(results).singleElement().extracting(result -> result.document().getId()).isEqualTo("1");
 
         UserMessage userMessage = reranker.capturedPrompt.getUserMessage();
-        assertThat(reranker.capturedPrompt.getSystemMessage().getText())
-                .contains("exact XML element", "candidate explicitly supports", "requested fact");
         assertThat(userMessage.getText()).contains("\"index\":1");
         assertThat(userMessage.getText()).contains("abcde");
         assertThat(userMessage.getText()).doesNotContain("abcdef");
@@ -101,19 +99,6 @@ class RerankerTest {
     void rerank_ReturnsNullWhenResponseIsMalformed() {
         ChatModel chatModel = mock(ChatModel.class);
         when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("not-json"));
-
-        TestReranker reranker = new TestReranker(chatModel);
-        List<Document> documents = List.of(new Document("1", "doc", Map.of("source", "one")));
-
-        List<Reranker.Result> results = reranker.rerank("query", documents, 1, new ParametersReader(Map.of()));
-
-        assertThat(results).isNull();
-    }
-
-    @Test
-    void rerank_ReturnsNullWhenConvertedResponseIsNull() {
-        ChatModel chatModel = mock(ChatModel.class);
-        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("null"));
 
         TestReranker reranker = new TestReranker(chatModel);
         List<Document> documents = List.of(new Document("1", "doc", Map.of("source", "one")));

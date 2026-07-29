@@ -1,15 +1,12 @@
 package io.jmix.ai.backend;
 
-import io.jmix.autoconfigure.data.JmixLiquibaseCreator;
 import io.jmix.core.JmixModules;
 import io.jmix.core.Resources;
 import io.jmix.data.impl.JmixEntityManagerFactoryBean;
 import io.jmix.data.impl.JmixTransactionManager;
 import io.jmix.data.persistence.DbmsSpecifics;
-import liquibase.integration.spring.SpringLiquibase;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
-import org.springframework.boot.autoconfigure.liquibase.LiquibaseProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -56,17 +53,5 @@ public class PgvectorStoreConfiguration {
     @Bean
     JdbcTemplate pgvectorJdbcTemplate(@Qualifier("pgvectorDataSource") DataSource dataSource) {
         return new JdbcTemplate(dataSource);
-    }
-
-    @Bean
-    @ConfigurationProperties(prefix = "pgvector.liquibase")
-    LiquibaseProperties pgvectorLiquibaseProperties() {
-        return new LiquibaseProperties();
-    }
-
-    @Bean
-    SpringLiquibase pgvectorLiquibase(@Qualifier("pgvectorDataSource") DataSource dataSource,
-                                      @Qualifier("pgvectorLiquibaseProperties") LiquibaseProperties properties) {
-        return JmixLiquibaseCreator.create(dataSource, properties);
     }
 }

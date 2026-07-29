@@ -44,9 +44,6 @@ public class ToolsManager {
         if (parametersReader.getBoolean("tools.trainings_retriever.enabled", true)) {
             tools.add(new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener, jmixVersion));
         }
-        if (parametersReader.getBoolean("tools.javaapi_retriever.enabled", false)) {
-            tools.add(new JavaApiTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener, jmixVersion));
-        }
         return tools;
     }
 }

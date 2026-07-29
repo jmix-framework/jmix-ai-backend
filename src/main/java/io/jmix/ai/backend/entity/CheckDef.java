@@ -53,9 +53,6 @@ public class CheckDef {
     @Column(name = "ACTIVE")
     private Boolean active;
 
-    @Column(name = "JMIX_VERSION")
-    private String jmixVersion;
-
     @Column(name = "CATEGORY")
     private String category;
 
@@ -81,14 +78,6 @@ public class CheckDef {
 
     public void setActive(Boolean active) {
         this.active = active;
-    }
-
-    public JmixVersion getJmixVersion() {
-        return jmixVersion == null ? null : JmixVersion.fromId(jmixVersion);
-    }
-
-    public void setJmixVersion(JmixVersion jmixVersion) {
-        this.jmixVersion = jmixVersion == null ? null : jmixVersion.getId();
     }
 
     public String getAnswer() {

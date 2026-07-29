@@ -23,9 +23,6 @@
                 <responsiveStep minWidth="40em" columns="2"/>
             </responsiveSteps>
             <checkbox id="activeField" property="active"/>
-            <comboBox id="jmixVersionField" property="jmixVersion"
-                      itemsEnum="io.jmix.ai.backend.entity.JmixVersion"
-                      clearButtonVisible="true"/>
             <textField id="categoryField" property="category"/>
             <textArea id="questionField" height="9.5em" property="question" colspan="2"/>
             <textArea id="answerField" height="9.5em" property="answer" colspan="2"/>

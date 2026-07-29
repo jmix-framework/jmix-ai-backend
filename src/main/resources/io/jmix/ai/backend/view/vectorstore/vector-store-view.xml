@@ -36,7 +36,6 @@
         </hbox>
         <hbox id="buttonsPanel" classNames="buttons-panel">
             <comboButton id="updateButton" text="Update"/>
-            <button id="cleanupCacheButton" text="msg://cacheCleanup.button"/>
             <button id="readButton" action="vectorStoreDataGrid.readAction"/>
             <button id="removeButton" action="vectorStoreDataGrid.removeAction"/>
             <button id="removeAllButton" text="Remove All" themeNames="warning"/>

@@ -11,8 +11,10 @@ import io.jmix.ai.backend.entity.Check;
 import io.jmix.ai.backend.entity.CheckRun;
 import io.jmix.ai.backend.view.main.MainView;
 import io.jmix.core.Id;
+import io.jmix.core.metamodel.datatype.DatatypeFormatter;
 import io.jmix.flowui.Dialogs;
 import io.jmix.flowui.UiComponents;
+import io.jmix.flowui.ViewNavigators;
 import io.jmix.flowui.backgroundtask.BackgroundTask;
 import io.jmix.flowui.backgroundtask.TaskLifeCycle;
 import io.jmix.flowui.component.grid.DataGrid;
@@ -31,13 +33,15 @@ public class CheckRunListView extends StandardListView<CheckRun> {
     @Autowired
     private CheckRunner checkRunner;
     @Autowired
+    private ViewNavigators viewNavigators;
+    @Autowired
+    private DatatypeFormatter datatypeFormatter;
+    @Autowired
     private UiComponents uiComponents;
     @ViewComponent
     private DataGrid<CheckRun> checkRunsDataGrid;
     @ViewComponent
     private CollectionLoader<CheckRun> checkRunsDl;
-    @ViewComponent
-    private MessageBundle messageBundle;
     @Autowired
     private Dialogs dialogs;
 
@@ -57,8 +61,10 @@ public class CheckRunListView extends StandardListView<CheckRun> {
                             }
                         }
                 )
-                .withHeader(messageBundle.getMessage("checksRunning.header"))
-                .withText(messageBundle.getMessage("checksRunning.text"))
+                .withHeader("Checks are running")
+                .withText("Please wait...")
+//                .withTotal(10)
+//                .withShowProgressInPercentage(true)
                 .withCancelAllowed(true)
                 .open();
     }

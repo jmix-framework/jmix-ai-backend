@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.vectorstore;
 
-import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.VectorStoreEntity;
 import io.jmix.core.EntityStates;
 import org.apache.commons.lang3.StringUtils;
@@ -66,66 +65,10 @@ public class VectorStoreRepository {
         return jdbcTemplate.query(sql, getVsEntityRowMapper());
     }
 
-    public List<VectorStoreEntity> loadSourceChunks(String type, String source, @Nullable JmixVersion version) {
-        if (StringUtils.isBlank(type) || StringUtils.isBlank(source)) {
-            throw new IllegalArgumentException("Vector store source type and source must not be blank");
-        }
-
-        String sql = "SELECT id, content, metadata FROM vector_store " +
-                "WHERE metadata::jsonb ->> 'type' = ? " +
-                "AND metadata::jsonb ->> 'source' = ? ";
-        if (version != null) {
-            return jdbcTemplate.query(sql + "AND metadata::jsonb ->> 'jmixVersion' = ?",
-                    getVsEntityRowMapper(), type, source, version.getId());
-        }
-        return jdbcTemplate.query(sql + "AND metadata::jsonb ->> 'jmixVersion' IS NULL",
-                getVsEntityRowMapper(), type, source);
-    }
-
     public VectorStoreEntity load(UUID id) {
         return jdbcTemplate.queryForObject(
                 "SELECT id, content, metadata FROM vector_store WHERE id = '" + id + "'",
                 getVsEntityRowMapper());
-    }
-
-    /**
-     * Counts documents grouped by the {@code type} and {@code jmixVersion} metadata attributes.
-     * Returns rows of [type, jmixVersion (nullable), count].
-     */
-    public List<Object[]> countByTypeAndVersion() {
-        String sql = "SELECT metadata::jsonb ->> 'type' AS type, " +
-                "metadata::jsonb ->> 'jmixVersion' AS version, count(*) AS cnt " +
-                "FROM vector_store GROUP BY 1, 2 ORDER BY 1, 2";
-        return jdbcTemplate.query(sql, (rs, rowNum) ->
-                new Object[]{rs.getString("type"), rs.getString("version"), rs.getInt("cnt")});
-    }
-
-    /** AI-generated docs snippets only — excludes lossless coverage chunks and plain-text fallback chunks. */
-    private static final String AI_SNIPPET_FILTER =
-            "metadata::jsonb->>'type' = '" + CorpusType.DOCS_SNIPPETS + "' AND metadata::jsonb->>'enriched' = 'true'";
-
-    /**
-     * Counts AI-generated docs snippets grouped by topic and Jmix version. The topic
-     * (documentation section) is stamped into chunk metadata by the docs ingesters.
-     * Returns rows of [topic, jmixVersion, count]. Used for the topic-coverage heatmap.
-     */
-    public List<Object[]> countSnippetTopicByVersion() {
-        String sql = "SELECT metadata::jsonb->>'topic' AS topic, " +
-                "metadata::jsonb->>'jmixVersion' AS version, count(*) AS cnt " +
-                "FROM vector_store WHERE " + AI_SNIPPET_FILTER + " GROUP BY 1, 2";
-        return jdbcTemplate.query(sql, (rs, rowNum) ->
-                new Object[]{rs.getString("topic"), rs.getString("version"), rs.getInt("cnt")});
-    }
-
-    /**
-     * Approx. token size (content chars / 4) of every AI-generated docs snippet together with its
-     * topic from chunk metadata. Returns rows of [topic, tokens]. Used for the size distribution chart.
-     */
-    public List<Object[]> snippetTopicTokenSizes() {
-        String sql = "SELECT metadata::jsonb->>'topic' AS topic, ceil(length(content) / 4.0)::int AS tok " +
-                "FROM vector_store WHERE " + AI_SNIPPET_FILTER;
-        return jdbcTemplate.query(sql, (rs, rowNum) ->
-                new Object[]{rs.getString("topic"), rs.getInt("tok")});
     }
 
     public int getCount(String filterString) {
@@ -155,12 +98,15 @@ public class VectorStoreRepository {
         };
     }
 
-    public void deleteIds(Collection<UUID> ids) {
-        if (ids.isEmpty()) {
-            return;
-        }
-        String placeholders = ids.stream().map(id -> "?").collect(Collectors.joining(","));
-        jdbcTemplate.update("DELETE FROM vector_store WHERE id IN (" + placeholders + ")", ids.toArray());
+    public void delete(UUID id) {
+        jdbcTemplate.update("DELETE FROM vector_store WHERE id = '" + id + "'");
+    }
+
+    public void delete(Collection<VectorStoreEntity> collection) {
+        String ids = collection.stream()
+                .map(vectorStoreEntity -> "'" + vectorStoreEntity.getId() + "'")
+                .collect(Collectors.joining(","));
+        jdbcTemplate.update("DELETE FROM vector_store WHERE id IN (" + ids + ")");
     }
 
     public void delete(@Nullable String filterString) {

@@ -30,66 +30,8 @@ public class CheckRun {
     @Lob
     private String parameters;
 
-    @Column(name = "JMIX_VERSION")
-    private String jmixVersion = JmixVersion.V2.getId();
-
     @Column(name = "SCORE")
     private Double score;
-
-    @Column(name = "ACCURACY")
-    private Double accuracy;
-
-    @Column(name = "CONFIG_LABEL")
-    private String configLabel;
-
-    @Column(name = "EVALUATOR_CONFIG")
-    private String evaluatorConfig;
-
-    @Column(name = "PASS_THRESHOLD")
-    private Double passThreshold;
-
-    @Column(name = "DEFINITION_FINGERPRINT")
-    private String definitionFingerprint;
-
-    public Double getPassThreshold() {
-        return passThreshold;
-    }
-
-    public void setPassThreshold(Double passThreshold) {
-        this.passThreshold = passThreshold;
-    }
-
-    public String getDefinitionFingerprint() {
-        return definitionFingerprint;
-    }
-
-    public void setDefinitionFingerprint(String definitionFingerprint) {
-        this.definitionFingerprint = definitionFingerprint;
-    }
-
-    public String getEvaluatorConfig() {
-        return evaluatorConfig;
-    }
-
-    public void setEvaluatorConfig(String evaluatorConfig) {
-        this.evaluatorConfig = evaluatorConfig;
-    }
-
-    public JmixVersion getJmixVersion() {
-        return jmixVersion == null ? null : JmixVersion.fromId(jmixVersion);
-    }
-
-    public void setJmixVersion(JmixVersion jmixVersion) {
-        this.jmixVersion = jmixVersion == null ? null : jmixVersion.getId();
-    }
-
-    public String getConfigLabel() {
-        return configLabel;
-    }
-
-    public void setConfigLabel(String configLabel) {
-        this.configLabel = configLabel;
-    }
 
     public Double getScore() {
         return score;
@@ -97,14 +39,6 @@ public class CheckRun {
 
     public void setScore(Double score) {
         this.score = score;
-    }
-
-    public Double getAccuracy() {
-        return accuracy;
-    }
-
-    public void setAccuracy(Double accuracy) {
-        this.accuracy = accuracy;
     }
 
     public String getParameters() {
