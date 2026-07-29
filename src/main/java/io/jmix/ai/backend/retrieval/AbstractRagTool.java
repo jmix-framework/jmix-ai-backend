@@ -130,7 +130,7 @@ public abstract class AbstractRagTool {
 
     /** Fixed-pipeline entry point: retrieval sizes come from the configuration alone. */
     public String execute(String queryText) {
-        return executeSearch(queryText, topK, topReranked, null, null);
+        return executeSearch(queryText, topK, topReranked, null, null, null);
     }
 
     /**
@@ -146,13 +146,13 @@ public abstract class AbstractRagTool {
         if (isFixedPipeline()) {
             return execute(queryText);
         }
-        int requested = maxResults != null && maxResults > 0
-                ? Math.min(maxResults, MAX_RESULTS_CAP)
-                : topReranked;
+        boolean callerRequested = maxResults != null && maxResults > 0;
+        int requested = callerRequested ? Math.min(maxResults, MAX_RESULTS_CAP) : topReranked;
         // overfetch: the per-source cap needs spare candidates to refill from, and reranking
         // needs room to choose the requested number
         int vectorFetch = Math.min(requested * 4, MAX_VECTOR_FETCH);
-        return executeSearch(queryText, vectorFetch, requested * 2, requested, requested);
+        return executeSearch(queryText, vectorFetch, requested * 2, requested, requested,
+                callerRequested ? new EventStreamValueHolder.RequestedRetrieval(requested, vectorFetch) : null);
     }
 
     /**
@@ -166,9 +166,10 @@ public abstract class AbstractRagTool {
             int vectorTopK,
             int rerankTopN,
             @Nullable Integer resultLimit,
-            @Nullable Integer fallbackLimit) {
+            @Nullable Integer fallbackLimit,
+            @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
         long startTime = System.currentTimeMillis();
-        listener.onToolCallStart(toolName, queryText);
+        listener.onToolCallStart(toolName, queryText, requested);
 
         try {
             // Retrieval

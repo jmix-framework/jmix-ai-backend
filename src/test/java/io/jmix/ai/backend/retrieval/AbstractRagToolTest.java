@@ -2,6 +2,7 @@ package io.jmix.ai.backend.retrieval;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jmix.ai.backend.chat.EventStreamValueHolder;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.junit.jupiter.api.Test;
@@ -135,6 +136,7 @@ class AbstractRagToolTest {
         verifySearchTopK(10);
         verify(reranker).rerank("query", candidates, 3, reader);
         assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
+        verify(listener).onToolCallStart("documentation_retriever", "query", null);
     }
 
     @Test
@@ -184,6 +186,7 @@ class AbstractRagToolTest {
         verifySearchTopK(12);
         verify(reranker).rerank("query", candidates, 6, reader);
         assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
+        verify(listener).onToolCallStart("documentation_retriever", "query", null);
     }
 
     @Test
@@ -221,6 +224,8 @@ class AbstractRagToolTest {
 
         verifySearchTopK(120);
         verify(reranker).rerank("query", candidates, 100, reader);
+        verify(listener).onToolCallStart("documentation_retriever", "query",
+                new EventStreamValueHolder.RequestedRetrieval(50, 120));
     }
 
     @Test

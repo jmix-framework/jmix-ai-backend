@@ -125,7 +125,10 @@ public class ChatView extends StandardView {
             case EventStreamValueHolder.RequestInfo ri ->
                     "%s Conversation ID: %s  \nModel: %s  \nUser prompt: %s\n\n---\n".formatted(ts, holder.conversationId(), ri.model(), ri.userPrompt());
             case EventStreamValueHolder.ToolCallStart tc ->
-                    "\n\n%s **%s**: %s".formatted(ts, tc.tool(), tc.query());
+                    "\n\n%s **%s**: %s%s".formatted(ts, tc.tool(), tc.query(),
+                            tc.requested() == null ? ""
+                                    : " _(%d results requested, vector fetch widened to %d)_"
+                                            .formatted(tc.requested().results(), tc.requested().vectorFetch()));
             case EventStreamValueHolder.ToolRetrieved tr -> "\n%s ".formatted(ts) + renderDocList("Retrieved", tr.documents(), tr.durationMs());
             case EventStreamValueHolder.ToolReranked tr -> "\n%s ".formatted(ts) + renderDocList("Reranked", tr.documents(), tr.durationMs());
             case EventStreamValueHolder.ToolCallEnd tc ->

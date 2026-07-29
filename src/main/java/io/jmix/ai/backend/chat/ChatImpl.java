@@ -129,8 +129,9 @@ public class ChatImpl implements Chat {
 
         ToolEventListener listener = new ToolEventListener() {
             @Override
-            public void onToolCallStart(String tool, String query) {
-                String msg = ">>> Using %s: %s".formatted(tool, query);
+            public void onToolCallStart(String tool, String query,
+                                        @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
+                String msg = ">>> Using %s: %s%s".formatted(tool, query, formatRequested(requested));
                 if (externalLogger != null) externalLogger.accept(msg);
                 RetrievalUtils.addLogMessage(log, logMessages, msg);
             }
@@ -377,7 +378,7 @@ public class ChatImpl implements Chat {
                 case EventStreamValueHolder.RequestInfo ri ->
                     logLines.add("%s Model: %s, User prompt: %s".formatted(ts, ri.model(), ri.userPrompt()));
                 case EventStreamValueHolder.ToolCallStart tc ->
-                        logLines.add("%s >>> Using %s: %s".formatted(ts, tc.tool(), tc.query()));
+                        logLines.add("%s >>> Using %s: %s%s".formatted(ts, tc.tool(), tc.query(), formatRequested(tc.requested())));
                 case EventStreamValueHolder.ToolRetrieved tr ->
                         logLines.add("%s Found documents (%d) in %d ms: %s".formatted(ts, tr.documents().size(), tr.durationMs(), formatDocScores(tr.documents())));
                 case EventStreamValueHolder.ToolReranked tr ->
@@ -407,7 +408,7 @@ public class ChatImpl implements Chat {
             case EventStreamValueHolder.RequestInfo ri ->
                     log.info("Model: {}, User prompt: {}", ri.model(), abbreviate(ri.userPrompt(), 200));
             case EventStreamValueHolder.ToolCallStart tc ->
-                    log.info(">>> Using {}: {}", tc.tool(), tc.query());
+                    log.info(">>> Using {}: {}{}", tc.tool(), tc.query(), formatRequested(tc.requested()));
             case EventStreamValueHolder.ToolRetrieved tr ->
                     log.info("Found documents ({}): {}", tr.documents().size(), formatDocScores(tr.documents()));
             case EventStreamValueHolder.ToolReranked tr ->
@@ -455,6 +456,13 @@ public class ChatImpl implements Chat {
                 .toList().toString();
     }
 
+    /** Renders the caller-requested retrieval size next to the query; empty on default runs. */
+    private static String formatRequested(@Nullable EventStreamValueHolder.RequestedRetrieval requested) {
+        return requested == null ? ""
+                : " (%d results requested, vector fetch widened to %d)"
+                        .formatted(requested.results(), requested.vectorFetch());
+    }
+
     private List<String> extractSourceUrls(List<Document> documents) {
         return documents.stream()
                 .map(doc -> doc.getMetadata().get("url"))
@@ -468,9 +476,10 @@ public class ChatImpl implements Chat {
                                                        String conversationId) {
         return new ToolEventListener() {
             @Override
-            public void onToolCallStart(String tool, String query) {
+            public void onToolCallStart(String tool, String query,
+                                        @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
                 MDC.put("cid", conversationId);
-                toolCallSink.tryEmitNext(new EventStreamValueHolder.ToolCallStart(tool, query));
+                toolCallSink.tryEmitNext(new EventStreamValueHolder.ToolCallStart(tool, query, requested));
             }
 
             @Override

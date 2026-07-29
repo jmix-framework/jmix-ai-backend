@@ -2,6 +2,7 @@ package io.jmix.ai.backend.chat;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import org.springframework.lang.Nullable;
 
 import java.util.List;
 
@@ -41,7 +42,15 @@ public sealed interface EventStreamValueHolder {
 
     // --- Tool execution lifecycle ---
 
-    record ToolCallStart(String tool, String query) implements EventStreamValueHolder {}
+    /**
+     * {@code requested} is set when the caller explicitly asked for a result count (adaptive
+     * pipeline): how many results and how far the vector fetch was widened for them. Null when
+     * the retrieval ran on configured defaults.
+     */
+    record ToolCallStart(String tool, String query,
+                         @Nullable RequestedRetrieval requested) implements EventStreamValueHolder {}
+
+    record RequestedRetrieval(int results, int vectorFetch) {}
 
     record ToolRetrieved(String tool, List<DocScore> documents, long durationMs) implements EventStreamValueHolder {}
 

@@ -46,8 +46,12 @@ public class SearchService {
 
         ToolEventListener listener = new ToolEventListener() {
             @Override
-            public void onToolCallStart(String tool, String query) {
-                RetrievalUtils.addLogMessage(logger, logMessages, "Using %s: %s".formatted(tool, query));
+            public void onToolCallStart(String tool, String query,
+                                        @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
+                String suffix = requested == null ? ""
+                        : " (%d results requested, vector fetch widened to %d)"
+                                .formatted(requested.results(), requested.vectorFetch());
+                RetrievalUtils.addLogMessage(logger, logMessages, "Using %s: %s%s".formatted(tool, query, suffix));
             }
 
             @Override

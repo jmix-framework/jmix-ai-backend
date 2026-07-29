@@ -1,12 +1,17 @@
 package io.jmix.ai.backend.retrieval;
 
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
+import org.springframework.lang.Nullable;
 
 import java.util.List;
 
 public interface ToolEventListener {
 
-    void onToolCallStart(String tool, String query);
+    /**
+     * {@code requested} is set when the caller explicitly asked for a result count (adaptive
+     * pipeline) and is rendered next to the query in the same log line; null on default runs.
+     */
+    void onToolCallStart(String tool, String query, @Nullable EventStreamValueHolder.RequestedRetrieval requested);
 
     void onToolRetrieved(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs);
 
@@ -25,9 +30,9 @@ public interface ToolEventListener {
     static ToolEventListener withMdcDuringToolExecution(String conversationId, ToolEventListener delegate) {
         return new ToolEventListener() {
             @Override
-            public void onToolCallStart(String tool, String query) {
+            public void onToolCallStart(String tool, String query, @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
                 org.slf4j.MDC.put("cid", conversationId);
-                delegate.onToolCallStart(tool, query);
+                delegate.onToolCallStart(tool, query, requested);
             }
 
             @Override
