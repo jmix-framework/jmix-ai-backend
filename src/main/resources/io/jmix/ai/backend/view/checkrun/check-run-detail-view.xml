@@ -30,6 +30,8 @@
                     <action id="entityClear" type="entity_clear"/>
                 </actions>
             </entityPicker>
+            <comboBox id="jmixVersionField" property="jmixVersion" required="true"
+                      label="msg://io.jmix.ai.backend.entity/CheckRun.jmixVersion"/>
             <textField id="createdDateField" property="createdDate" readOnly="true"/>
             <textField id="createdByField" property="createdBy" readOnly="true" colspan="2"/>
             <textField id="scoreField" property="score" readOnly="true"/>

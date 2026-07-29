@@ -30,17 +30,55 @@ import java.util.regex.Pattern;
 public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalEvaluatorImpl.class);
+    // set to the date of the change whenever SYSTEM_PROMPT or the scoring rules change; part of
+    // the persisted evaluatorConfig, so runs judged by different rules land in different cohorts.
+    // Dated (not "vN") so it cannot be confused with Jmix versions; never reuse a value.
+    private static final String EVALUATOR_VERSION = "semantic-evaluator-version-2026-07-28";
     private static final Pattern JSON_OBJECT_PATTERN = Pattern.compile("\\{.*}", Pattern.DOTALL);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final double LANGUAGE_MISMATCH_MAX_SCORE = 0.2;
 
     private static final String SYSTEM_PROMPT = """
-            You evaluate semantic similarity between a reference answer and an actual answer.
-            Score in range [0,1] using this rubric:
-            - Semantic correctness vs reference: 60%%
-            - Completeness of key points: 30%%
-            - Penalize contradictions/hallucinations/irrelevant content: 10%%
-            - If actual answer is not in the same language as reference, apply strong penalty.
+            You evaluate whether an actual answer correctly answers the user's question. The
+            reference answer is factual guidance, not a template whose wording or length must be
+            reproduced. Treat factual claims explicitly stated in the reference as authoritative:
+            do not reject the same mechanism in the actual answer based on unsupported assumptions
+            about framework internals. Alternative correct mechanisms are still acceptable. Do not
+            penalize an additional factual detail solely because the reference omits it; penalize
+            it only when it contradicts the reference or is unambiguously false. If uncertain,
+            ignore that detail instead of guessing.
+
+            FIRST decide the reference type:
+            - REFUSAL: the reference declines to help, states the topic is out of scope, or redirects
+              the user to the allowed scope (e.g. refuses a cooking or off-topic question, or declines
+              questions about an unsupported product version).
+            - CONTENT: the reference conveys substantive information answering the question.
+
+            If the reference is a REFUSAL, the score MUST be exactly 1.0 or exactly 0.0 — never an
+            intermediate value. Judge ONLY by intent:
+            - Output exactly 1.0 if the actual answer declines or does not provide the requested
+              out-of-scope content. A short, generic decline (e.g. "I can only help with Jmix/Java")
+              is a full decline: its phrasing, length, whether it explicitly names the off-topic
+              subject, and which alternatives it suggests MUST NOT lower the score.
+            - Output exactly 0.0 only if the actual answer actually provides the requested
+              out-of-scope content.
+            For a REFUSAL reference always set "languageMatch" to true — language is irrelevant to a decline.
+
+            If the reference is CONTENT, judge only what the user's question asks:
+            - Do not penalize omission of examples, background, optional configuration or follow-up
+              advice from the reference when the question did not request it.
+            - Accept a shorter answer and alternative correct wording or API when it fully answers
+              the question. Exact identifiers and signatures matter when the question asks for them.
+            - Penalize missing required facts, contradictions, invented APIs and irrelevant content.
+            - If the actual answer denies a mechanism or capability that the reference describes —
+              claims it does not exist, is not supported, or "only supports" something narrower —
+              that is a contradiction of the reference: score at most 0.3, even when a workaround
+              in the answer achieves the user's goal.
+            - Use only these scores: 1.0 = fully correct; 0.9 = correct with a minor non-material
+              issue; 0.7 = partially correct or missing a required fact; 0.3 = mostly incorrect;
+              0.0 = incorrect, empty, or an inappropriate refusal.
+            For a CONTENT reference, if the actual answer is not in the same language as the user's
+            question, apply a strong penalty.
 
             Return ONLY valid JSON without markdown fences:
             {
@@ -52,6 +90,7 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
             """;
 
     private final ChatModel chatModel;
+    private final String configurationSnapshot;
 
     @Autowired
     public ExternalEvaluatorImpl(
@@ -77,18 +116,31 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
                 .openAiApi(openAiApi)
                 .defaultOptions(options)
                 .build();
+        this.configurationSnapshot = configurationSnapshot(model, temperature);
     }
 
     ExternalEvaluatorImpl(ChatModel chatModel) {
         this.chatModel = chatModel;
+        this.configurationSnapshot = configurationSnapshot("test-model", 0.0);
     }
 
     @Override
-    public double evaluateSemantic(String referenceAnswer, String actualAnswer, @Nullable Consumer<String> logger) {
+    public String configurationSnapshot() {
+        return configurationSnapshot;
+    }
+
+    @Override
+    public double evaluateSemantic(
+            String question,
+            String referenceAnswer,
+            String actualAnswer,
+            @Nullable Consumer<String> logger) {
         try {
             Prompt prompt = new Prompt(List.of(
                     new SystemMessage(SYSTEM_PROMPT),
-                    new UserMessage("Reference answer:\n" + referenceAnswer + "\n\nActual answer:\n" + actualAnswer)
+                    new UserMessage("User question:\n" + question
+                            + "\n\nReference answer:\n" + referenceAnswer
+                            + "\n\nActual answer:\n" + actualAnswer)
             ));
 
             ChatResponse response = chatModel.call(prompt);
@@ -109,7 +161,7 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
             if (logger != null) {
                 logger.accept("Semantic evaluator failed: " + e.getMessage());
             }
-            return 0.0;
+            throw new IllegalStateException("Semantic evaluator failed", e);
         }
     }
 
@@ -131,10 +183,21 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     }
 
     static double normalizeScore(EvaluationResult result) {
+        double score = nearestContentScore(result.score());
         if (!result.languageMatch()) {
-            return Math.min(result.score(), LANGUAGE_MISMATCH_MAX_SCORE);
+            return Math.min(score, LANGUAGE_MISMATCH_MAX_SCORE);
         }
-        return result.score();
+        return score;
+    }
+
+    private static double nearestContentScore(double score) {
+        return switch (Double.valueOf(score)) {
+            case Double value when value >= 0.95 -> 1.0;
+            case Double value when value >= 0.8 -> 0.9;
+            case Double value when value >= 0.5 -> 0.7;
+            case Double value when value >= 0.15 -> 0.3;
+            default -> 0.0;
+        };
     }
 
     private static String extractJsonObject(String text) {
@@ -151,6 +214,10 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
     private static double clampScore(double score) {
         return Math.max(0.0, Math.min(1.0, score));
+    }
+
+    private static String configurationSnapshot(String model, double temperature) {
+        return "%s|model=%s|temperature=%s".formatted(EVALUATOR_VERSION, model, temperature);
     }
 
     private static @Nullable String getContent(@Nullable ChatResponse chatResponse) {

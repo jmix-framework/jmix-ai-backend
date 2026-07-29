@@ -4,24 +4,39 @@ import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.method.MethodToolCallback;
 import org.springframework.ai.util.json.schema.JsonSchemaGenerator;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.lang.Nullable;
 import org.springframework.util.ReflectionUtils;
 
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
-
 public abstract class AbstractRagTool {
+
+    /** Upper bound on how many snippets a caller (the model or the search API) may request per tool call. */
+    public static final int MAX_RESULTS_CAP = 50;
+    // A page's snippets are many and small, so a topically-close page can flood the whole
+    // candidate pool by itself (cosine search is blind to pages). The candidates are fetched
+    // with a margin and capped per source page, so the reranker always sees several distinct
+    // pages to choose from.
+    static final int MAX_CHUNKS_PER_SOURCE = 3;
+    private static final String MAX_RESULTS_DESCRIPTION =
+            "Optional: how many snippets to return (1-" + MAX_RESULTS_CAP
+                    + "). Omit to use the configured default. The tool description states the "
+                    + "approximate token size of one snippet.";
 
     protected final String toolName;
     protected final VectorStore vectorStore;
@@ -30,7 +45,7 @@ public abstract class AbstractRagTool {
     private final List<Document> retrievedDocuments;
     private final ToolEventListener listener;
     private final ParametersReader parametersReader;
-    protected final String type;
+    protected String type;
     protected final JmixVersion jmixVersion;
     private final boolean versionScoped;
     protected String description;
@@ -62,7 +77,15 @@ public abstract class AbstractRagTool {
     }
 
     protected void init(ParametersReader parametersReader) {
+        // allows A/B testing an alternative corpus (e.g. docs-snippets) with the same tool
+        type = parametersReader.getString(getToolRootKey() + ".vectorType", type);
         description = parametersReader.getString(getToolRootKey() + ".description");
+        Integer averageDocumentTokens = parametersReader.getInteger(
+                getToolRootKey() + ".averageDocumentTokens", null);
+        if (averageDocumentTokens != null && averageDocumentTokens > 0) {
+            description += " A typical returned snippet is about %d tokens."
+                    .formatted(averageDocumentTokens);
+        }
         similarityThreshold = parametersReader.getDouble(getToolRootKey() + ".similarityThreshold");
         topK = parametersReader.getInt(getToolRootKey() + ".topK");
         topReranked = parametersReader.getInt(getToolRootKey() + ".topReranked");
@@ -72,7 +95,8 @@ public abstract class AbstractRagTool {
     }
 
     public ToolCallback getToolCallback() {
-        Method method = Objects.requireNonNull(ReflectionUtils.findMethod(getClass(), "execute", String.class));
+        Method method = Objects.requireNonNull(
+                ReflectionUtils.findMethod(getClass(), "execute", String.class, Integer.class));
 
         ToolCallback toolCallback = MethodToolCallback.builder()
                 .toolDefinition(ToolDefinition.builder()
@@ -86,11 +110,30 @@ public abstract class AbstractRagTool {
         return toolCallback;
     }
 
-    public String execute(String queryText) {
-        return executeSearch(queryText, similarityThreshold, topK);
+    /**
+     * Tool entry point. {@code maxResults} lets the model decide how many snippets it needs
+     * back for this call; omit it to use the configured default.
+     */
+    public String execute(
+            @ToolParam(description = "Search query in English. For API questions use the class or member name (e.g. DataManager, FetchPlan.BASE); otherwise a short natural-language query.")
+            String queryText,
+            @ToolParam(required = false, description = MAX_RESULTS_DESCRIPTION)
+            Integer maxResults) {
+        if (maxResults == null || maxResults <= 0) {
+            return executeSearch(queryText, similarityThreshold, topK, topReranked, null);
+        }
+        int wanted = Math.min(maxResults, MAX_RESULTS_CAP);
+        // widen the candidate pool so reranking still has room to choose the requested number
+        int effectiveTopK = Math.max(topK, wanted * 2);
+        return executeSearch(queryText, similarityThreshold, effectiveTopK, wanted, wanted);
     }
 
-    protected String executeSearch(String queryText, double similarityThreshold, int topK) {
+    protected String executeSearch(
+            String queryText,
+            double similarityThreshold,
+            int topK,
+            int topReranked,
+            @Nullable Integer fallbackLimit) {
         long startTime = System.currentTimeMillis();
         listener.onToolCallStart(toolName, queryText);
 
@@ -99,7 +142,8 @@ public abstract class AbstractRagTool {
             SearchRequest.Builder requestBuilder = SearchRequest.builder()
                     .query(queryText)
                     .similarityThreshold(similarityThreshold)
-                    .topK(topK);
+                    // overfetch: the per-source cap below needs spare candidates to refill from
+                    .topK(topK * 2);
 
             FilterExpressionBuilder fb = new FilterExpressionBuilder();
             var typeFilter = fb.eq("type", type);
@@ -126,19 +170,25 @@ public abstract class AbstractRagTool {
                 return getNoResultsMessage();
             }
 
-            // Reranking
+            // Reranking. The reranker judges every candidate: capping per source beforehand would
+            // hide relevant chunks from it by raw cosine alone — the page that legitimately holds
+            // most of the answer loses its less obvious parts (a job page keeps its "how to
+            // schedule" snippets and drops the "authenticate the job" one). The cap is applied to
+            // the reranked list instead, where dropped chunks can be replaced by the next best
+            // ones the reranker already scored.
             List<Document> filteredDocuments;
 
             long rerankStart = System.currentTimeMillis();
-            List<Reranker.Result> rerankResults = reranker.rerank(queryText, documents, topReranked, parametersReader);
+            List<Reranker.Result> rerankResults =
+                    reranker.rerank(queryText, documents, topReranked * 2, parametersReader);
             long rerankMs = System.currentTimeMillis() - rerankStart;
 
             if (rerankResults == null) {
                 listener.onLog("Reranking failed, filtering by minScore");
-                filteredDocuments = documents.stream()
+                filteredDocuments = capPerSource(documents.stream()
                         .filter(document ->
                                 minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                        .toList();
+                        .toList(), fallbackLimit != null ? fallbackLimit : topK);
                 listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
             } else {
                 List<Reranker.Result> filteredRerankResults = rerankResults.stream()
@@ -149,12 +199,14 @@ public abstract class AbstractRagTool {
                     result.document().getMetadata().put("rerankScore", result.score());
                 }
 
-                filteredDocuments = filteredRerankResults.stream()
+                filteredDocuments = capPerSource(filteredRerankResults.stream()
                         .map(Reranker.Result::document)
-                        .toList();
+                        .toList(), topReranked);
+                List<Document> selected = filteredDocuments;
                 listener.onToolReranked(toolName,
                         filteredRerankResults.stream()
-                                .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), getUrlOrSource(rr.document())))
+                                .filter(rr -> selected.contains(rr.document()))
+                                .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), RetrievalUtils.getUrlOrSource(rr.document())))
                                 .toList(),
                         rerankMs);
             }
@@ -173,11 +225,37 @@ public abstract class AbstractRagTool {
         }
     }
 
+    /**
+     * Keeps at most {@link #MAX_CHUNKS_PER_SOURCE} best-ranked chunks per source page and trims
+     * the list back to {@code limit}, preserving the similarity order. Documents without a
+     * {@code source} are never capped.
+     */
+    private List<Document> capPerSource(List<Document> documents, int limit) {
+        Map<Object, Integer> chunksPerSource = new HashMap<>();
+        List<Document> capped = new ArrayList<>(Math.min(documents.size(), limit));
+        int flooded = 0;
+        for (Document document : documents) {
+            Object source = document.getMetadata().getOrDefault("source", document.getId());
+            if (chunksPerSource.merge(source, 1, Integer::sum) > MAX_CHUNKS_PER_SOURCE) {
+                flooded++;
+                continue;
+            }
+            capped.add(document);
+            if (capped.size() == limit) {
+                break;
+            }
+        }
+        if (flooded > 0) {
+            listener.onLog("Per-source cap dropped %d flooded chunks".formatted(flooded));
+        }
+        return capped;
+    }
+
     private static List<EventStreamValueHolder.DocScore> toDocScores(List<Document> documents) {
         return documents.stream()
                 .map(doc -> new EventStreamValueHolder.DocScore(
                         doc.getScore() != null ? doc.getScore() : 0.0,
-                        getUrlOrSource(doc)))
+                        RetrievalUtils.getUrlOrSource(doc)))
                 .toList();
     }
 

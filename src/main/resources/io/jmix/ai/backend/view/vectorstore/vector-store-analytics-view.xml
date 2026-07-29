@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:charts="http://jmix.io/schema/charts/ui"
+      title="msg://vectorStoreAnalyticsView.title">
+    <layout>
+        <scroller width="100%" height="100%">
+            <vbox width="100%" padding="true" spacing="true">
+                <span text="msg://analytics.description"/>
+                <charts:chart id="coverageChart" width="100%" height="17em" minHeight="15em">
+                    <charts:title text="msg://coverage.title"/>
+                    <charts:legend bottom="0"/>
+                    <charts:tooltip trigger="AXIS">
+                        <charts:axisPointer type="SHADOW"/>
+                    </charts:tooltip>
+                    <charts:xAxes>
+                        <charts:xAxis type="CATEGORY">
+                            <charts:axisLabel rotate="20"/>
+                        </charts:xAxis>
+                    </charts:xAxes>
+                    <charts:yAxes>
+                        <charts:yAxis type="VALUE"/>
+                    </charts:yAxes>
+                </charts:chart>
+                <details id="topicDetails" summaryText="msg://topicCoverage.title"
+                         opened="true" width="100%">
+                    <vbox id="topicHeatmapBox" width="100%"/>
+                </details>
+                <charts:chart id="sizeChart" width="100%" height="26em" minHeight="22em">
+                    <charts:title text="msg://sizeChart.title"/>
+                    <charts:tooltip trigger="AXIS">
+                        <charts:axisPointer type="SHADOW"/>
+                    </charts:tooltip>
+                    <charts:scrollableLegend bottom="0"/>
+                    <charts:xAxes>
+                        <charts:xAxis type="CATEGORY" name="msg://tokens.label">
+                            <charts:axisLabel rotate="35" interval="0"/>
+                        </charts:xAxis>
+                    </charts:xAxes>
+                    <charts:yAxes>
+                        <charts:yAxis type="VALUE" name="msg://snippets.label"/>
+                    </charts:yAxes>
+                </charts:chart>
+                <span id="statsSummary"/>
+                <hbox id="statsCards" width="100%" spacing="true"/>
+            </vbox>
+        </scroller>
+    </layout>
+</view>

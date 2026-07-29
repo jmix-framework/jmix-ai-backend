@@ -1,10 +1,12 @@
 package io.jmix.ai.backend.checks;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.mockito.ArgumentCaptor;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +14,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ExternalEvaluatorImplTest {
+
+    @Test
+    void exposesConfigurationSnapshotFromEvaluatorSettings() {
+        ExternalEvaluatorImpl evaluator = new ExternalEvaluatorImpl(
+                "gpt-test", 0.25, "test-api-key");
+
+        assertThat(evaluator.configurationSnapshot())
+                .isEqualTo("semantic-evaluator-version-2026-07-28|model=gpt-test|temperature=0.25");
+    }
 
     @Test
     void parseEvaluationResponse_ParsesAndClampsScore() throws Exception {
@@ -49,24 +60,44 @@ class ExternalEvaluatorImplTest {
         assertThat(normalized).isEqualTo(0.2);
     }
 
-    @Test
-    void normalizeScore_LeavesScoreWhenLanguageMatches() {
+    @ParameterizedTest
+    @CsvSource({
+            "0.0,      0.0",
+            "0.149999, 0.0",
+            "0.15,     0.3",
+            "0.499999, 0.3",
+            "0.5,      0.7",
+            "0.799999, 0.7",
+            "0.8,      0.9",
+            "0.949999, 0.9",
+            "0.95,     1.0",
+            "1.0,      1.0"
+    })
+    void normalizeScore_QuantizesAtEveryContentScoreBoundary(double score, double expected) {
         ExternalEvaluatorImpl.EvaluationResult result =
-                new ExternalEvaluatorImpl.EvaluationResult(0.74, "PARTIAL", "ok", true);
+                new ExternalEvaluatorImpl.EvaluationResult(score, "PARTIAL", "ok", true);
 
         double normalized = ExternalEvaluatorImpl.normalizeScore(result);
 
-        assertThat(normalized).isEqualTo(0.74);
+        assertThat(normalized).isEqualTo(expected);
     }
 
     @Test
-    void evaluateSemantic_ReturnsZeroWhenModelFails() {
+    void evaluateSemantic_PropagatesModelFailure() {
         ChatModel chatModel = mock(ChatModel.class);
-        when(chatModel.call(any(Prompt.class))).thenThrow(new RuntimeException("boom"));
+        ArgumentCaptor<Prompt> promptCaptor = ArgumentCaptor.forClass(Prompt.class);
+        when(chatModel.call(promptCaptor.capture())).thenThrow(new RuntimeException("boom"));
         ExternalEvaluatorImpl evaluator = new ExternalEvaluatorImpl(chatModel);
 
-        double score = evaluator.evaluateSemantic("ref", "actual", null);
-
-        assertThat(score).isEqualTo(0.0);
+        assertThatThrownBy(() -> evaluator.evaluateSemantic("question", "ref", "actual", null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Semantic evaluator failed")
+                .hasRootCauseMessage("boom");
+        assertThat(promptCaptor.getValue().getSystemMessage().getText())
+                .contains("Treat factual claims explicitly stated in the reference as authoritative")
+                .contains("Alternative correct mechanisms are still acceptable")
+                .contains("If uncertain,", "ignore that detail instead of guessing");
+        assertThat(promptCaptor.getValue().getUserMessage().getText())
+                .contains("User question:\nquestion", "Reference answer:\nref", "Actual answer:\nactual");
     }
 }

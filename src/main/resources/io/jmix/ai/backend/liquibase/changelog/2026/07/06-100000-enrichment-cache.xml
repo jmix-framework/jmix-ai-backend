@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+    <changeSet id="1" author="jmix-ai-backend">
+        <createTable tableName="ENRICHMENT_CACHE">
+            <column name="ID" type="UUID">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="PK_ENRICHMENT_CACHE"/>
+            </column>
+            <column name="CREATED_DATE" type="${offsetDateTime.type}"/>
+            <column name="TYPE_" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SOURCE" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="JMIX_VERSION" type="VARCHAR(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="MODEL_NAME" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CONTENT_HASH" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CONTENT" type="CLOB"/>
+        </createTable>
+        <createIndex tableName="ENRICHMENT_CACHE" indexName="IDX_ENRICHMENT_CACHE_LOOKUP" unique="true">
+            <column name="TYPE_"/>
+            <column name="SOURCE"/>
+            <column name="JMIX_VERSION"/>
+            <column name="MODEL_NAME"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

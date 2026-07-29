@@ -24,7 +24,7 @@ Jmix AI Backend application uses PgVector for vector storage and a PostgreSQL da
 
 It answers questions about the Jmix framework using Retrieval Augmented Generation (RAG). The chat is available through the API and the admin UI. 
 
-The main chat functionality is implemented in the `ChatImpl` Spring bean. It makes three tools available to the LLM: `DocsTool`, `UiSamplesTool` and `TrainingsTool`. Each tool retrieves information from the vector store according to the LLM's requests.
+The main chat functionality is implemented in the `ChatImpl` Spring bean. Its retrieval tools are `DocsTool`, `UiSamplesTool`, `TrainingsTool` and `JavaApiTool`; each can be enabled or disabled in the active parameters. Each tool retrieves information from the vector store according to the LLM's requests.
 
 After retrieving documents from the vector store, each tool filters them using a post-retrieval filtering algorithm and applies a reranking algorithm to the remaining documents. The reranked documents are then passed to the LLM.
 
@@ -40,10 +40,12 @@ The reranker uses an OpenAI chat model to score candidate documents and reorder 
 
 ### Ingesters
 
-Ingesters are used to import documents into the vector store. The application includes the following ingesters:
+Ingesters are used to import documents into the vector store. Except for `TrainingsIngester`, each ingester builds a separate corpus for every supported Jmix version (`v2`, `v3`) from version-specific source URLs (`docs.v2.base-url`, `docs.v3.base-url`, etc.). The application includes the following ingesters:
 - `DocsIngester`: loads information from the Jmix documentation. This ingester is configured by the `docs.*` application properties.
 - `UiSamplesIngester`: loads information from the Jmix UI Samples online application. This ingester is configured by the `uisamples.*` application properties.
 - `TrainingsIngester`: loads information from the Jmix training courses. This ingester is configured by the `trainings.*` application properties. While the training courses content is not available to the public, you can provide your own set of AsciiDoc files.
+- `JavaApiIngester`: loads Java API reference from the Jmix Javadoc site and formats each class page as a compact "API card" snippet with verbatim signatures — the deterministic `javaapi` corpus, built without LLM calls. `JavaApiEnrichedIngester` builds the parallel `javaapi-enriched` corpus of the same cards where an LLM additionally generates a description and a usage example; generated content is cached in the database by source hash, so unchanged pages are not re-generated. The default parameters point the `javaapi_retriever` tool at `javaapi-enriched`; the `tools.javaapi_retriever.vectorType` parameter switches it back to the plain corpus. Only versions with a configured Javadoc base URL are ingested. Configured by the `javaapi.*` application properties.
+- `DocsSnippetsIngester` and `UiSamplesSnippetsIngester`: separate corpuses (`docs-snippets`, `uisamples-snippets`) that coexist in the vector store with the raw `docs` and `uisamples` corpuses and are updated independently. The same source pages are converted into small context7-like snippets by an LLM, plus lossless plain-text coverage chunks of each page — retrieval returns both. Generation is cached like the Java API enrichment and configured by the `snippets.enrichment.*` properties. The default chat/search parameters already point the retrieval tools at these corpuses; the `tools.<name>.vectorType` parameter switches a tool back to a raw corpus (`docs`, `uisamples`).
 
 All ingesters implement the `Ingester` interface and are invoked through the `IngesterManager` Spring bean.  
 
@@ -51,7 +53,7 @@ All ingesters implement the `Ingester` interface and are invoked through the `In
 
 The chat parameters are stored in the database using the `Parameters` entity. They are used by the application through the `ParametersRepository` interface. 
 
-The `Parameters` instance includes the YAML configuration that specifies parameters for the LLM, reranker, tools and post-retrieval filtering. You can create multiple instances of the `Parameters` entity and use them for different chat sessions to test different configurations. One instance should be marked as active to be used in the API calls. 
+The `Parameters` instance includes the YAML configuration that specifies parameters for the LLM, reranker, tools and post-retrieval filtering. You can create multiple instances of the `Parameters` entity and use them for different chat sessions to test different configurations. One instance should be marked as active to be used in the API calls.
 
 ### Answer checks
 
@@ -70,11 +72,47 @@ Content-Type: application/json
 {
     "conversation_id": "test-988979",
     "text": "How can I create a button that triggers a notification when clicked?",
-    "cache_enabled": true
+    "cache_enabled": true,
+    "jmix_version": "v2"
 }
 ```
 
 The `cache_enabled` property is currently not used.
+
+The optional `jmix_version` property (`v2` or `v3`) selects the documentation corpus and the version
+mentioned in the system prompt; it defaults to `v2`.
+
+## Search API
+
+The `POST /api/search` endpoint keeps the original response contract for existing clients. It accepts
+`query` and the optional `jmix_version` (`v2` or `v3`, default `v2`) and returns `id`, `title` and
+`content` fields in the legacy format: a response-local generated ID, the full document text as the
+title and Spring AI formatted content.
+
+The `POST /api/v2/search` endpoint runs the retrieval tools without the answering LLM and returns
+context7-like snippets ordered by relevance across all tools:
+
+```
+POST /api/v2/search HTTP/1.1
+Content-Type: application/json
+
+{
+    "query": "how to add a click handler to a button",
+    "jmix_version": "v2",
+    "tokens": 2000,
+    "max_results": 10
+}
+```
+
+Each v2 result contains `id`, `title`, `source` and `content`. The optional `jmix_version` field
+selects the corpus and defaults to `v3` — unlike `POST /api/search`, which keeps defaulting to `v2`
+for its existing clients. The optional `max_results` field (1 to 50) caps the total number of returned
+snippets across all tools, so the caller decides how much context it wants without depending on how
+many tools the server has enabled. The optional `tokens` field accepts values from 1 to 100000 and
+applies an approximate, best-effort response budget using four characters per token to the
+relevance-ordered total. At least the most relevant result is returned, so that first result may
+exceed a small budget. Omit both to return the default set of retrieved documents. Both endpoints
+are configured by the active search parameters record.
 
 ## Admin UI
 
@@ -86,7 +124,7 @@ The admin UI is available at `http://localhost:8081` and provides the following 
     
 - **Vector store** management. This view shows the vector store contents and allows you to find documents by metadata, add, remove and update documents. If you click the "Update" button, the current record will be updated from its source. If you click one of the "Update" dropdown items, all relevant documents will be updated.
 
-- **Answer checks**. The **Check definitions** view allows you to define questions and reference answers for validating the chat responses. The **Check runs** view allows you to run the set of checks for a particular parameters record and view the results. 
+- **Answer checks**. The **Check definitions** view allows you to define questions and reference answers for validating the chat responses. The **Check runs** view executes and shows individual runs, while **Analytics** contains the quality overview and configuration comparison screens.
 
 ## Development
 

@@ -6,5 +6,14 @@ import java.util.function.Consumer;
 
 public interface ExternalEvaluator {
 
-    double evaluateSemantic(String referenceAnswer, String actualAnswer, @Nullable Consumer<String> logger);
+    /**
+     * Stable evaluator implementation and model settings used to identify analytical cohorts.
+     */
+    String configurationSnapshot();
+
+    double evaluateSemantic(
+            String question,
+            String referenceAnswer,
+            String actualAnswer,
+            @Nullable Consumer<String> logger);
 }

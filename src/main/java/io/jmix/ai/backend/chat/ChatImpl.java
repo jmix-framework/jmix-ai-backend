@@ -5,6 +5,7 @@ import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.retrieval.AbstractRagTool;
+import io.jmix.ai.backend.retrieval.RetrievalUtils;
 import io.jmix.ai.backend.retrieval.ToolEventListener;
 import io.jmix.ai.backend.retrieval.ToolsManager;
 import io.jmix.core.UuidProvider;
@@ -51,7 +52,6 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-import static io.jmix.ai.backend.retrieval.Utils.addLogMessage;
 import static org.apache.commons.lang3.StringUtils.abbreviate;
 
 @Component
@@ -132,58 +132,60 @@ public class ChatImpl implements Chat {
             public void onToolCallStart(String tool, String query) {
                 String msg = ">>> Using %s: %s".formatted(tool, query);
                 if (externalLogger != null) externalLogger.accept(msg);
-                addLogMessage(log, logMessages, msg);
+                RetrievalUtils.addLogMessage(log, logMessages, msg);
             }
 
             @Override
             public void onToolRetrieved(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
                 String msg = "Found documents (%d): %s".formatted(documents.size(), formatDocScores(documents));
                 if (externalLogger != null) externalLogger.accept(msg);
-                addLogMessage(log, logMessages, msg);
+                RetrievalUtils.addLogMessage(log, logMessages, msg);
             }
 
             @Override
             public void onToolReranked(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
                 String msg = "Reranked documents (%d): %s".formatted(documents.size(), formatDocScores(documents));
                 if (externalLogger != null) externalLogger.accept(msg);
-                addLogMessage(log, logMessages, msg);
+                RetrievalUtils.addLogMessage(log, logMessages, msg);
             }
 
             @Override
             public void onToolCallEnd(String tool, long totalDurationMs) {
                 String msg = "%s done in %d ms".formatted(tool, totalDurationMs);
                 if (externalLogger != null) externalLogger.accept(msg);
-                addLogMessage(log, logMessages, msg);
+                RetrievalUtils.addLogMessage(log, logMessages, msg);
             }
 
             @Override
             public void onLog(String message) {
                 if (externalLogger != null) externalLogger.accept(message);
-                addLogMessage(log, logMessages, message);
+                RetrievalUtils.addLogMessage(log, logMessages, message);
             }
         };
 
         ChatRequestContext ctx = prepareRequest(userPrompt, parametersYaml, conversationId, version, listener);
         MDC.put("cid", ctx.conversationId());
         try {
-            addLogMessage(log, logMessages, "Model: %s, User prompt: %s".formatted(
+            RetrievalUtils.addLogMessage(log, logMessages, "Model: %s, User prompt: %s".formatted(
                     ctx.chatModel().getDefaultOptions(), abbreviate(userPrompt, 200)));
 
             ChatResponse chatResponse = ctx.request().call().chatResponse();
+            List<Document> uniqueSortedDocuments = RetrievalUtils.getUniqueSortedDocuments(ctx.retrievedDocuments());
 
             if (chatResponse == null) {
-                addLogMessage(log, logMessages, "No response received from the chat model");
-                return new StructuredResponse("", logMessages, ctx.retrievedDocuments(), 0, 0, 0);
+                RetrievalUtils.addLogMessage(log, logMessages, "No response received from the chat model");
+                return new StructuredResponse("", logMessages, uniqueSortedDocuments, 0, 0, 0);
             }
-            String responseText = getContentFromChatResponse(chatResponse);
-            Integer promptTokens = chatResponse.getMetadata().getUsage().getPromptTokens();
-            Integer completionTokens = chatResponse.getMetadata().getUsage().getCompletionTokens();
+            String responseText = Objects.requireNonNullElse(getContentFromChatResponse(chatResponse), "");
+            var usage = chatResponse.getMetadata().getUsage();
+            int promptTokens = usage != null && usage.getPromptTokens() != null ? usage.getPromptTokens() : 0;
+            int completionTokens = usage != null && usage.getCompletionTokens() != null ? usage.getCompletionTokens() : 0;
 
             long responseTime = System.currentTimeMillis() - start;
-            addLogMessage(log, logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
+            RetrievalUtils.addLogMessage(log, logMessages, "Received response in %d ms [promptTokens: %d, completionTokens: %d]:\n%s".formatted(
                     responseTime, promptTokens, completionTokens, abbreviate(responseText, 100)));
 
-            return new StructuredResponse(responseText, logMessages, ctx.retrievedDocuments(),
+            return new StructuredResponse(responseText, logMessages, uniqueSortedDocuments,
                     promptTokens, completionTokens, (int) responseTime);
         } finally {
             MDC.remove("cid");
@@ -399,8 +401,7 @@ public class ChatImpl implements Chat {
                 promptTokens, completionTokens, (int) totalDurationMs);
     }
 
-    /** Logs significant stream events to console with conversation id. */
-    /** Logs significant stream events to console. MDC "cid" is set by runWithConvId. */
+    /** Logs significant stream events to console with conversation id. MDC "cid" is set by runWithConvId. */
     private void logEventToConsole(StreamingEvent holder) {
         switch (holder.value()) {
             case EventStreamValueHolder.RequestInfo ri ->

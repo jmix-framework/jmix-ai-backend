@@ -62,6 +62,7 @@
             </actions>
             <columns resizable="true">
                 <column property="active"/>
+                <column property="jmixVersion"/>
                 <column property="category"/>
                 <column property="question"/>
                 <column property="answer"/>

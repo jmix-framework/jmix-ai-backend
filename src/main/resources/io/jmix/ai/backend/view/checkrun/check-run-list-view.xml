@@ -48,7 +48,7 @@
                       dataContainer="checkRunsDc"
                       columnReorderingAllowed="true">
                 <actions>
-                    <action id="createAction" type="list_create" text="Run now">
+                    <action id="createAction" type="list_create" text="msg://runNow.text">
                         <properties>
                             <property name="openMode" value="DIALOG"/>
                         </properties>
@@ -62,9 +62,10 @@
                 </actions>
                 <columns resizable="true">
                     <column property="createdDate"/>
-                    <column property="createdBy"/>
-                    <column property="parameters"/>
+                    <column property="jmixVersion"/>
+                    <column property="configLabel"/>
                     <column property="score"/>
+                    <column property="accuracy"/>
                 </columns>
             </dataGrid>
             <dataGrid id="checksDataGrid" dataContainer="checksDc" minWidth="100px" width="100%" minHeight="10em">

@@ -33,8 +33,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.jmix.ai.backend.retrieval.Utils.getUrlOrSource;
-
 @Component
 public class Reranker {
 
@@ -50,6 +48,10 @@ public class Reranker {
             - 1.0 means directly answers the query with strong supporting detail
             - 0.5 means partially relevant or useful background
             - 0.0 means irrelevant or misleading for this query
+            For a query about an exact XML element or attribute, API identifier, signature, or
+            relationship, give a high score only when the candidate explicitly supports the
+            requested fact. A document that is merely about the same broad topic is background,
+            not direct evidence.
             Prefer precision over recall.
             Return all candidates, even weak ones.
             """;
@@ -137,6 +139,10 @@ public class Reranker {
             log.error("Failed to parse rerank response: {}", content, e);
             return null;
         }
+        if (rerankResponse == null) {
+            log.error("Rerank response was null");
+            return null;
+        }
 
         List<Result> results = mapResults(rerankResponse, candidates, documents, topN);
         if (results == null) {
@@ -186,7 +192,7 @@ public class Reranker {
                     String truncatedText = text.length() > maxDocumentChars
                             ? text.substring(0, maxDocumentChars)
                             : text;
-                    String source = getUrlOrSource(document);
+                    String source = RetrievalUtils.getUrlOrSource(document);
                     return new CandidateDocument(index, source, truncatedText);
                 })
                 .filter(Objects::nonNull)
