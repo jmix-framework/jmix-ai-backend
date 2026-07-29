@@ -34,10 +34,13 @@ public class SearchService {
     /**
      * Runs the retrieval tools without the answering LLM. {@code maxResults} caps the total number
      * of returned snippets across all tools (the caller decides how much context it needs), not the
-     * count per tool: each tool contributes up to {@code maxResults} candidates, they are merged and
-     * ordered by relevance, and the head is kept. Null uses the configured per-tool defaults with no
-     * overall cap. The number of enabled tools is a server-side detail that must not leak into the
-     * size of the response.
+     * count per tool: adaptive tools ({@code topK: null}) each contribute up to {@code maxResults}
+     * candidates, while fixed-pipeline tools (a configured {@code topK}) ignore it and contribute
+     * their configured {@code topReranked} (or every minScore-passing candidate when reranking
+     * fails). The pool is merged, ordered by relevance and trimmed to {@code maxResults} globally,
+     * so the response size honors the cap in any mix of modes. Null uses the configured per-tool
+     * defaults with no overall cap. The number of enabled tools is a server-side detail that must
+     * not leak into the size of the response.
      */
     public List<Document> search(String query, JmixVersion jmixVersion, @Nullable Integer maxResults) {
         List<Document> retrievedDocuments = new ArrayList<>();

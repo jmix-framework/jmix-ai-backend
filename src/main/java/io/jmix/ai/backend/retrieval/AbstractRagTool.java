@@ -130,6 +130,10 @@ public abstract class AbstractRagTool {
 
     /** Fixed-pipeline entry point: retrieval sizes come from the configuration alone. */
     public String execute(String queryText) {
+        if (!isFixedPipeline()) {
+            // an adaptive tool has no topK to unbox; a one-arg call means "no requested count"
+            return execute(queryText, null);
+        }
         return executeSearch(queryText, topK, topReranked, null, null, null);
     }
 
@@ -148,10 +152,11 @@ public abstract class AbstractRagTool {
         }
         boolean callerRequested = maxResults != null && maxResults > 0;
         int requested = callerRequested ? Math.min(maxResults, MAX_RESULTS_CAP) : topReranked;
-        // overfetch: the per-source cap needs spare candidates to refill from, and reranking
-        // needs room to choose the requested number
+        // overfetch: the per-source cap needs spare candidates to refill from. The reranker is
+        // asked for the whole pool — it scores every candidate in one call anyway, and truncating
+        // its result before the cap would leave nothing to refill from when one page floods the top
         int vectorFetch = Math.min(requested * 4, MAX_VECTOR_FETCH);
-        return executeSearch(queryText, vectorFetch, requested * 2, requested, requested,
+        return executeSearch(queryText, vectorFetch, vectorFetch, requested, requested,
                 callerRequested ? new EventStreamValueHolder.RequestedRetrieval(requested, vectorFetch) : null);
     }
 

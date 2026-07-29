@@ -76,6 +76,23 @@ class SearchServiceTest {
         assertThat(result).extracting(Document::getId).containsExactly("a", "c", "b");
     }
 
+    /**
+     * Mixed configuration: a fixed-pipeline tool ignores {@code maxResults} and may overfill the
+     * pool with its configured count, an adaptive tool honors it — the global trim still caps the
+     * response at {@code maxResults} of the most relevant documents.
+     */
+    @Test
+    void fixedToolOverfillIsStillTrimmedGlobally() {
+        stubTools(
+                List.of(doc("l1", 0.9), doc("l2", 0.8), doc("l3", 0.7), doc("l4", 0.6), doc("l5", 0.3)),
+                List.of(doc("a1", 0.85), doc("a2", 0.2)));
+        SearchService service = new SearchService(parametersRepository, toolsManager);
+
+        List<Document> result = service.search("query", JmixVersion.V2, 3);
+
+        assertThat(result).extracting(Document::getId).containsExactly("l1", "a1", "l2");
+    }
+
     @Test
     void maxResultsAbovePoolSizeReturnsAll() {
         stubTools(List.of(doc("a", 0.9)), List.of(doc("b", 0.8)));
