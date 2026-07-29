@@ -11,7 +11,9 @@ tools:
     averageDocumentTokens: 400
     description: Searches and returns information from Jmix documentation. Provides code examples with explanations.
     similarityThreshold: 0.0
-    topK: 12
+    # null = adaptive pipeline (the caller may request 1-50 results); a number pins the fixed
+    # pre-adaptive pipeline: exactly topK candidates fetched, result count locked to topReranked
+    topK: null
     minScore: 0.5
     topReranked: 6
     minRerankedScore: 0.2
@@ -22,7 +24,9 @@ tools:
     averageDocumentTokens: 600
     description: Searches and returns information about Jmix UI components like Button, ComboBox, DataGrid, etc. Contains collection of recipes for solving typical problems related to UI. Provides XML and Java code examples with explanations.
     similarityThreshold: 0.0
-    topK: 12
+    # null = adaptive pipeline (the caller may request 1-50 results); a number pins the fixed
+    # pre-adaptive pipeline: exactly topK candidates fetched, result count locked to topReranked
+    topK: null
     minScore: 0.5
     topReranked: 6
     minRerankedScore: 0.5
@@ -33,7 +37,9 @@ tools:
     averageDocumentTokens: 500
     description: Searches and returns information that complements documentation and UI Samples. Often duplicates documentation but may contain useful examples and solutions.
     similarityThreshold: 0.0
-    topK: 3
+    # null = adaptive pipeline (the caller may request 1-50 results); a number pins the fixed
+    # pre-adaptive pipeline: exactly topK candidates fetched, result count locked to topReranked
+    topK: null
     minScore: 0.5
     topReranked: 2
     minRerankedScore: 0.5
@@ -45,7 +51,9 @@ tools:
     averageDocumentTokens: 450
     description: Searches the Jmix Java API reference (Javadoc) by class, interface or method name. Returns exact type and member signatures with Javadoc descriptions; use documentation or UI samples for usage examples. Always use it when the question mentions a specific Jmix class, interface or method (e.g. DataManager, UserRepository, FetchPlan.BASE). Query with the class or member name.
     similarityThreshold: 0.0
-    topK: 12
+    # null = adaptive pipeline (the caller may request 1-50 results); a number pins the fixed
+    # pre-adaptive pipeline: exactly topK candidates fetched, result count locked to topReranked
+    topK: null
     minScore: 0.5
     topReranked: 6
     minRerankedScore: 0.3

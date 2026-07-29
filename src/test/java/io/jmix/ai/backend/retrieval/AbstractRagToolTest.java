@@ -27,6 +27,11 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * {@code topK} selects the pipeline: a number pins the fixed pipeline (exact fetch counts, no
+ * per-source cap, the caller cannot request a result count), {@code topK: null} or an absent key
+ * enables the adaptive one.
+ */
 @ExtendWith(MockitoExtension.class)
 class AbstractRagToolTest {
 
@@ -41,7 +46,7 @@ class AbstractRagToolTest {
 
     @Test
     void vectorTypeParameterOverridesCorpusType() {
-        ParametersReader reader = reader(Map.of("vectorType", "docs-snippets"));
+        ParametersReader reader = adaptiveReader(Map.of("vectorType", "docs-snippets"));
 
         DocsTool tool = tool(reader, new ArrayList<>());
 
@@ -50,7 +55,7 @@ class AbstractRagToolTest {
 
     @Test
     void typeDefaultsToBuiltInWithoutOverride() {
-        ParametersReader reader = reader(Map.of());
+        ParametersReader reader = adaptiveReader(Map.of());
 
         DocsTool tool = tool(reader, new ArrayList<>());
 
@@ -59,18 +64,17 @@ class AbstractRagToolTest {
 
     @Test
     void appendsConfiguredAverageSizeToToolDescription() {
-        DocsTool tool = tool(reader(Map.of("averageDocumentTokens", 321)), new ArrayList<>());
+        DocsTool tool = tool(adaptiveReader(Map.of("averageDocumentTokens", 321)), new ArrayList<>());
 
         assertThat(tool.getToolCallback().getToolDefinition().description())
                 .isEqualTo("docs tool A typical returned snippet is about 321 tokens.");
     }
 
     @Test
-    void schemaMakesMaxResultsOptionalAndAdvertisesCap() throws Exception {
-        DocsTool tool = tool(reader(Map.of("averageDocumentTokens", 300)), new ArrayList<>());
+    void adaptiveSchemaMakesMaxResultsOptionalAndAdvertisesCap() throws Exception {
+        DocsTool tool = tool(adaptiveReader(Map.of("averageDocumentTokens", 300)), new ArrayList<>());
 
-        JsonNode schema = new ObjectMapper().readTree(
-                tool.getToolCallback().getToolDefinition().inputSchema());
+        JsonNode schema = toolInputSchema(tool);
 
         assertThat(schema.path("properties").has("queryText")).isTrue();
         assertThat(schema.path("properties").has("maxResults")).isTrue();
@@ -80,8 +84,95 @@ class AbstractRagToolTest {
     }
 
     @Test
+    void explicitNullTopKEnablesTheAdaptivePipeline() throws Exception {
+        Map<String, Object> overrides = new HashMap<>();
+        overrides.put("topK", null);
+        DocsTool tool = tool(reader(overrides, false), new ArrayList<>());
+
+        JsonNode schema = toolInputSchema(tool);
+
+        assertThat(schema.path("properties").has("maxResults")).isTrue();
+    }
+
+    @Test
+    void configuredTopKExposesOnlyTheQueryToTheModel() throws Exception {
+        DocsTool tool = tool(legacyReader(Map.of()), new ArrayList<>());
+
+        JsonNode schema = toolInputSchema(tool);
+
+        assertThat(schema.path("properties").has("queryText")).isTrue();
+        assertThat(schema.path("properties").has("maxResults")).isFalse();
+        assertThat(schema.path("required").toString()).isEqualTo("[\"queryText\"]");
+    }
+
+    @Test
+    void fixedPipelineUsesConfiguredCountsExactly() {
+        ParametersReader reader = legacyReader(Map.of("topK", 10, "topReranked", 3));
+        List<Document> retrievedDocuments = new ArrayList<>();
+        DocsTool tool = tool(reader, retrievedDocuments);
+        List<Document> candidates = prepareCandidates(4);
+        when(reranker.rerank("query", candidates, 3, reader))
+                .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
+
+        tool.execute("query");
+
+        verifySearchTopK(10);
+        verify(reranker).rerank("query", candidates, 3, reader);
+        assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
+    }
+
+    @Test
+    void fixedPipelineIgnoresCallerMaxResults() {
+        ParametersReader reader = legacyReader(Map.of("topK", 10, "topReranked", 3));
+        List<Document> retrievedDocuments = new ArrayList<>();
+        DocsTool tool = tool(reader, retrievedDocuments);
+        List<Document> candidates = prepareCandidates(4);
+        when(reranker.rerank("query", candidates, 3, reader))
+                .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
+
+        tool.execute("query", 20);
+
+        verifySearchTopK(10);
+        verify(reranker).rerank("query", candidates, 3, reader);
+        assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
+    }
+
+    @Test
+    void fixedPipelineFallbackKeepsAllDocumentsPassingMinScore() {
+        ParametersReader reader = legacyReader(Map.of("topK", 4, "topReranked", 2));
+        List<Document> retrievedDocuments = new ArrayList<>();
+        DocsTool tool = tool(reader, retrievedDocuments);
+        List<Document> candidates = prepareCandidates(6);
+        when(reranker.rerank("query", candidates, 2, reader)).thenReturn(null);
+
+        String result = tool.execute("query");
+
+        verifySearchTopK(4);
+        assertThat(retrievedDocuments).containsExactlyElementsOf(candidates);
+        assertThat(result).isEqualTo("text-0\n\ntext-1\n\ntext-2\n\ntext-3\n\ntext-4\n\ntext-5");
+    }
+
+    @Test
+    void fixedPipelineDoesNotCapFloodedSourcePages() {
+        ParametersReader reader = legacyReader(Map.of("topK", 6, "topReranked", 6));
+        List<Document> retrieved = new ArrayList<>();
+        DocsTool tool = tool(reader, retrieved);
+        List<Document> candidates = floodingCandidates();
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
+        when(postRetrievalProcessor.process(eq("query"), same(candidates))).thenReturn(candidates);
+        when(reranker.rerank(eq("query"), anyList(), eq(6), eq(reader))).thenReturn(
+                candidates.stream().map(document -> new Reranker.Result(document, 0.9)).toList());
+
+        tool.execute("query");
+
+        assertThat(retrieved).extracting(Document::getId)
+                .describedAs("the fixed pipeline returns the reranked list as is, page flooding included")
+                .containsExactly("flood-0", "flood-1", "flood-2", "flood-3", "flood-4", "other");
+    }
+
+    @Test
     void nullMaxResultsUsesConfiguredRetrievalAndResultCounts() {
-        ParametersReader reader = reader(Map.of("topK", 10, "topReranked", 3));
+        ParametersReader reader = adaptiveReader(Map.of("topReranked", 3));
         List<Document> retrievedDocuments = new ArrayList<>();
         DocsTool tool = tool(reader, retrievedDocuments);
         List<Document> candidates = prepareCandidates(4);
@@ -90,16 +181,15 @@ class AbstractRagToolTest {
 
         tool.execute("query", null);
 
-        verifySearchTopK(20);
+        verifySearchTopK(12);
         verify(reranker).rerank("query", candidates, 6, reader);
         assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
     }
 
     @Test
     void searchFiltersBySelectedCorpusTypeAndJmixVersion() {
-        ParametersReader reader = reader(Map.of(
+        ParametersReader reader = adaptiveReader(Map.of(
                 "vectorType", "docs-snippets",
-                "topK", 10,
                 "topReranked", 3));
         DocsTool tool = tool(reader, new ArrayList<>());
         List<Document> candidates = prepareCandidates(1);
@@ -120,8 +210,8 @@ class AbstractRagToolTest {
     }
 
     @Test
-    void maxResultsIsCappedAtFiftyAndWidensCandidatePool() {
-        ParametersReader reader = reader(Map.of("topK", 10, "topReranked", 3));
+    void maxResultsIsCappedAtFiftyAndTheFetchAtItsOwnBound() {
+        ParametersReader reader = adaptiveReader(Map.of("topReranked", 3));
         DocsTool tool = tool(reader, new ArrayList<>());
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 100, reader))
@@ -129,13 +219,13 @@ class AbstractRagToolTest {
 
         tool.execute("query", 500);
 
-        verifySearchTopK(200);
+        verifySearchTopK(120);
         verify(reranker).rerank("query", candidates, 100, reader);
     }
 
     @Test
-    void rerankerFallbackKeepsAllDocumentsPassingMinScore() {
-        ParametersReader reader = reader(Map.of("topK", 10, "topReranked", 2));
+    void adaptiveFallbackDefaultsToTheConfiguredResultCount() {
+        ParametersReader reader = adaptiveReader(Map.of("topReranked", 2));
         List<Document> retrievedDocuments = new ArrayList<>();
         DocsTool tool = tool(reader, retrievedDocuments);
         List<Document> candidates = prepareCandidates(5);
@@ -143,13 +233,14 @@ class AbstractRagToolTest {
 
         String result = tool.execute("query", null);
 
-        assertThat(retrievedDocuments).containsExactlyElementsOf(candidates);
-        assertThat(result).isEqualTo("text-0\n\ntext-1\n\ntext-2\n\ntext-3\n\ntext-4");
+        verifySearchTopK(8);
+        assertThat(retrievedDocuments).containsExactlyElementsOf(candidates.subList(0, 2));
+        assertThat(result).isEqualTo("text-0\n\ntext-1");
     }
 
     @Test
-    void rerankerFallbackRespectsExplicitMaxResults() {
-        ParametersReader reader = reader(Map.of("topK", 4, "topReranked", 2));
+    void adaptiveFallbackRespectsExplicitMaxResults() {
+        ParametersReader reader = adaptiveReader(Map.of("topReranked", 2));
         List<Document> retrievedDocuments = new ArrayList<>();
         DocsTool tool = tool(reader, retrievedDocuments);
         List<Document> candidates = prepareCandidates(6);
@@ -162,19 +253,6 @@ class AbstractRagToolTest {
         assertThat(result).isEqualTo("text-0\n\ntext-1\n\ntext-2");
     }
 
-    private ParametersReader reader(Map<String, Object> overrides) {
-        Map<String, Object> toolParameters = new HashMap<>();
-        toolParameters.put("description", "docs tool");
-        toolParameters.put("similarityThreshold", 0.0);
-        toolParameters.put("topK", 10);
-        toolParameters.put("topReranked", 3);
-        toolParameters.put("minScore", 0.0);
-        toolParameters.put("minRerankedScore", 0.0);
-        toolParameters.putAll(overrides);
-        return new ParametersReader(Map.of(
-                "tools", Map.of("documentation_retriever", toolParameters)));
-    }
-
     /**
      * One page must not fill the whole answer: the reranker judges every candidate, and at most
      * {@link AbstractRagTool#MAX_CHUNKS_PER_SOURCE} chunks per source survive into the selection,
@@ -183,16 +261,10 @@ class AbstractRagToolTest {
     @Test
     @SuppressWarnings("unchecked")
     void capsFloodedSourcePageInTheRerankedSelection() {
-        ParametersReader reader = reader(Map.of("topK", 4, "topReranked", 4));
+        ParametersReader reader = adaptiveReader(Map.of("topReranked", 4));
         List<Document> retrieved = new ArrayList<>();
         DocsTool tool = tool(reader, retrieved);
-        List<Document> candidates = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            candidates.add(Document.builder().id("flood-" + i).text("flood-" + i)
-                    .metadata(Map.of("source", "flooding.html")).score(1.0 - i * 0.01).build());
-        }
-        candidates.add(Document.builder().id("other").text("other")
-                .metadata(Map.of("source", "other.html")).score(0.5).build());
+        List<Document> candidates = floodingCandidates();
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
         when(postRetrievalProcessor.process(eq("query"), same(candidates))).thenReturn(candidates);
         // the reranker ranks the flooding page above the other one; the cap must still let the
@@ -210,6 +282,47 @@ class AbstractRagToolTest {
                 .containsExactlyElementsOf(candidates.stream().map(Document::getId).toList());
         assertThat(retrieved).extracting(Document::getId)
                 .containsExactly("flood-0", "flood-1", "flood-2", "other");
+    }
+
+    private ParametersReader legacyReader(Map<String, Object> overrides) {
+        Map<String, Object> withTopK = new HashMap<>();
+        withTopK.put("topK", 10);
+        withTopK.putAll(overrides);
+        return reader(withTopK, false);
+    }
+
+    private ParametersReader adaptiveReader(Map<String, Object> overrides) {
+        return reader(overrides, true);
+    }
+
+    private ParametersReader reader(Map<String, Object> overrides, boolean omitTopK) {
+        Map<String, Object> toolParameters = new HashMap<>();
+        toolParameters.put("description", "docs tool");
+        toolParameters.put("similarityThreshold", 0.0);
+        toolParameters.put("topReranked", 3);
+        toolParameters.put("minScore", 0.0);
+        toolParameters.put("minRerankedScore", 0.0);
+        toolParameters.putAll(overrides);
+        if (omitTopK) {
+            toolParameters.remove("topK");
+        }
+        return new ParametersReader(Map.of(
+                "tools", Map.of("documentation_retriever", toolParameters)));
+    }
+
+    private JsonNode toolInputSchema(DocsTool tool) throws Exception {
+        return new ObjectMapper().readTree(tool.getToolCallback().getToolDefinition().inputSchema());
+    }
+
+    private List<Document> floodingCandidates() {
+        List<Document> candidates = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            candidates.add(Document.builder().id("flood-" + i).text("flood-" + i)
+                    .metadata(Map.of("source", "flooding.html")).score(1.0 - i * 0.01).build());
+        }
+        candidates.add(Document.builder().id("other").text("other")
+                .metadata(Map.of("source", "other.html")).score(0.5).build());
+        return candidates;
     }
 
     private DocsTool tool(ParametersReader reader, List<Document> retrievedDocuments) {

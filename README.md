@@ -28,6 +28,8 @@ The main chat functionality is implemented in the `ChatImpl` Spring bean. Its re
 
 After retrieving documents from the vector store, each tool filters them using a post-retrieval filtering algorithm and applies a reranking algorithm to the remaining documents. The reranked documents are then passed to the LLM.
 
+The `tools.<name>.topK` parameter selects between two retrieval pipelines. A number pins the fixed pipeline that existing configurations were tuned for: exactly `topK` candidates are fetched, the reranker keeps the best `topReranked`, and the calling model cannot influence the result count. An explicit `topK: null` (an absent key behaves the same) enables the adaptive pipeline: the model and the search API may request 1–50 snippets per call (`topReranked` is the default when nothing is requested), the candidate pool is sized from that request — four times the requested count, at most 120 — and at most three chunks per source page survive into the selection, so a single topically-close page cannot flood the answer.
+
 The OpenAI API key should be defined in the `OPENAI_API_KEY` environment variable or otherwise provided in the `spring.ai.openai.api-key` application property.
 
 ### Post-retrieval filtering

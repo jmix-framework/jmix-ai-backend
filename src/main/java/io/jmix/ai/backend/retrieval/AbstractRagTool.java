@@ -24,10 +24,20 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * The {@code topK} parameter selects between two pipelines. A number pins the fixed pipeline:
+ * exactly {@code topK} candidates are fetched, the reranker keeps {@code topReranked}, and the
+ * caller cannot influence the result count — the behavior existing configurations were tuned
+ * for. An explicit {@code topK: null} (or an absent key) enables the adaptive pipeline: the
+ * model or the search API may request how many snippets it needs, and the candidate pool is
+ * sized from that request.
+ */
 public abstract class AbstractRagTool {
 
     /** Upper bound on how many snippets a caller (the model or the search API) may request per tool call. */
     public static final int MAX_RESULTS_CAP = 50;
+    /** Upper bound on the vector-store fetch in the adaptive pipeline, whatever was requested. */
+    static final int MAX_VECTOR_FETCH = 120;
     // A page's snippets are many and small, so a topically-close page can flood the whole
     // candidate pool by itself (cosine search is blind to pages). The candidates are fetched
     // with a margin and capped per source page, so the reranker always sees several distinct
@@ -50,7 +60,8 @@ public abstract class AbstractRagTool {
     private final boolean versionScoped;
     protected String description;
     protected double similarityThreshold;
-    protected int topK;
+    @Nullable
+    protected Integer topK;
     protected int topReranked;
     private double minScore;
     private double minRerankedScore;
@@ -87,16 +98,23 @@ public abstract class AbstractRagTool {
                     .formatted(averageDocumentTokens);
         }
         similarityThreshold = parametersReader.getDouble(getToolRootKey() + ".similarityThreshold");
-        topK = parametersReader.getInt(getToolRootKey() + ".topK");
+        topK = parametersReader.getInteger(getToolRootKey() + ".topK", null);
         topReranked = parametersReader.getInt(getToolRootKey() + ".topReranked");
         minScore = parametersReader.getDouble(getToolRootKey() + ".minScore");
         minRerankedScore = parametersReader.getDouble(getToolRootKey() + ".minRerankedScore");
         noResultsMessage = parametersReader.getString(getToolRootKey() + ".noResultsMessage", "No results found for the query. Try rephrasing your query or using another tool.");
     }
 
+    private boolean isFixedPipeline() {
+        return topK != null;
+    }
+
     public ToolCallback getToolCallback() {
-        Method method = Objects.requireNonNull(
-                ReflectionUtils.findMethod(getClass(), "execute", String.class, Integer.class));
+        // the exposed method defines the LLM-visible schema: the fixed pipeline accepts only the
+        // query, the adaptive one also lets the model request a result count
+        Method method = Objects.requireNonNull(isFixedPipeline()
+                ? ReflectionUtils.findMethod(getClass(), "execute", String.class)
+                : ReflectionUtils.findMethod(getClass(), "execute", String.class, Integer.class));
 
         ToolCallback toolCallback = MethodToolCallback.builder()
                 .toolDefinition(ToolDefinition.builder()
@@ -110,29 +128,44 @@ public abstract class AbstractRagTool {
         return toolCallback;
     }
 
+    /** Fixed-pipeline entry point: retrieval sizes come from the configuration alone. */
+    public String execute(String queryText) {
+        return executeSearch(queryText, topK, topReranked, null, null);
+    }
+
     /**
-     * Tool entry point. {@code maxResults} lets the model decide how many snippets it needs
-     * back for this call; omit it to use the configured default.
+     * Adaptive entry point: {@code maxResults} lets the caller decide how many snippets it needs
+     * back for this call; omit it to use the configured default. On a fixed-pipeline tool
+     * {@code maxResults} is ignored.
      */
     public String execute(
             @ToolParam(description = "Search query in English. For API questions use the class or member name (e.g. DataManager, FetchPlan.BASE); otherwise a short natural-language query.")
             String queryText,
             @ToolParam(required = false, description = MAX_RESULTS_DESCRIPTION)
             Integer maxResults) {
-        if (maxResults == null || maxResults <= 0) {
-            return executeSearch(queryText, similarityThreshold, topK, topReranked, null);
+        if (isFixedPipeline()) {
+            return execute(queryText);
         }
-        int wanted = Math.min(maxResults, MAX_RESULTS_CAP);
-        // widen the candidate pool so reranking still has room to choose the requested number
-        int effectiveTopK = Math.max(topK, wanted * 2);
-        return executeSearch(queryText, similarityThreshold, effectiveTopK, wanted, wanted);
+        int requested = maxResults != null && maxResults > 0
+                ? Math.min(maxResults, MAX_RESULTS_CAP)
+                : topReranked;
+        // overfetch: the per-source cap needs spare candidates to refill from, and reranking
+        // needs room to choose the requested number
+        int vectorFetch = Math.min(requested * 4, MAX_VECTOR_FETCH);
+        return executeSearch(queryText, vectorFetch, requested * 2, requested, requested);
     }
 
-    protected String executeSearch(
+    /**
+     * Runs the retrieval pipeline with every knob explicit: fetch exactly {@code vectorTopK}
+     * candidates, ask the reranker for {@code rerankTopN}. Null {@code resultLimit} and
+     * {@code fallbackLimit} select the fixed-pipeline semantics — no per-source cap and an
+     * unbounded minScore filter when reranking fails; non-null values cap both paths.
+     */
+    private String executeSearch(
             String queryText,
-            double similarityThreshold,
-            int topK,
-            int topReranked,
+            int vectorTopK,
+            int rerankTopN,
+            @Nullable Integer resultLimit,
             @Nullable Integer fallbackLimit) {
         long startTime = System.currentTimeMillis();
         listener.onToolCallStart(toolName, queryText);
@@ -142,8 +175,7 @@ public abstract class AbstractRagTool {
             SearchRequest.Builder requestBuilder = SearchRequest.builder()
                     .query(queryText)
                     .similarityThreshold(similarityThreshold)
-                    // overfetch: the per-source cap below needs spare candidates to refill from
-                    .topK(topK * 2);
+                    .topK(vectorTopK);
 
             FilterExpressionBuilder fb = new FilterExpressionBuilder();
             var typeFilter = fb.eq("type", type);
@@ -180,15 +212,18 @@ public abstract class AbstractRagTool {
 
             long rerankStart = System.currentTimeMillis();
             List<Reranker.Result> rerankResults =
-                    reranker.rerank(queryText, documents, topReranked * 2, parametersReader);
+                    reranker.rerank(queryText, documents, rerankTopN, parametersReader);
             long rerankMs = System.currentTimeMillis() - rerankStart;
 
             if (rerankResults == null) {
                 listener.onLog("Reranking failed, filtering by minScore");
-                filteredDocuments = capPerSource(documents.stream()
+                List<Document> minScoreFiltered = documents.stream()
                         .filter(document ->
                                 minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                        .toList(), fallbackLimit != null ? fallbackLimit : topK);
+                        .toList();
+                filteredDocuments = fallbackLimit == null
+                        ? minScoreFiltered
+                        : capPerSource(minScoreFiltered, fallbackLimit);
                 listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
             } else {
                 List<Reranker.Result> filteredRerankResults = rerankResults.stream()
@@ -199,9 +234,12 @@ public abstract class AbstractRagTool {
                     result.document().getMetadata().put("rerankScore", result.score());
                 }
 
-                filteredDocuments = capPerSource(filteredRerankResults.stream()
+                List<Document> rerankedDocuments = filteredRerankResults.stream()
                         .map(Reranker.Result::document)
-                        .toList(), topReranked);
+                        .toList();
+                filteredDocuments = resultLimit == null
+                        ? rerankedDocuments
+                        : capPerSource(rerankedDocuments, resultLimit);
                 List<Document> selected = filteredDocuments;
                 listener.onToolReranked(toolName,
                         filteredRerankResults.stream()
