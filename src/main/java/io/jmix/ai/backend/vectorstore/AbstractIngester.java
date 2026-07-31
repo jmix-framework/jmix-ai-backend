@@ -231,7 +231,9 @@ public abstract class AbstractIngester implements Ingester {
     protected Document createDocument(String textContent, Map<String, Object> metadata) {
         return new Document(
                 UuidProvider.createUuidV7().toString(),
-                textContent,
+                // transport guard for every corpus: PostgreSQL TEXT rejects NUL, and source content
+                // fetched over HTTP or read from files is not guaranteed free of it
+                NormalizationUtils.stripNul(textContent),
                 metadata
         );
     }

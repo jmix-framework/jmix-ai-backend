@@ -3,6 +3,7 @@ package io.jmix.ai.backend.checks;
 import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.entity.Check;
 import io.jmix.ai.backend.entity.CheckDef;
+import io.jmix.ai.backend.vectorstore.NormalizationUtils;
 import io.jmix.ai.backend.entity.CheckRun;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.core.DataManager;
@@ -152,9 +153,11 @@ public class CheckRunner {
         check.setCategory(checkDef.getCategory());
         check.setQuestion(checkDef.getQuestion());
         check.setReferenceAnswer(checkDef.getAnswer());
-        check.setActualAnswer(actualAnswer);
+        // the answer and the log carry model text (answer, judge rationale); a NUL in either would
+        // fail the single run-wide save and discard every paid check of the run
+        check.setActualAnswer(NormalizationUtils.stripNul(actualAnswer));
         check.setScore(score);
-        check.setLog(log);
+        check.setLog(NormalizationUtils.stripNul(log));
         return check;
     }
 

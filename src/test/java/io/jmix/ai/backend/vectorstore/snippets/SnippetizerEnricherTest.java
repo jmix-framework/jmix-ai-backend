@@ -152,6 +152,47 @@ class SnippetizerEnricherTest {
                 .isEqualTo("test-model:low:prompt-version-2026-07-28:snippet-format-version-2026-07-26");
     }
 
+    /**
+     * The exact shape of a poisoned cache entry: the model emitted a NUL (U+0000) JSON escape,
+     * Jackson re-escaped it on serialization, so the cache write succeeded - reading it back
+     * must strip the NUL instead of reproducing the PostgreSQL "invalid byte sequence 0x00"
+     * ingest failure.
+     */
+    @Test
+    void fromJson_HealsPoisonedCachedPayloadContainingNulEscape() {
+        TestSnippetizer snippetizer = new TestSnippetizer(mock(ChatModel.class));
+        String json = "[{\"title\": \"Default value\", \"description\": \"Default \\u0000char value.\","
+                + " \"language\": \"java\", \"code\": \"char c = '\\u0000';\"}]";
+
+        assertThat(snippetizer.fromJson(json, "https://example.com")).singleElement().satisfies(snippet -> {
+            assertThat(snippet.description()).isEqualTo("Default char value.");
+            assertThat(snippet.code()).isEqualTo("char c = '';");
+        });
+    }
+
+    /**
+     * NUL is stripped before the verbatim gate compares code against the source (which never
+     * contains NUL), so a snippet whose code is verbatim except a model-injected NUL survives
+     * instead of being dropped as non-verbatim.
+     */
+    @Test
+    void snippetize_KeepsSnippetWhoseCodeIsVerbatimExceptAnInjectedNul() {
+        ChatModel chatModel = mock(ChatModel.class);
+        when(chatModel.call(any(Prompt.class))).thenReturn(chatResponse("""
+                {"snippets": [
+                  {"title": "Verbatim except NUL", "description": "D.", "language": "xml", "code": "<button\\u0000 text=\\"OK\\"/>"}
+                ]}
+                """));
+
+        List<Snippet> snippets = new TestSnippetizer(chatModel).snippetize(
+                PAGE, DocsHtmlConverter.toPlainText(PAGE.getText()));
+
+        assertThat(snippets).singleElement().satisfies(snippet -> {
+            assertThat(snippet.title()).isEqualTo("Verbatim except NUL");
+            assertThat(snippet.code()).isEqualTo("<button text=\"OK\"/>");
+        });
+    }
+
     @Test
     void snippetize_DropsOnlyTheSnippetWithModifiedCode() {
         ChatModel chatModel = mock(ChatModel.class);

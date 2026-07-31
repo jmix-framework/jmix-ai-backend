@@ -16,7 +16,10 @@ import java.util.List;
  * ({@code TITLE:}/{@code DESCRIPTION:}) are single-line by format, so an embedded newline would
  * corrupt the card layout and its round-trip parsing; markdown fences (whole {@code ```} lines and
  * stray inline backtick runs) are stripped from code because it is embedded into the card's own
- * code fence, where a surviving {@code ```} would terminate the fence early and truncate the card.
+ * code fence, where a surviving {@code ```} would terminate the fence early and truncate the card;
+ * NUL characters are stripped because a model occasionally emits a NUL (U+0000) JSON escape
+ * (typically meaning the Java default char literal) and PostgreSQL TEXT rejects the NUL byte —
+ * the insert into the vector store would fail for the whole batch.
  */
 public final class NormalizationUtils {
 
@@ -29,12 +32,16 @@ public final class NormalizationUtils {
      */
     @Nullable
     public static Enrichment canonicalEnrichment(@Nullable Enrichment enrichment) {
-        if (enrichment == null || StringUtils.isBlank(enrichment.description())) {
+        if (enrichment == null) {
             return null;
         }
-        String example = stripMarkdownFences(enrichment.example());
+        String description = stripNul(enrichment.description());
+        if (StringUtils.isBlank(description)) {
+            return null;
+        }
+        String example = stripMarkdownFences(stripNul(enrichment.example()));
         return new Enrichment(
-                collapseWhitespace(enrichment.description()),
+                collapseWhitespace(description),
                 example == null ? "" : example);
     }
 
@@ -49,13 +56,13 @@ public final class NormalizationUtils {
             return null;
         }
         List<Snippet> normalized = snippets.stream()
-                .filter(snippet -> !StringUtils.isBlank(snippet.title())
-                        && !StringUtils.isBlank(snippet.description()))
+                .filter(snippet -> !StringUtils.isBlank(stripNul(snippet.title()))
+                        && !StringUtils.isBlank(stripNul(snippet.description())))
                 .map(snippet -> new Snippet(
-                        collapseWhitespace(snippet.title()),
-                        collapseWhitespace(snippet.description()),
-                        StringUtils.defaultIfBlank(snippet.language(), null),
-                        StringUtils.defaultIfBlank(stripMarkdownFences(snippet.code()), null),
+                        collapseWhitespace(stripNul(snippet.title())),
+                        collapseWhitespace(stripNul(snippet.description())),
+                        StringUtils.defaultIfBlank(stripNul(snippet.language()), null),
+                        StringUtils.defaultIfBlank(stripMarkdownFences(stripNul(snippet.code())), null),
                         snippet.absoluteUrl()))
                 .toList();
         return normalized.isEmpty() ? null : normalized;
@@ -63,6 +70,20 @@ public final class NormalizationUtils {
 
     private static String collapseWhitespace(String text) {
         return text.replaceAll("\\s+", " ").trim();
+    }
+
+    /**
+     * Removes NUL (U+0000) characters — the one code point PostgreSQL TEXT cannot store. Apply to
+     * any model-produced text bound for the database: the snippet/enrichment gates above use it,
+     * and so do the check-run and chat-log writers, whose LLM answers and judge rationales hit the
+     * same PostgreSQL limitation.
+     */
+    @Nullable
+    public static String stripNul(@Nullable String text) {
+        if (text == null || text.indexOf('\u0000') < 0) {
+            return text;
+        }
+        return text.replace("\u0000", "");
     }
 
     @Nullable

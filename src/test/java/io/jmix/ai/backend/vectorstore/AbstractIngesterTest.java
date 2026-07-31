@@ -96,6 +96,18 @@ class AbstractIngesterTest {
         }
     }
 
+    /** Transport guard for every corpus: PostgreSQL TEXT rejects NUL in document content. */
+    @Test
+    void createDocumentStripsNulCharactersFromContent() {
+        try (MockedStatic<UuidProvider> uuidProvider = mockStatic(UuidProvider.class)) {
+            uuidProvider.when(UuidProvider::createUuidV7).thenReturn(mockUuid);
+
+            Document document = ingester.createDocument("raw \u0000source text", Map.of());
+
+            assertThat(document.getText()).isEqualTo("raw source text");
+        }
+    }
+
     @Test
     void shouldBuildCorrectFilterQuery() {
         String source = "test-source";

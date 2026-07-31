@@ -115,6 +115,22 @@ class JavaApiEnricherTest {
         assertThat(JavaApiEnricher.fromCacheJson("not-json")).isNull();
     }
 
+    /**
+     * The exact shape of a poisoned cache entry: the model emitted a NUL (U+0000) JSON escape,
+     * Jackson re-escaped it on serialization, so the cache write succeeded - reading it back
+     * must strip the NUL instead of reproducing the PostgreSQL "invalid byte sequence 0x00"
+     * ingest failure.
+     */
+    @Test
+    void fromCacheJson_HealsPoisonedCacheEntryContainingNulEscape() {
+        Enrichment enrichment = JavaApiEnricher.fromCacheJson("""
+                {"description": "Default \\u0000char value.", "example": "char c = '\\u0000';"}""");
+
+        assertThat(enrichment).isNotNull();
+        assertThat(enrichment.description()).isEqualTo("Default char value.");
+        assertThat(enrichment.example()).isEqualTo("char c = '';");
+    }
+
     @Test
     void fromCacheJson_NormalizesCachedEnrichmentLikeALiveResponse() {
         Enrichment enrichment = JavaApiEnricher.fromCacheJson("""

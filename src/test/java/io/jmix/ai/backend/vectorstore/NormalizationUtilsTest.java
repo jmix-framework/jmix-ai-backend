@@ -34,6 +34,37 @@ class NormalizationUtilsTest {
         assertThat(canonical.example()).isEqualTo("DataManager dm; //");
     }
 
+    /** PostgreSQL TEXT rejects the NUL byte; a model occasionally emits a NUL (U+0000) JSON escape. */
+    @Test
+    void canonicalEnrichment_StripsNulCharacters() {
+        Enrichment canonical = NormalizationUtils.canonicalEnrichment(
+                new Enrichment("Default \u0000char value.", "char c = '\u0000';"));
+
+        assertThat(canonical).isNotNull();
+        assertThat(canonical.description()).isEqualTo("Default char value.");
+        assertThat(canonical.example()).isEqualTo("char c = '';");
+    }
+
+    @Test
+    void canonicalEnrichment_RejectsDescriptionOfOnlyNulCharacters() {
+        assertThat(NormalizationUtils.canonicalEnrichment(new Enrichment("\u0000 \u0000", "example")))
+                .isNull();
+    }
+
+    @Test
+    void canonicalSnippets_StripsNulCharactersFromEveryField() {
+        List<Snippet> canonical = NormalizationUtils.canonicalSnippets(List.of(
+                new Snippet("Ti\u0000tle", "Desc\u0000ription", "ja\u0000va",
+                        "char c = '\u0000';", "https://example.com")));
+
+        assertThat(canonical).isNotNull().hasSize(1);
+        Snippet snippet = canonical.getFirst();
+        assertThat(snippet.title()).isEqualTo("Title");
+        assertThat(snippet.description()).isEqualTo("Description");
+        assertThat(snippet.language()).isEqualTo("java");
+        assertThat(snippet.code()).isEqualTo("char c = '';");
+    }
+
     @Test
     void canonicalEnrichment_TreatsMissingExampleAsEmpty() {
         Enrichment canonical = NormalizationUtils.canonicalEnrichment(
@@ -95,6 +126,21 @@ class NormalizationUtilsTest {
         assertThat(canonical).isNotNull();
         assertThat(canonical.getFirst().code()).isNull();
         assertThat(canonical.getFirst().absoluteUrl()).isEqualTo("https://docs.jmix.io/page");
+    }
+
+    @Test
+    void stripNul_IsNullSafeNoOpOnCleanTextAndRemovesEveryNul() {
+        assertThat(NormalizationUtils.stripNul(null)).isNull();
+        String clean = "no control characters";
+        assertThat(NormalizationUtils.stripNul(clean)).isSameAs(clean);
+        assertThat(NormalizationUtils.stripNul("\u0000a\u0000b\u0000")).isEqualTo("ab");
+        assertThat(NormalizationUtils.stripNul("\u0000")).isEmpty();
+    }
+
+    @Test
+    void canonicalSnippets_DropsSnippetWhoseTitleIsOnlyNulCharacters() {
+        assertThat(NormalizationUtils.canonicalSnippets(List.of(
+                snippet("\u0000\u0000", "A description.")))).isNull();
     }
 
     private static Snippet snippet(String title, String description) {
