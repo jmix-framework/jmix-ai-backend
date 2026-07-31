@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -223,6 +224,40 @@ class SnippetizerEnricherTest {
                 PAGE, DocsHtmlConverter.toPlainText(PAGE.getText()));
 
         assertThat(snippets).isNull();
+    }
+
+    /**
+     * The test-stand state end to end: the cache holds a poisoned entry (real NULs were
+     * re-escaped by Jackson on write), a re-ingest hits it — the snippets come out clean,
+     * the model is NOT called and the cache row is NOT rewritten: healing is free.
+     */
+    @Test
+    void resolveAll_HealsPoisonedCacheEntryWithoutCallingTheModel() {
+        ChatModel chatModel = mock(ChatModel.class);
+        EnrichmentCacheRepository cacheRepository = mock(EnrichmentCacheRepository.class);
+        EnrichmentCache cached = new EnrichmentCache();
+        cached.setContentHash("hash1");
+        TestSnippetizer snippetizer = new TestSnippetizer(chatModel, cacheRepository);
+        // real NULs in the snippet strings: toJson re-escapes them exactly like the poisoned write
+        cached.setContent(snippetizer.toJson(List.of(new Snippet(
+                "Default value", "Default \u0000char value.", "xml",
+                "<button\u0000 text=\"OK\"/>", "source"))));
+        when(cacheRepository.find("docs-snippets", "flow-ui/vc/components/button.html", JmixVersion.V2,
+                "test-model:low:prompt-version-2026-07-28")).thenReturn(Optional.of(cached));
+
+        try {
+            Map<String, List<Snippet>> result = snippetizer.resolveAll("docs-snippets", List.of(PAGE),
+                    document -> DocsHtmlConverter.toPlainText(document.getText()));
+
+            assertThat(result.get(PAGE.getId())).singleElement().satisfies(snippet -> {
+                assertThat(snippet.description()).isEqualTo("Default char value.");
+                assertThat(snippet.code()).isEqualTo("<button text=\"OK\"/>");
+            });
+            verifyNoInteractions(chatModel);
+            verify(cacheRepository, never()).save(any(), any(), any(), any(), any(), any());
+        } finally {
+            snippetizer.shutdownExecutor();
+        }
     }
 
     @Test

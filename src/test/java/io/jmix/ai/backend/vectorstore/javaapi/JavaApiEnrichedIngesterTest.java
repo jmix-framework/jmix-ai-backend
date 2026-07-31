@@ -105,6 +105,33 @@ class JavaApiEnrichedIngesterTest {
         verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any());
     }
 
+    /**
+     * The exact test-stand state: the javaapi-enriched cache holds a NUL-poisoned entry.
+     * Re-ingest heals it on read — the card is clean, nothing is regenerated or re-saved.
+     */
+    @Test
+    void splitToChunks_HealsPoisonedCachedEnrichmentWithoutRegenerating() {
+        when(enricher.getModelKey()).thenReturn("test-model");
+        EnrichmentCache cached = new EnrichmentCache();
+        cached.setContentHash("hash1");
+        // real NULs in the enrichment: toCacheJson re-escapes them exactly like the poisoned write
+        cached.setContent(JavaApiEnricher.toCacheJson(
+                new Enrichment("Default \u0000char value.", "char c = '\u0000';")));
+        when(enrichmentCacheRepository.find(CorpusType.JAVA_API_ENRICHED, "io/jmix/core/DataManager.html",
+                JmixVersion.V2, "test-model"))
+                .thenReturn(Optional.of(cached));
+
+        List<Document> chunks = ingester.splitToChunks(List.of(cardDocument()));
+
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.getFirst().getText())
+                .contains("DESCRIPTION: Default char value.")
+                .contains("char c = '';")
+                .doesNotContain("\u0000");
+        verify(enricher, never()).enrich(anyString());
+        verify(enrichmentCacheRepository, never()).save(any(), any(), any(), any(), any(), any());
+    }
+
     @Test
     void splitToChunks_GeneratesAndCachesWhenHashDiffers() {
         when(enricher.getModelKey()).thenReturn("test-model");
