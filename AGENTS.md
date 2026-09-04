@@ -2,14 +2,8 @@
 
 Guide for coding agents working in `jmix-ai-backend`.
 
-## Skills and MCP
-
-- For detailed guidance on specific Jmix features, ALWAYS use the Skill tool and available Jmix skills.
-- If you don't have enough information, use Context7 MCP to search for Jmix documentation and code samples.
-- Use Jetbrains MCP to check file problems with `get_file_problems("path/to/file.ext", onlyErrors=false)`
-
 ## Project Snapshot
-- Stack: Java 17, Jmix 2.7 (Spring Boot 3, Vaadin Flow UI), Spring AI.
+- Stack: Java 17, Jmix 2.8 (Spring Boot 3, Vaadin Flow UI), Spring AI.
 - Build tool: Gradle (`./gradlew`).
 - Main app: `src/main/java/io/jmix/ai/backend`.
 - Default app port: `8081`.
@@ -57,95 +51,14 @@ Notes:
 - Prefer constructor injection and existing patterns used in services/components.
 - Preserve API contracts for `/chat` and `/api/search` unless explicitly asked to change them.
 
-## Development Guidelines
+<!-- BEGIN jmix-agent-toolkit -->
+## Jmix
 
-Refer to the relevant skills for detailed implementation patterns.
+This is a Jmix 2 application. Before writing or changing ANY file in it, read
+the `jmix` skill and follow it. It maps the task to artifacts, routes each
+artifact to the skill that governs it, and names the checks that close a task.
+Your Jmix/Vaadin priors are not reliable here; the skills are.
 
-### Working with Entities
-
-- JPA entities: use `@JmixEntity`, UUID + `@JmixGeneratedValue`, `@Version`, `@InstanceName`
-- Relationships: Use `@Composition` for parent-child aggregates
-- Computed properties: Use `@JmixProperty` with `@DependsOnProperties` for caching expensive calculations
-- No Lombok on entities
-
-### Working with Services
-
-- Injection: Use constructor injection, not field injection
-- [Data Access](#data-access)
-
-### Data Access
-
-- Data access: Use `DataManager` (NOT `EntityManager`) and its fluent data loading interface for queries (see jmix-services skill))
-- Fetch plans: Build optimized FetchPlans to avoid N+1 queries (see jmix-fetch-plans skill))
-- Transactions: Annotate with `@Transactional` when needed
-
-### Working with Views
-
-- View descriptors: XML files in `src/main/resources/**/view/**`
-- Controllers: Java classes with `@ViewController` and `@ViewDescriptor` annotations, extend `StandardListView` / `StandardDetailView`
-- Navigation: Use `ViewNavigators` for programmatic navigation between views
-
-### Working with Security
-
-- Resource roles: Define as interfaces annotated with `@ResourceRole` in `security/` package and add policy annotations on methods
-- Entity policies: Use `@EntityPolicy` for CRUD operations
-- Attribute policies: Use `@EntityAttributePolicy` for field-level access
-- View/Menu policies: Use `@ViewPolicy` and `@MenuPolicy` for UI access control
-
-### Database Migrations
-
-Liquibase changelogs are in `src/main/resources/**/liquibase/changelog/**.xml`:
-- Organized by step numbers (`010-some-description.xml`, `020-other-description.xml`, etc.) or in hieracrhical time-based structure (`2026/02/19-105244-customer.xml`, `2026/02/20-120315-order.xml`)
-- Include new changelogs to the main `changelog.xml`
-- Run automatically on application startup
-
-### Patterns
-
-- Business logic in services, not in views
-- Dependency Injection
-  - Views: `@ViewComponent` for components defined in XML (visual components, data containers, data loaders, MessageBundle, DataContext)
-  - Views: `@Autowired` for Spring beans (DataManager, DialogWindows, etc.)
-  - Services: Constructor injection only
-
-### When Asked to Create
-
-#### Entity
-
-- Java class with UUID + Version + InstanceName
-- Liquibase changelog + include in `changelog.xml`
-- Messages in ALL locale files (`messages.properties`, `messages_*.properties`)
-
-#### View
-
-- XML descriptor + Java controller
-- Menu entry in `menu.xml`
-- Messages for title/labels in ALL locale files
-
-#### Role
-
-- `@ResourceRole` with entity/view/menu policies
-
-### Forbidden
-
-- Lombok on entities
-- Field `@Autowired` in services (use constructor injection)
-- EntityManager
-- Business logic in views
-- Edits in `frontend/generated/`
-- Hardcoded UI text — ALL labels, titles, buttons MUST use `msg://` keys
-- Single-locale messages — ALWAYS add to ALL locale files
-- Irrelevant edits:
-  - Do not add blank lines at the end of edited files.
-
-## Development Workflow
-
-After writing or modifying code, validate using this sequence:
-
-1. **Check file problems** — if `jetbrains` MCP available, use it to check file problems for each modified file with `get_file_problems("path/to/file.ext", onlyErrors=false)`
-2. **Write tests** — create/update tests for new functionality
-3. **Run tests** — `./gradlew test` to verify nothing is broken
-4. **UI verification** (for views) — if `playwright` MCP available and app is running:
-   - Navigate to the view
-   - Verify data displays correctly
-   - Click or do things that should trigger UI logic
-   - Test CRUD operations
+Managed by the Jmix Agent Toolkit. Content between these markers is replaced on
+re-install — put your own instructions outside them.
+<!-- END jmix-agent-toolkit -->
