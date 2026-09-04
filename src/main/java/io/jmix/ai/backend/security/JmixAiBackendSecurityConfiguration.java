@@ -37,10 +37,22 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class JmixAiBackendSecurityConfiguration {
 
+    /**
+     * Endpoints reachable without authentication.
+     * <p>
+     * Only two actuator endpoints are listed here instead of {@code /actuator/**}:
+     * {@code /actuator/health} is read by container probes and {@code /actuator/prometheus} is
+     * scraped by the Prometheus container over the internal Docker network. Every other path under
+     * {@code /actuator} falls through to the Jmix filter chain and requires a login. Which actuator
+     * endpoints exist over HTTP at all is limited separately by
+     * {@code management.endpoints.web.exposure.include} in {@code application.properties} - keep
+     * both restrictions, so that widening one of them alone does not expose anything.
+     */
     @Bean
     @Order(JmixSecurityFilterChainOrder.CUSTOM)
     SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/actuator/**", "/chat", "/chat/stream", "/api/**")
+        http.securityMatcher("/actuator/health", "/actuator/prometheus",
+                        "/chat", "/chat/stream", "/api/**")
                 .authorizeHttpRequests(authorize ->
                         authorize.anyRequest().permitAll()
                 )
