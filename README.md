@@ -61,6 +61,19 @@ The `Parameters` instance includes the YAML configuration that specifies paramet
 
 This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses a separate LLM to calculate the semantic score for similarity between the question and the answer. The LLM is called through OpenAI API and configured by `answer-checks.model` and `answer-checks.temperature` application properties. It uses the same API key as the main chat LLM.
 
+## API authentication
+
+The `/chat`, `/chat/stream` and `/api/**` endpoints are called by internal applications only. They
+accept a shared key in the `X-API-Key` header, configured by the `api.auth.key` property, which
+reads the `JMIX_AI_API_KEY` environment variable.
+
+The check is off by default. Set `api.auth.enabled=true` to require the key, and do that only after
+every client sends the header - a client can start sending it while the check is still off. If the
+check is on and no key is configured, the application refuses to start instead of rejecting every
+call.
+
+The anonymous `/actuator/health` and `/actuator/prometheus` endpoints never require the key.
+
 ## Chat API
 
 The chat API available at `http://localhost:8081/chat` URL is the main entry point to the application functionality. It is provided by the `ChatController` class which delegates to the `Chat` interface implemented by `ChatImpl` Spring bean.
