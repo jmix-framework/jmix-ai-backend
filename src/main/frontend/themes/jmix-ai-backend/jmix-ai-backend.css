@@ -1,1 +1,8 @@
 /* Define your styles here */
+
+vaadin-dialog-overlay[closing],
+vaadin-confirm-dialog-overlay[closing],
+jmix-side-dialog-overlay[closing],
+jmix-side-panel-layout-dialog-overlay[closing] {
+    animation-name: none;
+}
