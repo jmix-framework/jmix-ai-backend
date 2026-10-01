@@ -9,30 +9,41 @@ import io.jmix.core.DataManager;
 import io.jmix.core.Id;
 import io.jmix.core.SaveContext;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class CheckRunnerUnitTest {
 
     private static final String FIRST_QUESTION = "How does it work?";
     private static final String SECOND_QUESTION = "How do I configure it?";
+    private static final Chat.StructuredResponse ACTUAL_ANSWER =
+            new Chat.StructuredResponse("Actual answer", List.of(), null, 1, 1, 1);
+
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    private DataManager dataManager;
+    @Mock
+    private Chat chat;
+    @Mock
+    private ExternalEvaluator evaluator;
 
     @Test
     void runChecks_RecordsCohortAndPassesQuestionToEvaluator() {
-        DataManager dataManager = mock(DataManager.class, RETURNS_DEEP_STUBS);
-
         CheckRun checkRun = new CheckRun();
         checkRun.setId(UUID.randomUUID());
         checkRun.setConfigLabel("test-config");
@@ -57,22 +68,10 @@ class CheckRunnerUnitTest {
                 .thenReturn(List.of(checkDef));
         when(dataManager.create(Check.class)).thenReturn(check);
 
-        Chat chat = (question, parameters, conversationId, version, logger) ->
-                new Chat.StructuredResponse("Actual answer", List.of(), null, 1, 1, 1);
-        AtomicReference<String> evaluatedQuestion = new AtomicReference<>();
-        ExternalEvaluator evaluator = new ExternalEvaluator() {
-            @Override
-            public String configurationSnapshot() {
-                return "semantic-evaluator-version-2026-07-28|model=test-judge|temperature=0.0";
-            }
-
-            @Override
-            public double evaluateSemantic(String question, String referenceAnswer, String actualAnswer,
-                                           java.util.function.Consumer<String> logger) {
-                evaluatedQuestion.set(question);
-                return 1.0;
-            }
-        };
+        when(chat.requestStructured(any(), any(), any(), any(), any())).thenReturn(ACTUAL_ANSWER);
+        when(evaluator.configurationSnapshot())
+                .thenReturn("semantic-evaluator-version-2026-07-28|model=test-judge|temperature=0.0");
+        when(evaluator.evaluateSemantic(any(), any(), any(), any())).thenReturn(1.0);
 
         CheckRunner checkRunner = new CheckRunner(
                 dataManager, chat, evaluator, 1, 0.8);
@@ -82,7 +81,7 @@ class CheckRunnerUnitTest {
             checkRunner.shutdown();
         }
 
-        assertThat(evaluatedQuestion).hasValue(checkDef.getQuestion());
+        verify(evaluator).evaluateSemantic(eq(checkDef.getQuestion()), any(), any(), any());
         assertThat(checkRun.getEvaluatorConfig())
                 .isEqualTo("semantic-evaluator-version-2026-07-28|model=test-judge|temperature=0.0");
         assertThat(checkRun.getPassThreshold()).isEqualTo(0.8);
@@ -101,8 +100,6 @@ class CheckRunnerUnitTest {
      */
     @Test
     void runChecks_StripsNulFromAnswerAndExecutionLog() {
-        DataManager dataManager = mock(DataManager.class, RETURNS_DEEP_STUBS);
-
         CheckRun checkRun = new CheckRun();
         checkRun.setId(UUID.randomUUID());
         checkRun.setConfigLabel("test-config");
@@ -127,21 +124,13 @@ class CheckRunnerUnitTest {
                 .thenReturn(List.of(checkDef));
         when(dataManager.create(Check.class)).thenReturn(check);
 
-        Chat chat = (question, parameters, conversationId, version, logger) ->
-                new Chat.StructuredResponse("Default \u0000char value.", List.of(), null, 1, 1, 1);
-        ExternalEvaluator evaluator = new ExternalEvaluator() {
-            @Override
-            public String configurationSnapshot() {
-                return "test-evaluator";
-            }
-
-            @Override
-            public double evaluateSemantic(String question, String referenceAnswer, String actualAnswer,
-                                           java.util.function.Consumer<String> logger) {
-                logger.accept("rationale mentions '\u0000' literally");
-                return 1.0;
-            }
-        };
+        when(chat.requestStructured(any(), any(), any(), any(), any()))
+                .thenReturn(new Chat.StructuredResponse("Default \u0000char value.", List.of(), null, 1, 1, 1));
+        when(evaluator.evaluateSemantic(any(), any(), any(), any())).thenAnswer(invocation -> {
+            Consumer<String> logger = invocation.getArgument(3);
+            logger.accept("rationale mentions '\u0000' literally");
+            return 1.0;
+        });
 
         CheckRunner checkRunner = new CheckRunner(
                 dataManager, chat, evaluator, 1, 0.8);
@@ -158,23 +147,19 @@ class CheckRunnerUnitTest {
     @Test
     void runChecks_ReportsProgressAfterEachCompletedCheck() {
         // Arrange
-        DataManager dataManager = mock(DataManager.class, RETURNS_DEEP_STUBS);
         CheckRun checkRun = checkRun(JmixVersion.V2);
         Id<CheckRun> checkRunId = Id.of(checkRun);
         when(dataManager.load(checkRunId).one()).thenReturn(checkRun);
-        stubActiveV2Definitions(dataManager, List.of(
+        stubActiveV2Definitions(List.of(
                 checkDef(FIRST_QUESTION),
                 checkDef(SECOND_QUESTION)));
         when(dataManager.create(Check.class)).thenReturn(check(), check());
+        when(chat.requestStructured(any(), any(), any(), any(), any())).thenReturn(ACTUAL_ANSWER);
+        when(evaluator.evaluateSemantic(any(), any(), any(), any())).thenReturn(1.0);
         List<String> reportedProgress = new ArrayList<>();
         CheckRunProgress progress = (check, completed, total) ->
                 reportedProgress.add(check.getQuestion() + " " + completed + "/" + total);
-        CheckRunner checkRunner = new CheckRunner(
-                dataManager,
-                answeringChat(),
-                passingEvaluator(),
-                1,
-                0.8);
+        CheckRunner checkRunner = runnerWithOneThread();
 
         // Act
         try {
@@ -193,23 +178,19 @@ class CheckRunnerUnitTest {
     @Test
     void runChecks_InterruptedProgressCancelsTheRun() {
         // Arrange
-        DataManager dataManager = mock(DataManager.class, RETURNS_DEEP_STUBS);
         CheckRun checkRun = checkRun(JmixVersion.V2);
         Id<CheckRun> checkRunId = Id.of(checkRun);
         when(dataManager.load(checkRunId).one()).thenReturn(checkRun);
-        stubActiveV2Definitions(dataManager, List.of(
+        stubActiveV2Definitions(List.of(
                 checkDef(FIRST_QUESTION),
                 checkDef(SECOND_QUESTION)));
         when(dataManager.create(Check.class)).thenReturn(check(), check());
+        when(chat.requestStructured(any(), any(), any(), any(), any())).thenReturn(ACTUAL_ANSWER);
+        when(evaluator.evaluateSemantic(any(), any(), any(), any())).thenReturn(1.0);
         CheckRunProgress cancelledProgress = (ignoredCheck, ignoredCompleted, ignoredTotal) -> {
             throw new InterruptedException("cancelled from the dialog");
         };
-        CheckRunner checkRunner = new CheckRunner(
-                dataManager,
-                answeringChat(),
-                passingEvaluator(),
-                1,
-                0.8);
+        CheckRunner checkRunner = runnerWithOneThread();
 
         // Act
         Throwable failure;
@@ -236,16 +217,10 @@ class CheckRunnerUnitTest {
     @Test
     void countDefinitionsToRun_UsesV2ForARunWithoutVersion() {
         // Arrange
-        DataManager dataManager = mock(DataManager.class, RETURNS_DEEP_STUBS);
-        stubActiveV2Definitions(dataManager, List.of(
+        stubActiveV2Definitions(List.of(
                 checkDef(FIRST_QUESTION),
                 checkDef(SECOND_QUESTION)));
-        CheckRunner checkRunner = new CheckRunner(
-                dataManager,
-                answeringChat(),
-                passingEvaluator(),
-                1,
-                0.8);
+        CheckRunner checkRunner = runnerWithOneThread();
 
         // Act
         int definitionsToRun;
@@ -258,6 +233,23 @@ class CheckRunnerUnitTest {
         // Assert
         assertThat(definitionsToRun)
                 .isEqualTo(2);
+    }
+
+    private CheckRunner runnerWithOneThread() {
+        return new CheckRunner(
+                dataManager,
+                chat,
+                evaluator,
+                1,
+                0.8);
+    }
+
+    private void stubActiveV2Definitions(List<CheckDef> definitions) {
+        when(dataManager.load(CheckDef.class)
+                .query("e.active = true and (e.jmixVersion is null or e.jmixVersion = :jmixVersion)")
+                .parameter("jmixVersion", JmixVersion.V2.getId())
+                .list())
+                .thenReturn(definitions);
     }
 
     private static CheckRun checkRun(JmixVersion jmixVersion) {
@@ -283,36 +275,5 @@ class CheckRunnerUnitTest {
         checkDef.setQuestion(question);
         checkDef.setAnswer("Expected answer");
         return checkDef;
-    }
-
-    private static void stubActiveV2Definitions(DataManager dataManager,
-                                                List<CheckDef> definitions) {
-        when(dataManager.load(CheckDef.class)
-                .query("e.active = true and (e.jmixVersion is null or e.jmixVersion = :jmixVersion)")
-                .parameter("jmixVersion", JmixVersion.V2.getId())
-                .list())
-                .thenReturn(definitions);
-    }
-
-    private static Chat answeringChat() {
-        return (ignoredQuestion, ignoredParameters, ignoredConversationId, ignoredVersion, ignoredLogger) ->
-                new Chat.StructuredResponse("Actual answer", List.of(), null, 1, 1, 1);
-    }
-
-    private static ExternalEvaluator passingEvaluator() {
-        return new ExternalEvaluator() {
-            @Override
-            public String configurationSnapshot() {
-                return "test-evaluator";
-            }
-
-            @Override
-            public double evaluateSemantic(String question,
-                                           String referenceAnswer,
-                                           String actualAnswer,
-                                           java.util.function.Consumer<String> logger) {
-                return 1.0;
-            }
-        };
     }
 }
