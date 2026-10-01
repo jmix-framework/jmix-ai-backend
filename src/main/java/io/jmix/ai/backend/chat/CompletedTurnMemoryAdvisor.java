@@ -15,12 +15,14 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.lang.Nullable;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Conversation memory that records a turn only once the model has answered it.
@@ -49,8 +51,13 @@ public class CompletedTurnMemoryAdvisor implements CallAdvisor, StreamAdvisor {
     @Override
     public ChatClientResponse adviseCall(ChatClientRequest chatClientRequest, CallAdvisorChain callAdvisorChain) {
         String conversationId = getConversationId(chatClientRequest);
-        ChatClientResponse response = callAdvisorChain.nextCall(withHistory(chatClientRequest, conversationId));
-        rememberTurn(conversationId, chatClientRequest, response.chatResponse());
+        ChatClientRequest requestWithHistory = withHistory(chatClientRequest, conversationId);
+
+        // a failed model call throws here, before the turn is remembered
+        ChatClientResponse response = callAdvisorChain.nextCall(requestWithHistory);
+
+        ChatResponse answer = response.chatResponse();
+        rememberTurn(conversationId, chatClientRequest, answer);
         return response;
     }
 
@@ -60,11 +67,17 @@ public class CompletedTurnMemoryAdvisor implements CallAdvisor, StreamAdvisor {
         // deferred, so that the history is read when the stream is subscribed, not when it is assembled
         return Flux.defer(() -> {
             String conversationId = getConversationId(chatClientRequest);
-            Flux<ChatClientResponse> responses =
-                    streamAdvisorChain.nextStream(withHistory(chatClientRequest, conversationId));
+            ChatClientRequest requestWithHistory = withHistory(chatClientRequest, conversationId);
+
+            Flux<ChatClientResponse> responses = streamAdvisorChain.nextStream(requestWithHistory);
+
             // the aggregator calls back on completion only: an error or a cancellation skips it
-            return new ChatClientMessageAggregator().aggregateChatClientResponse(responses,
-                    aggregated -> rememberTurn(conversationId, chatClientRequest, aggregated.chatResponse()));
+            Consumer<ChatClientResponse> rememberCompletedTurn = aggregatedResponse -> {
+                ChatResponse answer = aggregatedResponse.chatResponse();
+                rememberTurn(conversationId, chatClientRequest, answer);
+            };
+            ChatClientMessageAggregator aggregator = new ChatClientMessageAggregator();
+            return aggregator.aggregateChatClientResponse(responses, rememberCompletedTurn);
         });
     }
 
@@ -88,13 +101,25 @@ public class CompletedTurnMemoryAdvisor implements CallAdvisor, StreamAdvisor {
         if (history.isEmpty()) {
             return request;
         }
-        List<Message> instructions = request.prompt().getInstructions();
-        List<Message> messages = new ArrayList<>(history.size() + instructions.size());
-        instructions.stream().filter(SystemMessage.class::isInstance).forEach(messages::add);
+        Prompt prompt = request.prompt();
+        List<Message> instructions = prompt.getInstructions();
+        List<Message> systemMessages = instructions.stream()
+                .filter(SystemMessage.class::isInstance)
+                .toList();
+        List<Message> currentTurnMessages = instructions.stream()
+                .filter(message -> !(message instanceof SystemMessage))
+                .toList();
+
+        List<Message> messages = new ArrayList<>(instructions.size() + history.size());
+        messages.addAll(systemMessages);
         messages.addAll(history);
-        instructions.stream().filter(message -> !(message instanceof SystemMessage)).forEach(messages::add);
+        messages.addAll(currentTurnMessages);
+
+        Prompt promptWithHistory = prompt.mutate()
+                .messages(messages)
+                .build();
         return request.mutate()
-                .prompt(request.prompt().mutate().messages(messages).build())
+                .prompt(promptWithHistory)
                 .build();
     }
 
