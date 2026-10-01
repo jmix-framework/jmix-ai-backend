@@ -22,7 +22,6 @@ import reactor.core.publisher.Flux;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Conversation memory that records a turn only once the model has answered it.
@@ -72,12 +71,11 @@ public class CompletedTurnMemoryAdvisor implements CallAdvisor, StreamAdvisor {
             Flux<ChatClientResponse> responses = streamAdvisorChain.nextStream(requestWithHistory);
 
             // the aggregator calls back on completion only: an error or a cancellation skips it
-            Consumer<ChatClientResponse> rememberCompletedTurn = aggregatedResponse -> {
-                ChatResponse answer = aggregatedResponse.chatResponse();
-                rememberTurn(conversationId, chatClientRequest, answer);
-            };
             ChatClientMessageAggregator aggregator = new ChatClientMessageAggregator();
-            return aggregator.aggregateChatClientResponse(responses, rememberCompletedTurn);
+            return aggregator.aggregateChatClientResponse(responses, wholeStreamedResponse -> {
+                ChatResponse answer = wholeStreamedResponse.chatResponse();
+                rememberTurn(conversationId, chatClientRequest, answer);
+            });
         });
     }
 
@@ -115,21 +113,22 @@ public class CompletedTurnMemoryAdvisor implements CallAdvisor, StreamAdvisor {
         messages.addAll(history);
         messages.addAll(currentTurnMessages);
 
-        Prompt promptWithHistory = prompt.mutate()
-                .messages(messages)
-                .build();
+        // the options carry the tool callbacks, so the new prompt must keep them
+        Prompt promptWithHistory = new Prompt(messages, prompt.getOptions());
         return request.mutate()
                 .prompt(promptWithHistory)
                 .build();
     }
 
-    private void rememberTurn(String conversationId, ChatClientRequest request,
+    private void rememberTurn(String conversationId,
+                              ChatClientRequest request,
                               @Nullable ChatResponse chatResponse) {
         UserMessage question = request.prompt().getUserMessage();
         if (StringUtils.isBlank(question.getText()) || chatResponse == null) {
             return;
         }
-        List<Message> answers = chatResponse.getResults().stream()
+        List<Message> answers = chatResponse.getResults()
+                .stream()
                 .map(Generation::getOutput)
                 .filter(output -> StringUtils.isNotBlank(output.getText()))
                 .map(Message.class::cast)
