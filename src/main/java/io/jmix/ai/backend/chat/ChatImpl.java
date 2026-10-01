@@ -17,7 +17,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
@@ -105,7 +104,7 @@ public class ChatImpl implements Chat {
 
         ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
         ChatModel chatModel = buildChatModel(parametersReader);
-        ChatClient chatClient = buildClient(chatModel);
+        ChatClient chatClient = buildClient(chatModel, chatMemory);
 
         List<Document> retrievedDocuments = new ArrayList<>();
         List<AbstractRagTool> tools = toolsManager.getTools(parametersYaml, retrievedDocuments, listener, jmixVersion);
@@ -514,7 +513,7 @@ public class ChatImpl implements Chat {
                 .orElse(null);
     }
 
-    private Prompt buildPrompt(String userPrompt, String systemPrompt) {
+    static Prompt buildPrompt(String userPrompt, String systemPrompt) {
         return new Prompt(List.of(
                 new SystemMessage(systemPrompt),
                 new UserMessage(userPrompt)
@@ -552,9 +551,9 @@ public class ChatImpl implements Chat {
                 .build();
     }
 
-    private ChatClient buildClient(ChatModel chatModel) {
+    static ChatClient buildClient(ChatModel chatModel, ChatMemory chatMemory) {
         return ChatClient.builder(chatModel)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(new CompletedTurnMemoryAdvisor(chatMemory))
                 .build();
     }
 
