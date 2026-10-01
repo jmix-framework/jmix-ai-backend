@@ -1,9 +1,13 @@
 package io.jmix.ai.backend.chat;
 
+import io.jmix.ai.backend.chatlog.ChatLogManager;
+import io.jmix.ai.backend.parameters.ParametersRepository;
+import io.jmix.ai.backend.retrieval.ToolsManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
+import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -12,6 +16,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -23,6 +28,7 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.Mockito.mock;
 
 class CompletedTurnMemoryAdvisorTest {
 
@@ -34,8 +40,11 @@ class CompletedTurnMemoryAdvisorTest {
     private static final String ANSWER_A = "answer A";
 
     private final ScriptedChatModel model = new ScriptedChatModel();
-    private final ChatMemory memory = MessageWindowChatMemory.builder().maxMessages(10).build();
-    private final ChatClient client = ChatImpl.buildClient(model, memory);
+    private final ChatMemoryRepository memoryRepository = new InMemoryChatMemoryRepository();
+    private final ChatImpl chat = new ChatImpl(memoryRepository, mock(ParametersRepository.class),
+            Schedulers.immediate(), mock(ToolsManager.class), mock(ChatLogManager.class),
+            mock(SystemPromptResolver.class));
+    private final ChatClient client = chat.buildClient(model);
 
     @Test
     void call_recordsQuestionAndAnswerAndSendsHistoryAfterSystemPrompt() {
@@ -111,21 +120,21 @@ class CompletedTurnMemoryAdvisorTest {
     }
 
     private void call(String question) {
-        client.prompt(ChatImpl.buildPrompt(question, SYSTEM_PROMPT))
+        client.prompt(chat.buildPrompt(question, SYSTEM_PROMPT))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, CONVERSATION_ID))
                 .call()
                 .chatResponse();
     }
 
     private Flux<ChatResponse> stream(String question) {
-        return client.prompt(ChatImpl.buildPrompt(question, SYSTEM_PROMPT))
+        return client.prompt(chat.buildPrompt(question, SYSTEM_PROMPT))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, CONVERSATION_ID))
                 .stream()
                 .chatResponse();
     }
 
     private void assertMemory(String... alternatingQuestionsAndAnswers) {
-        List<Message> remembered = memory.get(CONVERSATION_ID);
+        List<Message> remembered = memoryRepository.findByConversationId(CONVERSATION_ID);
         assertThat(remembered).extracting(Message::getText).containsExactly(alternatingQuestionsAndAnswers);
         for (int i = 0; i < remembered.size(); i++) {
             assertThat(remembered.get(i).getMessageType())
