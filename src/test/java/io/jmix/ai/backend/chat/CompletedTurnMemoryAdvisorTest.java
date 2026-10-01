@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.chat;
 
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -49,163 +48,154 @@ class CompletedTurnMemoryAdvisorTest {
     private final ChatMemory memory = MessageWindowChatMemory.builder().build();
     private final CompletedTurnMemoryAdvisor advisor = new CompletedTurnMemoryAdvisor(memory);
 
-    @Nested
-    class Call {
+    @Mock
+    private CallAdvisorChain callChain;
+    @Mock
+    private StreamAdvisorChain streamChain;
+    @Captor
+    private ArgumentCaptor<ChatClientRequest> sentRequest;
 
-        @Mock
-        private CallAdvisorChain chain;
-        @Captor
-        private ArgumentCaptor<ChatClientRequest> sentRequest;
+    @Test
+    void remembersAnAnsweredTurn() {
+        // Arrange
+        when(callChain.nextCall(any())).thenReturn(response(FIRST_ANSWER));
 
-        @Test
-        void remembersAnAnsweredTurn() {
-            // Arrange
-            when(chain.nextCall(any())).thenReturn(response(FIRST_ANSWER));
+        // Act
+        advisor.adviseCall(request(FIRST_QUESTION), callChain);
 
-            // Act
-            advisor.adviseCall(request(FIRST_QUESTION), chain);
-
-            // Assert
-            assertThat(memory.get(CONVERSATION_ID))
-                    .extracting(Message::getMessageType, Message::getText)
-                    .containsExactly(
-                            tuple(USER, FIRST_QUESTION),
-                            tuple(ASSISTANT, FIRST_ANSWER));
-        }
-
-        @Test
-        void sendsTheHistoryAfterTheSystemPrompt() {
-            // Arrange
-            rememberFirstTurn();
-            when(chain.nextCall(sentRequest.capture())).thenReturn(response(NEXT_ANSWER));
-
-            // Act
-            advisor.adviseCall(request(NEXT_QUESTION), chain);
-
-            // Assert
-            assertThat(sentRequest.getValue().prompt().getInstructions())
-                    .extracting(Message::getMessageType, Message::getText)
-                    .containsExactly(
-                            tuple(SYSTEM, SYSTEM_PROMPT),
-                            tuple(USER, FIRST_QUESTION),
-                            tuple(ASSISTANT, FIRST_ANSWER),
-                            tuple(USER, NEXT_QUESTION));
-        }
-
-        @Test
-        void keepsTheRequestOptionsWhenAddingTheHistory() {
-            // Arrange
-            rememberFirstTurn();
-            ChatOptions options = ChatOptions.builder()
-                    .model("test-model")
-                    .build();
-            when(chain.nextCall(sentRequest.capture())).thenReturn(response(NEXT_ANSWER));
-
-            // Act
-            advisor.adviseCall(request(NEXT_QUESTION, options), chain);
-
-            // Assert
-            ChatOptions sentOptions = sentRequest.getValue().prompt().getOptions();
-            assertThat(sentOptions)
-                    .extracting(ChatOptions::getModel)
-                    .isEqualTo("test-model");
-        }
-
-        @Test
-        void forgetsATurnWhoseCallFailed() {
-            // Arrange
-            rememberFirstTurn();
-            when(chain.nextCall(any())).thenThrow(new IllegalStateException("model failed"));
-
-            // Act
-            Throwable failure = catchThrowable(() -> advisor.adviseCall(request(INTERRUPTED_QUESTION), chain));
-
-            // Assert
-            assertThat(failure)
-                    .hasMessage("model failed");
-            assertThat(memory.get(CONVERSATION_ID))
-                    .extracting(Message::getMessageType, Message::getText)
-                    .containsExactly(
-                            tuple(USER, FIRST_QUESTION),
-                            tuple(ASSISTANT, FIRST_ANSWER));
-        }
-
-        @Test
-        void forgetsATurnWithABlankAnswer() {
-            // Arrange
-            when(chain.nextCall(any())).thenReturn(response(" "));
-
-            // Act
-            advisor.adviseCall(request(FIRST_QUESTION), chain);
-
-            // Assert
-            assertThat(memory.get(CONVERSATION_ID))
-                    .isEmpty();
-        }
+        // Assert
+        assertThat(memory.get(CONVERSATION_ID))
+                .extracting(Message::getMessageType, Message::getText)
+                .containsExactly(
+                        tuple(USER, FIRST_QUESTION),
+                        tuple(ASSISTANT, FIRST_ANSWER));
     }
 
-    @Nested
-    class Stream {
+    @Test
+    void sendsTheHistoryAfterTheSystemPrompt() {
+        // Arrange
+        rememberFirstTurn();
+        when(callChain.nextCall(sentRequest.capture())).thenReturn(response(NEXT_ANSWER));
 
-        @Mock
-        private StreamAdvisorChain chain;
+        // Act
+        advisor.adviseCall(request(NEXT_QUESTION), callChain);
 
-        @Test
-        void remembersTheStreamedChunksAsOneAnswer() {
-            // Arrange
-            Flux<ChatClientResponse> chunks = Flux.just(
-                    response("Add a richCodeEditor "),
-                    response("component to the view."));
-            when(chain.nextStream(any())).thenReturn(chunks);
+        // Assert
+        assertThat(sentRequest.getValue().prompt().getInstructions())
+                .extracting(Message::getMessageType, Message::getText)
+                .containsExactly(
+                        tuple(SYSTEM, SYSTEM_PROMPT),
+                        tuple(USER, FIRST_QUESTION),
+                        tuple(ASSISTANT, FIRST_ANSWER),
+                        tuple(USER, NEXT_QUESTION));
+    }
 
-            // Act
-            advisor.adviseStream(request(FIRST_QUESTION), chain)
-                    .blockLast();
+    @Test
+    void keepsTheRequestOptionsWhenAddingTheHistory() {
+        // Arrange
+        rememberFirstTurn();
+        ChatOptions options = ChatOptions.builder()
+                .model("test-model")
+                .build();
+        when(callChain.nextCall(sentRequest.capture())).thenReturn(response(NEXT_ANSWER));
 
-            // Assert
-            assertThat(memory.get(CONVERSATION_ID))
-                    .extracting(Message::getMessageType, Message::getText)
-                    .containsExactly(
-                            tuple(USER, FIRST_QUESTION),
-                            tuple(ASSISTANT, FIRST_ANSWER));
-        }
+        // Act
+        advisor.adviseCall(request(NEXT_QUESTION, options), callChain);
 
-        @Test
-        void forgetsAStreamThatFailedMidway() {
-            // Arrange
-            Flux<ChatClientResponse> chunks = Flux.concat(
-                    Flux.just(response("Use the ")),
-                    Flux.error(new IllegalStateException("model failed")));
-            when(chain.nextStream(any())).thenReturn(chunks);
+        // Assert
+        ChatOptions sentOptions = sentRequest.getValue().prompt().getOptions();
+        assertThat(sentOptions)
+                .extracting(ChatOptions::getModel)
+                .isEqualTo("test-model");
+    }
 
-            // Act
-            Throwable failure = catchThrowable(() -> advisor.adviseStream(request(INTERRUPTED_QUESTION), chain)
-                    .blockLast());
+    @Test
+    void forgetsATurnWhoseCallFailed() {
+        // Arrange
+        rememberFirstTurn();
+        when(callChain.nextCall(any())).thenThrow(new IllegalStateException("model failed"));
 
-            // Assert
-            assertThat(failure)
-                    .hasMessageContaining("model failed");
-            assertThat(memory.get(CONVERSATION_ID))
-                    .isEmpty();
-        }
+        // Act
+        Throwable failure = catchThrowable(() -> advisor.adviseCall(request(INTERRUPTED_QUESTION), callChain));
 
-        @Test
-        void forgetsAStreamTheClientCancelled() {
-            // Arrange
-            Flux<ChatClientResponse> chunks = Flux.concat(
-                    Flux.just(response("Use the ")),
-                    Flux.never());
-            when(chain.nextStream(any())).thenReturn(chunks);
+        // Assert
+        assertThat(failure)
+                .hasMessage("model failed");
+        assertThat(memory.get(CONVERSATION_ID))
+                .extracting(Message::getMessageType, Message::getText)
+                .containsExactly(
+                        tuple(USER, FIRST_QUESTION),
+                        tuple(ASSISTANT, FIRST_ANSWER));
+    }
 
-            // Act
-            advisor.adviseStream(request(INTERRUPTED_QUESTION), chain)
-                    .take(1)
-                    .blockLast();
+    @Test
+    void forgetsATurnWithABlankAnswer() {
+        // Arrange
+        when(callChain.nextCall(any())).thenReturn(response(" "));
 
-            // Assert
-            assertThat(memory.get(CONVERSATION_ID))
-                    .isEmpty();
-        }
+        // Act
+        advisor.adviseCall(request(FIRST_QUESTION), callChain);
+
+        // Assert
+        assertThat(memory.get(CONVERSATION_ID))
+                .isEmpty();
+    }
+
+    @Test
+    void remembersTheStreamedChunksAsOneAnswer() {
+        // Arrange
+        Flux<ChatClientResponse> chunks = Flux.just(
+                response("Add a richCodeEditor "),
+                response("component to the view."));
+        when(streamChain.nextStream(any())).thenReturn(chunks);
+
+        // Act
+        advisor.adviseStream(request(FIRST_QUESTION), streamChain)
+                .blockLast();
+
+        // Assert
+        assertThat(memory.get(CONVERSATION_ID))
+                .extracting(Message::getMessageType, Message::getText)
+                .containsExactly(
+                        tuple(USER, FIRST_QUESTION),
+                        tuple(ASSISTANT, FIRST_ANSWER));
+    }
+
+    @Test
+    void forgetsAStreamThatFailedMidway() {
+        // Arrange
+        Flux<ChatClientResponse> chunks = Flux.concat(
+                Flux.just(response("Use the ")),
+                Flux.error(new IllegalStateException("model failed")));
+        when(streamChain.nextStream(any())).thenReturn(chunks);
+
+        // Act
+        Throwable failure = catchThrowable(() -> advisor.adviseStream(request(INTERRUPTED_QUESTION), streamChain)
+                .blockLast());
+
+        // Assert
+        assertThat(failure)
+                .hasMessageContaining("model failed");
+        assertThat(memory.get(CONVERSATION_ID))
+                .isEmpty();
+    }
+
+    @Test
+    void forgetsAStreamTheClientCancelled() {
+        // Arrange
+        Flux<ChatClientResponse> chunks = Flux.concat(
+                Flux.just(response("Use the ")),
+                Flux.never());
+        when(streamChain.nextStream(any())).thenReturn(chunks);
+
+        // Act
+        advisor.adviseStream(request(INTERRUPTED_QUESTION), streamChain)
+                .take(1)
+                .blockLast();
+
+        // Assert
+        assertThat(memory.get(CONVERSATION_ID))
+                .isEmpty();
     }
 
     private void rememberFirstTurn() {
