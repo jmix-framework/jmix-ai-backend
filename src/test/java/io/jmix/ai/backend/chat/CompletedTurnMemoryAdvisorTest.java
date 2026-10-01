@@ -4,22 +4,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
-import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
-import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
-import java.util.Objects;
-import java.util.function.Supplier;
 
+import static io.jmix.ai.backend.chat.ScriptedChatModel.response;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
@@ -35,7 +30,9 @@ class CompletedTurnMemoryAdvisorTest {
 
     private final ScriptedChatModel model = new ScriptedChatModel();
     private final ChatMemory memory = MessageWindowChatMemory.builder().maxMessages(10).build();
-    private final ChatClient client = ChatImpl.buildClient(model, memory);
+    private final ChatClient client = ChatClient.builder(model)
+            .defaultAdvisors(new CompletedTurnMemoryAdvisor(memory))
+            .build();
 
     @Test
     void call_recordsQuestionAndAnswerAndSendsHistoryAfterSystemPrompt() {
@@ -111,17 +108,21 @@ class CompletedTurnMemoryAdvisorTest {
     }
 
     private void call(String question) {
-        client.prompt(ChatImpl.buildPrompt(question, SYSTEM_PROMPT))
+        client.prompt(prompt(question))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, CONVERSATION_ID))
                 .call()
                 .chatResponse();
     }
 
     private Flux<ChatResponse> stream(String question) {
-        return client.prompt(ChatImpl.buildPrompt(question, SYSTEM_PROMPT))
+        return client.prompt(prompt(question))
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, CONVERSATION_ID))
                 .stream()
                 .chatResponse();
+    }
+
+    private static Prompt prompt(String question) {
+        return new Prompt(List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(question)));
     }
 
     private void assertMemory(String... alternatingQuestionsAndAnswers) {
@@ -142,44 +143,5 @@ class CompletedTurnMemoryAdvisorTest {
                         tuple(MessageType.USER, QUESTION_A),
                         tuple(MessageType.ASSISTANT, ANSWER_A),
                         tuple(MessageType.USER, QUESTION_C));
-    }
-
-    private static ChatResponse response(String text) {
-        return new ChatResponse(List.of(new Generation(new AssistantMessage(text))));
-    }
-
-    /** Plays back one scripted reply per model request, for both call() and stream(). */
-    private static class ScriptedChatModel implements ChatModel {
-
-        private final List<Prompt> prompts = new ArrayList<>();
-        private final Deque<Supplier<Flux<ChatResponse>>> script = new ArrayDeque<>();
-
-        ScriptedChatModel answers(String text) {
-            return streams(() -> Flux.just(response(text)));
-        }
-
-        ScriptedChatModel fails() {
-            return streams(() -> Flux.error(new IllegalStateException("model failed")));
-        }
-
-        ScriptedChatModel streams(Supplier<Flux<ChatResponse>> reply) {
-            script.add(reply);
-            return this;
-        }
-
-        @Override
-        public ChatResponse call(Prompt prompt) {
-            return Objects.requireNonNull(next(prompt).blockLast());
-        }
-
-        @Override
-        public Flux<ChatResponse> stream(Prompt prompt) {
-            return next(prompt);
-        }
-
-        private Flux<ChatResponse> next(Prompt prompt) {
-            prompts.add(prompt);
-            return script.removeFirst().get();
-        }
     }
 }
