@@ -47,7 +47,9 @@ class CompletedTurnMemoryAdvisorTest {
     private static final String PARTIAL_ANSWER = "Use the ";
     private static final String NEXT_QUESTION = "RichCodeEditor";
     private static final String NEXT_ANSWER = "RichCodeEditor edits source code.";
+    private static final String BLANK_ANSWER = " ";
     private static final String MODEL_FAILURE = "model failed";
+    private static final String REQUESTED_MODEL = "test-model";
 
     private final ChatMemory memory = MessageWindowChatMemory.builder().build();
     private final CompletedTurnMemoryAdvisor advisor = new CompletedTurnMemoryAdvisor(memory);
@@ -99,7 +101,7 @@ class CompletedTurnMemoryAdvisorTest {
         // Arrange
         rememberFirstTurn();
         ChatOptions options = ChatOptions.builder()
-                .model("test-model")
+                .model(REQUESTED_MODEL)
                 .build();
         when(callChain.nextCall(sentRequest.capture())).thenReturn(response(NEXT_ANSWER));
 
@@ -110,7 +112,7 @@ class CompletedTurnMemoryAdvisorTest {
         ChatOptions sentOptions = sentRequest.getValue().prompt().getOptions();
         assertThat(sentOptions)
                 .extracting(ChatOptions::getModel)
-                .isEqualTo("test-model");
+                .isEqualTo(REQUESTED_MODEL);
     }
 
     @Test
@@ -135,7 +137,7 @@ class CompletedTurnMemoryAdvisorTest {
     @Test
     void forgetsATurnWithABlankAnswer() {
         // Arrange
-        when(callChain.nextCall(any())).thenReturn(response(" "));
+        when(callChain.nextCall(any())).thenReturn(response(BLANK_ANSWER));
 
         // Act
         advisor.adviseCall(request(FIRST_QUESTION), callChain);
