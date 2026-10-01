@@ -6,10 +6,6 @@ import org.springframework.ai.chat.prompt.Prompt;
 
 import java.util.List;
 
-/**
- * Renders chat messages as {@code "TYPE: text"} strings, so a test can assert a whole message list
- * in one readable {@code containsExactly(user(...), assistant(...))}.
- */
 public final class ChatMessages {
 
     private ChatMessages() {

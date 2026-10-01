@@ -52,7 +52,6 @@ public class CompletedTurnMemoryAdvisor implements CallAdvisor, StreamAdvisor {
         String conversationId = getConversationId(chatClientRequest);
         ChatClientRequest requestWithHistory = withHistory(chatClientRequest, conversationId);
 
-        // a failed model call throws here, before the turn is remembered
         ChatClientResponse response = callAdvisorChain.nextCall(requestWithHistory);
 
         ChatResponse answer = response.chatResponse();
@@ -113,7 +112,6 @@ public class CompletedTurnMemoryAdvisor implements CallAdvisor, StreamAdvisor {
         messages.addAll(history);
         messages.addAll(currentTurnMessages);
 
-        // the options carry the tool callbacks, so the new prompt must keep them
         Prompt promptWithHistory = new Prompt(messages, prompt.getOptions());
         return request.mutate()
                 .prompt(promptWithHistory)

@@ -15,10 +15,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-/**
- * Chat model stub. Each request takes the next scripted reply, so a test scripts the reply right
- * before asking the question. Every prompt the model receives is recorded.
- */
 public class ScriptedChatModel implements ChatModel {
 
     public static final String FAILURE_MESSAGE = "model failed";
@@ -44,7 +40,6 @@ public class ScriptedChatModel implements ChatModel {
                 Flux.error(new IllegalStateException(FAILURE_MESSAGE))));
     }
 
-    /** Streams one chunk and then never completes, like a generation the client walks away from. */
     public void streamsChunkThenHangs(String chunk) {
         replies.add(() -> Flux.concat(
                 Flux.just(response(chunk)),

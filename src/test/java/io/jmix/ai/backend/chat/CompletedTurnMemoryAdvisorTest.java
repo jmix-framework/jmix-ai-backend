@@ -25,11 +25,6 @@ import static test_support.ai.ChatMessages.describe;
 import static test_support.ai.ChatMessages.system;
 import static test_support.ai.ChatMessages.user;
 
-/**
- * Drives the chat client that {@link ChatImpl} builds: a scripted model, a real conversation memory.
- * A turn is "remembered" when its question and answer are in the memory, and the memory is what the
- * model receives as history on the next turn.
- */
 @ExtendWith(MockitoExtension.class)
 class CompletedTurnMemoryAdvisorTest {
 
@@ -97,7 +92,6 @@ class CompletedTurnMemoryAdvisorTest {
                 user(NEXT_QUESTION));
     }
 
-    /** The options carry the tool callbacks: losing them would silently switch retrieval off. */
     @Test
     void keepsTheRequestOptionsOnAFollowUpTurn() {
         ChatOptions options = ChatOptions.builder()
@@ -127,7 +121,6 @@ class CompletedTurnMemoryAdvisorTest {
                 assistant(FIRST_ANSWER));
     }
 
-    /** The scenario from issue #25: the next question must not be sent after an unanswered one. */
     @Test
     void sendsTheNextQuestionWithoutTheOneWhoseCallFailed() {
         model.repliesWith(FIRST_ANSWER);

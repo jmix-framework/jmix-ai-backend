@@ -10,10 +10,6 @@ import reactor.core.publisher.Flux;
 import java.util.Objects;
 import java.util.function.Function;
 
-/**
- * One conversation over a {@link ChatClient}: every question is sent with the same conversation id,
- * so the client's memory links the turns.
- */
 public class TestConversation {
 
     private final ChatClient client;
@@ -46,7 +42,6 @@ public class TestConversation {
                 .blockLast();
     }
 
-    /** Takes the first streamed chunk and cancels the rest of the stream. */
     public String askStreamingAndAbandonAfterFirstChunk(String question) {
         ChatResponse firstChunk = streamedChunks(question)
                 .take(1)
