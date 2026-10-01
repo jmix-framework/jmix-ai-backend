@@ -40,10 +40,14 @@ class CompletedTurnMemoryAdvisorTest {
     private static final String SYSTEM_PROMPT = "You answer questions about Jmix.";
 
     private static final String FIRST_QUESTION = "How to use RichCodeEditor?";
-    private static final String FIRST_ANSWER = "Add a richCodeEditor component to the view.";
+    private static final String FIRST_ANSWER_START = "Add a richCodeEditor ";
+    private static final String FIRST_ANSWER_END = "component to the view.";
+    private static final String FIRST_ANSWER = FIRST_ANSWER_START + FIRST_ANSWER_END;
     private static final String INTERRUPTED_QUESTION = "How to display Polygon in Map?";
+    private static final String PARTIAL_ANSWER = "Use the ";
     private static final String NEXT_QUESTION = "RichCodeEditor";
     private static final String NEXT_ANSWER = "RichCodeEditor edits source code.";
+    private static final String MODEL_FAILURE = "model failed";
 
     private final ChatMemory memory = MessageWindowChatMemory.builder().build();
     private final CompletedTurnMemoryAdvisor advisor = new CompletedTurnMemoryAdvisor(memory);
@@ -113,14 +117,14 @@ class CompletedTurnMemoryAdvisorTest {
     void forgetsATurnWhoseCallFailed() {
         // Arrange
         rememberFirstTurn();
-        when(callChain.nextCall(any())).thenThrow(new IllegalStateException("model failed"));
+        when(callChain.nextCall(any())).thenThrow(new IllegalStateException(MODEL_FAILURE));
 
         // Act
         Throwable failure = catchThrowable(() -> advisor.adviseCall(request(INTERRUPTED_QUESTION), callChain));
 
         // Assert
         assertThat(failure)
-                .hasMessage("model failed");
+                .hasMessage(MODEL_FAILURE);
         assertThat(memory.get(CONVERSATION_ID))
                 .extracting(Message::getMessageType, Message::getText)
                 .containsExactly(
@@ -145,8 +149,8 @@ class CompletedTurnMemoryAdvisorTest {
     void remembersTheStreamedChunksAsOneAnswer() {
         // Arrange
         Flux<ChatClientResponse> chunks = Flux.just(
-                response("Add a richCodeEditor "),
-                response("component to the view."));
+                response(FIRST_ANSWER_START),
+                response(FIRST_ANSWER_END));
         when(streamChain.nextStream(any())).thenReturn(chunks);
 
         // Act
@@ -165,8 +169,8 @@ class CompletedTurnMemoryAdvisorTest {
     void forgetsAStreamThatFailedMidway() {
         // Arrange
         Flux<ChatClientResponse> chunks = Flux.concat(
-                Flux.just(response("Use the ")),
-                Flux.error(new IllegalStateException("model failed")));
+                Flux.just(response(PARTIAL_ANSWER)),
+                Flux.error(new IllegalStateException(MODEL_FAILURE)));
         when(streamChain.nextStream(any())).thenReturn(chunks);
 
         // Act
@@ -175,7 +179,7 @@ class CompletedTurnMemoryAdvisorTest {
 
         // Assert
         assertThat(failure)
-                .hasMessageContaining("model failed");
+                .hasMessageContaining(MODEL_FAILURE);
         assertThat(memory.get(CONVERSATION_ID))
                 .isEmpty();
     }
@@ -184,7 +188,7 @@ class CompletedTurnMemoryAdvisorTest {
     void forgetsAStreamTheClientCancelled() {
         // Arrange
         Flux<ChatClientResponse> chunks = Flux.concat(
-                Flux.just(response("Use the ")),
+                Flux.just(response(PARTIAL_ANSWER)),
                 Flux.never());
         when(streamChain.nextStream(any())).thenReturn(chunks);
 
