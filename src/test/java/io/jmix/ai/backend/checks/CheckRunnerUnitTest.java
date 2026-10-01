@@ -70,7 +70,7 @@ class CheckRunnerUnitTest {
                 evaluator,
                 1,
                 PASS_THRESHOLD);
-        checkRun = checkRun(JmixVersion.V2);
+        checkRun = checkRunFor(JmixVersion.V2);
         checkRunId = Id.of(checkRun);
     }
 
@@ -82,10 +82,10 @@ class CheckRunnerUnitTest {
     @Test
     void runChecks_RecordsCohortAndPassesQuestionToEvaluator() {
         // Arrange
-        CheckDef checkDef = checkDef(FIRST_QUESTION);
-        givenRunWithQuestions(checkDef);
-        givenModelAnswers(ACTUAL_ANSWER);
-        givenJudgeGivesFullScore();
+        CheckDef checkDef = activeDefinition(FIRST_QUESTION);
+        givenCheckRunWithActiveDefinitions(checkDef);
+        givenChatAnswersEveryQuestionWith(ACTUAL_ANSWER);
+        givenJudgeScoresEveryAnswerAsCorrect();
 
         // Act
         checkRunner.runChecks(checkRunId);
@@ -105,7 +105,7 @@ class CheckRunnerUnitTest {
                 .isEqualTo(1.0);
         assertThat(checkRun.getAccuracy())
                 .isEqualTo(1.0);
-        assertThat(savedChecks())
+        assertThat(checksSavedWithTheRun())
                 .singleElement()
                 .extracting(Check::getCheckRun)
                 .isSameAs(checkRun);
@@ -118,8 +118,8 @@ class CheckRunnerUnitTest {
     @Test
     void runChecks_StripsNulFromAnswerAndExecutionLog() {
         // Arrange
-        givenRunWithQuestions(checkDef(FIRST_QUESTION));
-        givenModelAnswers("Default \u0000char value.");
+        givenCheckRunWithActiveDefinitions(activeDefinition(FIRST_QUESTION));
+        givenChatAnswersEveryQuestionWith("Default \u0000char value.");
         when(evaluator.evaluateSemantic(any(), any(), any(), any())).thenAnswer(invocation -> {
             Consumer<String> logger = invocation.getArgument(3);
             logger.accept("rationale mentions '\u0000' literally");
@@ -130,7 +130,7 @@ class CheckRunnerUnitTest {
         checkRunner.runChecks(checkRunId);
 
         // Assert
-        Check savedCheck = savedChecks().iterator().next();
+        Check savedCheck = checksSavedWithTheRun().iterator().next();
         assertThat(savedCheck.getActualAnswer())
                 .isEqualTo("Default char value.");
         assertThat(savedCheck.getLog())
@@ -141,9 +141,9 @@ class CheckRunnerUnitTest {
     @Test
     void runChecks_ReportsProgressAfterEachCompletedCheck() throws InterruptedException {
         // Arrange
-        givenRunWithQuestions(checkDef(FIRST_QUESTION), checkDef(SECOND_QUESTION));
-        givenModelAnswers(ACTUAL_ANSWER);
-        givenJudgeGivesFullScore();
+        givenCheckRunWithActiveDefinitions(activeDefinition(FIRST_QUESTION), activeDefinition(SECOND_QUESTION));
+        givenChatAnswersEveryQuestionWith(ACTUAL_ANSWER);
+        givenJudgeScoresEveryAnswerAsCorrect();
 
         // Act
         checkRunner.runChecks(checkRunId, progress);
@@ -159,9 +159,9 @@ class CheckRunnerUnitTest {
     @Test
     void runChecks_InterruptedProgressCancelsTheRun() throws InterruptedException {
         // Arrange
-        givenRunWithQuestions(checkDef(FIRST_QUESTION), checkDef(SECOND_QUESTION));
-        givenModelAnswers(ACTUAL_ANSWER);
-        givenJudgeGivesFullScore();
+        givenCheckRunWithActiveDefinitions(activeDefinition(FIRST_QUESTION), activeDefinition(SECOND_QUESTION));
+        givenChatAnswersEveryQuestionWith(ACTUAL_ANSWER);
+        givenJudgeScoresEveryAnswerAsCorrect();
         doThrow(new InterruptedException("cancelled from the dialog"))
                 .when(progress)
                 .checkCompleted(any(), anyInt(), anyInt());
@@ -184,47 +184,51 @@ class CheckRunnerUnitTest {
     @Test
     void countDefinitionsToRun_UsesV2ForARunWithoutVersion() {
         // Arrange
-        givenActiveV2Questions(checkDef(FIRST_QUESTION), checkDef(SECOND_QUESTION));
+        givenActiveDefinitionsForV2(activeDefinition(FIRST_QUESTION), activeDefinition(SECOND_QUESTION));
 
         // Act
-        int definitionsToRun = checkRunner.countDefinitionsToRun(checkRun(null));
+        int definitionsToRun = checkRunner.countDefinitionsToRun(checkRunWithoutVersion());
 
         // Assert
         assertThat(definitionsToRun)
                 .isEqualTo(2);
     }
 
-    private void givenRunWithQuestions(CheckDef... definitions) {
+    private void givenCheckRunWithActiveDefinitions(CheckDef... activeDefinitions) {
         when(dataManager.load(checkRunId).one()).thenReturn(checkRun);
-        givenActiveV2Questions(definitions);
-        when(dataManager.create(Check.class)).thenAnswer(ignored -> check());
+        givenActiveDefinitionsForV2(activeDefinitions);
+        when(dataManager.create(Check.class)).thenAnswer(ignored -> emptyCheck());
     }
 
-    private void givenActiveV2Questions(CheckDef... definitions) {
+    private void givenActiveDefinitionsForV2(CheckDef... activeDefinitions) {
         when(dataManager.load(CheckDef.class)
                 .query("e.active = true and (e.jmixVersion is null or e.jmixVersion = :jmixVersion)")
                 .parameter("jmixVersion", JmixVersion.V2.getId())
                 .list())
-                .thenReturn(List.of(definitions));
+                .thenReturn(List.of(activeDefinitions));
     }
 
-    private void givenModelAnswers(String answer) {
+    private void givenChatAnswersEveryQuestionWith(String answer) {
         Chat.StructuredResponse response = new Chat.StructuredResponse(answer, List.of(), null, 1, 1, 1);
         when(chat.requestStructured(any(), any(), any(), any(), any())).thenReturn(response);
     }
 
-    private void givenJudgeGivesFullScore() {
+    private void givenJudgeScoresEveryAnswerAsCorrect() {
         when(evaluator.evaluateSemantic(any(), any(), any(), any())).thenReturn(1.0);
     }
 
-    private Collection<Check> savedChecks() {
+    private Collection<Check> checksSavedWithTheRun() {
         verify(dataManager).save(savedContext.capture());
         return savedContext.getValue()
                 .getEntitiesToSave()
                 .getAll(Check.class);
     }
 
-    private static CheckRun checkRun(JmixVersion jmixVersion) {
+    private static CheckRun checkRunWithoutVersion() {
+        return checkRunFor(null);
+    }
+
+    private static CheckRun checkRunFor(JmixVersion jmixVersion) {
         CheckRun checkRun = new CheckRun();
         checkRun.setId(UUID.randomUUID());
         checkRun.setConfigLabel(CONFIG_LABEL);
@@ -233,13 +237,13 @@ class CheckRunnerUnitTest {
         return checkRun;
     }
 
-    private static Check check() {
+    private static Check emptyCheck() {
         Check check = new Check();
         check.setId(UUID.randomUUID());
         return check;
     }
 
-    private static CheckDef checkDef(String question) {
+    private static CheckDef activeDefinition(String question) {
         CheckDef checkDef = new CheckDef();
         checkDef.setId(UUID.randomUUID());
         checkDef.setActive(true);
