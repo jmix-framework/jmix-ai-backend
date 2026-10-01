@@ -19,7 +19,7 @@ import test_support.ai.TestConversation;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static test_support.ai.ChatMessages.assistant;
 import static test_support.ai.ChatMessages.describe;
 import static test_support.ai.ChatMessages.system;
@@ -68,10 +68,13 @@ class CompletedTurnMemoryAdvisorTest {
 
     @Test
     void remembersAnAnsweredTurn() {
+        // Arrange
         model.repliesWith(FIRST_ANSWER);
 
+        // Act
         conversation.ask(FIRST_QUESTION);
 
+        // Assert
         assertThat(rememberedMessages()).containsExactly(
                 user(FIRST_QUESTION),
                 assistant(FIRST_ANSWER));
@@ -79,12 +82,15 @@ class CompletedTurnMemoryAdvisorTest {
 
     @Test
     void sendsTheHistoryAfterTheSystemPrompt() {
+        // Arrange
         model.repliesWith(FIRST_ANSWER);
         conversation.ask(FIRST_QUESTION);
-
         model.repliesWith(NEXT_ANSWER);
+
+        // Act
         conversation.ask(NEXT_QUESTION);
 
+        // Assert
         assertThat(describe(model.lastPrompt())).containsExactly(
                 system(SYSTEM_PROMPT),
                 user(FIRST_QUESTION),
@@ -94,28 +100,34 @@ class CompletedTurnMemoryAdvisorTest {
 
     @Test
     void keepsTheRequestOptionsOnAFollowUpTurn() {
+        // Arrange
         ChatOptions options = ChatOptions.builder()
                 .model("test-model")
                 .build();
         model.repliesWith(FIRST_ANSWER);
         conversation.ask(FIRST_QUESTION, options);
-
         model.repliesWith(NEXT_ANSWER);
+
+        // Act
         conversation.ask(NEXT_QUESTION, options);
 
+        // Assert
         ChatOptions receivedOptions = model.lastPrompt().getOptions();
         assertThat(receivedOptions).extracting(ChatOptions::getModel).isEqualTo("test-model");
     }
 
     @Test
     void forgetsATurnWhoseCallFailed() {
+        // Arrange
         model.repliesWith(FIRST_ANSWER);
         conversation.ask(FIRST_QUESTION);
-
         model.fails();
-        assertThatThrownBy(() -> conversation.ask(INTERRUPTED_QUESTION))
-                .hasStackTraceContaining(ScriptedChatModel.FAILURE_MESSAGE);
 
+        // Act
+        Throwable failure = catchThrowable(() -> conversation.ask(INTERRUPTED_QUESTION));
+
+        // Assert
+        assertThat(failure).hasStackTraceContaining(ScriptedChatModel.FAILURE_MESSAGE);
         assertThat(rememberedMessages()).containsExactly(
                 user(FIRST_QUESTION),
                 assistant(FIRST_ANSWER));
@@ -123,15 +135,17 @@ class CompletedTurnMemoryAdvisorTest {
 
     @Test
     void sendsTheNextQuestionWithoutTheOneWhoseCallFailed() {
+        // Arrange
         model.repliesWith(FIRST_ANSWER);
         conversation.ask(FIRST_QUESTION);
         model.fails();
-        assertThatThrownBy(() -> conversation.ask(INTERRUPTED_QUESTION))
-                .hasStackTraceContaining(ScriptedChatModel.FAILURE_MESSAGE);
-
+        conversation.askAndExpectFailure(INTERRUPTED_QUESTION);
         model.repliesWith(NEXT_ANSWER);
+
+        // Act
         conversation.ask(NEXT_QUESTION);
 
+        // Assert
         assertThat(describe(model.lastPrompt())).containsExactly(
                 system(SYSTEM_PROMPT),
                 user(FIRST_QUESTION),
@@ -141,19 +155,25 @@ class CompletedTurnMemoryAdvisorTest {
 
     @Test
     void forgetsATurnWithABlankAnswer() {
+        // Arrange
         model.repliesWith(" ");
 
+        // Act
         conversation.ask(FIRST_QUESTION);
 
+        // Assert
         assertThat(rememberedMessages()).isEmpty();
     }
 
     @Test
     void remembersAStreamedAnswerAsOneMessage() {
+        // Arrange
         model.streamsChunks("Add a richCodeEditor ", "component to the view.");
 
+        // Act
         conversation.askStreaming(FIRST_QUESTION);
 
+        // Assert
         assertThat(rememberedMessages()).containsExactly(
                 user(FIRST_QUESTION),
                 assistant(FIRST_ANSWER));
@@ -161,20 +181,26 @@ class CompletedTurnMemoryAdvisorTest {
 
     @Test
     void forgetsAStreamThatFailedMidway() {
+        // Arrange
         model.streamsChunkThenFails("Use the ");
 
-        assertThatThrownBy(() -> conversation.askStreaming(INTERRUPTED_QUESTION))
-                .hasStackTraceContaining(ScriptedChatModel.FAILURE_MESSAGE);
+        // Act
+        Throwable failure = catchThrowable(() -> conversation.askStreaming(INTERRUPTED_QUESTION));
 
+        // Assert
+        assertThat(failure).hasStackTraceContaining(ScriptedChatModel.FAILURE_MESSAGE);
         assertThat(rememberedMessages()).isEmpty();
     }
 
     @Test
     void forgetsAStreamTheClientAbandoned() {
+        // Arrange
         model.streamsChunkThenHangs("Use the ");
 
+        // Act
         String receivedBeforeAbandoning = conversation.askStreamingAndAbandonAfterFirstChunk(INTERRUPTED_QUESTION);
 
+        // Assert
         assertThat(receivedBeforeAbandoning).isEqualTo("Use the ");
         assertThat(rememberedMessages()).isEmpty();
     }

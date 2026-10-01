@@ -10,6 +10,8 @@ import reactor.core.publisher.Flux;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 public class TestConversation {
 
     private final ChatClient client;
@@ -35,6 +37,10 @@ public class TestConversation {
                 .options(options)
                 .call()
                 .chatResponse();
+    }
+
+    public void askAndExpectFailure(String question) {
+        assertThatThrownBy(() -> ask(question));
     }
 
     public void askStreaming(String question) {
