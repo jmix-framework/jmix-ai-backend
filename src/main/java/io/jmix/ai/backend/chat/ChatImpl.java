@@ -105,7 +105,7 @@ public class ChatImpl implements Chat {
 
         ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
         ChatModel chatModel = buildChatModel(parametersReader);
-        ChatClient chatClient = buildClient(chatModel);
+        ChatClient chatClient = buildClient(chatModel, chatMemory);
 
         List<Document> retrievedDocuments = new ArrayList<>();
         List<AbstractRagTool> tools = toolsManager.getTools(parametersYaml, retrievedDocuments, listener, jmixVersion);
@@ -514,7 +514,7 @@ public class ChatImpl implements Chat {
                 .orElse(null);
     }
 
-    private Prompt buildPrompt(String userPrompt, String systemPrompt) {
+    static Prompt buildPrompt(String userPrompt, String systemPrompt) {
         return new Prompt(List.of(
                 new SystemMessage(systemPrompt),
                 new UserMessage(userPrompt)
@@ -552,9 +552,12 @@ public class ChatImpl implements Chat {
                 .build();
     }
 
-    private ChatClient buildClient(ChatModel chatModel) {
+    static ChatClient buildClient(ChatModel chatModel, ChatMemory chatMemory) {
         return ChatClient.builder(chatModel)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        // the memory advisor puts the history ahead of the system prompt
+                        new SystemMessageFirstAdvisor())
                 .build();
     }
 
