@@ -36,6 +36,7 @@ class ChatImplTest {
     private static final String FIRST_QUESTION = "How to use RichCodeEditor?";
     private static final String FIRST_ANSWER = "Add a richCodeEditor component to the view.";
     private static final String INTERRUPTED_QUESTION = "How to display Polygon in Map?";
+    private static final String MODEL_FAILURE = "model failed";
 
     @Mock
     private ParametersRepository parametersRepository;
@@ -67,7 +68,7 @@ class ChatImplTest {
                 new UserMessage(FIRST_QUESTION),
                 new AssistantMessage(FIRST_ANSWER)));
         ChatModel failingModel = ignored -> {
-            throw new IllegalStateException("model failed");
+            throw new IllegalStateException(MODEL_FAILURE);
         };
         ChatClient client = chat.buildClient(failingModel);
         Prompt prompt = chat.buildPrompt(INTERRUPTED_QUESTION, SYSTEM_PROMPT);
@@ -80,7 +81,7 @@ class ChatImplTest {
 
         // Assert
         assertThat(failure)
-                .hasStackTraceContaining("model failed");
+                .hasStackTraceContaining(MODEL_FAILURE);
         assertThat(memoryRepository.findByConversationId(CONVERSATION_ID))
                 .extracting(Message::getMessageType, Message::getText)
                 .containsExactly(
