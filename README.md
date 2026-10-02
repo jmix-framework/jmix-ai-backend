@@ -166,5 +166,19 @@ docker run --name pgvector -p 15433:5432 -e POSTGRES_USER=postgres -e POSTGRES_P
 
 Build app image:
 ```shell
+docker build -t jmix-ai-backend .
+```
+
+The image runs with the `prod` profile and listens on port 8081. Override the profile or the datasources with environment variables, for example:
+```shell
+docker run -p 8081:8081 \
+  -e OPENAI_API_KEY=... \
+  -e MAIN_DATASOURCE_URL=jdbc:postgresql://db-host/jmix-ai-backend \
+  -e PGVECTOR_DATASOURCE_URL=jdbc:postgresql://vector-host/postgres \
+  jmix-ai-backend
+```
+
+The image can also be built with Cloud Native Buildpacks:
+```shell
 ./gradlew bootBuildImage -Pvaadin.productionMode=true
 ```
