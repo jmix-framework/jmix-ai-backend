@@ -23,8 +23,6 @@ RUN addgroup -S app && adduser -S -G app -h /app app
 WORKDIR /app
 USER app
 
-COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-
 COPY --from=builder --chown=app /build/extracted/dependencies/ ./
 COPY --from=builder --chown=app /build/extracted/spring-boot-loader/ ./
 COPY --from=builder --chown=app /build/extracted/snapshot-dependencies/ ./
@@ -37,4 +35,11 @@ EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
     CMD wget -q -O /dev/null http://localhost:8081/actuator/health || exit 1
 
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT : "${OPENAI_API_KEY:?is required}" \
+    "${MAIN_DATASOURCE_URL:?is required}" \
+    "${MAIN_DATASOURCE_USERNAME:?is required}" \
+    "${MAIN_DATASOURCE_PASSWORD:?is required}" \
+    "${PGVECTOR_DATASOURCE_URL:?is required}" \
+    "${PGVECTOR_DATASOURCE_USERNAME:?is required}" \
+    "${PGVECTOR_DATASOURCE_PASSWORD:?is required}" \
+    && exec java org.springframework.boot.loader.launch.JarLauncher
