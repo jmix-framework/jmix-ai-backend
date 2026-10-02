@@ -32,6 +32,7 @@ public abstract class AbstractOpenAiEnricher {
             String modelName,
             String reasoningEffort,
             String configuredApiKey,
+            String baseUrl,
             boolean requireApiKey,
             Duration connectTimeout,
             Duration readTimeout) {
@@ -48,10 +49,13 @@ public abstract class AbstractOpenAiEnricher {
             SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
             requestFactory.setConnectTimeout(connectTimeout);
             requestFactory.setReadTimeout(readTimeout);
-            this.openAiApi = OpenAiApi.builder()
+            OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
                     .apiKey(apiKey)
-                    .restClientBuilder(RestClient.builder().requestFactory(requestFactory))
-                    .build();
+                    .restClientBuilder(RestClient.builder().requestFactory(requestFactory));
+            if (StringUtils.isNotBlank(baseUrl)) {
+                apiBuilder.baseUrl(baseUrl);
+            }
+            this.openAiApi = apiBuilder.build();
         }
     }
 

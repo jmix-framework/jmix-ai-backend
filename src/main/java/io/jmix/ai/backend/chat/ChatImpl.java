@@ -34,6 +34,7 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -66,13 +67,15 @@ public class ChatImpl implements Chat {
     private final ChatLogManager chatLogManager;
     private final Scheduler streamingScheduler;
     private final SystemPromptResolver systemPromptResolver;
+    private final String openAiBaseUrl;
 
     public ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
                     ParametersRepository parametersRepository,
                     @Qualifier("streamingScheduler") Scheduler streamingScheduler,
                     ToolsManager toolsManager,
                     ChatLogManager chatLogManager,
-                    SystemPromptResolver systemPromptResolver) {
+                    SystemPromptResolver systemPromptResolver,
+                    @Value("${spring.ai.openai.base-url:}") String openAiBaseUrl) {
         this.parametersRepository = parametersRepository;
         this.streamingScheduler = streamingScheduler;
         this.chatLogManager = chatLogManager;
@@ -86,6 +89,7 @@ public class ChatImpl implements Chat {
         observationRegistry = ObservationRegistry.create();
         observationRegistry.observationConfig().observationHandler(getChatObservationHandler());
         this.toolsManager = toolsManager;
+        this.openAiBaseUrl = openAiBaseUrl;
     }
 
     private record ChatRequestContext(
@@ -526,9 +530,12 @@ public class ChatImpl implements Chat {
         if (StringUtils.isBlank(openaiApiKey)) {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
         }
-        OpenAiApi openAiApi = OpenAiApi.builder()
-                .apiKey(openaiApiKey)
-                .build();
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .apiKey(openaiApiKey);
+        if (StringUtils.isNotBlank(openAiBaseUrl)) {
+            apiBuilder.baseUrl(openAiBaseUrl);
+        }
+        OpenAiApi openAiApi = apiBuilder.build();
 
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .model(parametersReader.getString("model.name", "gpt-5"));

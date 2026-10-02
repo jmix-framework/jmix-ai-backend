@@ -54,7 +54,7 @@ class SnippetizerEnricherTest {
         }
 
         TestSnippetizer(ChatModel chatModel, EnrichmentCacheRepository enrichmentCacheRepository) {
-            super("test-model", "low", 4, "test-key",
+            super("test-model", "low", 4, "test-key", "",
                     Duration.ofSeconds(1), Duration.ofSeconds(1), enrichmentCacheRepository);
             this.chatModel = chatModel;
         }
