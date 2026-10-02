@@ -166,10 +166,15 @@ docker run --name pgvector -p 15433:5432 -e POSTGRES_USER=postgres -e POSTGRES_P
 
 Build app image:
 ```shell
+./gradlew bootBuildImage -Pvaadin.productionMode=true
+```
+
+Alternatively, build the image with the `Dockerfile`:
+```shell
 docker build -t jmix-ai-backend .
 ```
 
-The image runs with the `prod` profile and listens on port 8081. The container exits at startup if any of these environment variables is not set:
+This image runs with the `prod` profile and listens on port 8081. The container exits at startup if any of these environment variables is not set:
 ```shell
 docker run -p 8081:8081 \
   -e OPENAI_API_KEY=... \
@@ -180,14 +185,4 @@ docker run -p 8081:8081 \
   -e PGVECTOR_DATASOURCE_USERNAME=... \
   -e PGVECTOR_DATASOURCE_PASSWORD=... \
   jmix-ai-backend
-```
-
-To build and run the application together with the databases from `docker-compose.yml`, enable the `app` profile. `OPENAI_API_KEY` is taken from your environment:
-```shell
-docker compose --profile app up --build
-```
-
-The image can also be built with Cloud Native Buildpacks:
-```shell
-./gradlew bootBuildImage -Pvaadin.productionMode=true
 ```
