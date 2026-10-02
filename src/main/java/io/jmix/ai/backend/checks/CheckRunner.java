@@ -53,9 +53,18 @@ public class CheckRunner {
         this.evaluatorConfig = externalEvaluator.configurationSnapshot();
     }
 
+    public int countDefinitionsToRun(CheckRun checkRun) {
+        List<CheckDef> definitions = loadActiveDefinitions(versionOf(checkRun));
+        return definitions.size();
+    }
+
     public void runChecks(Id<CheckRun> checkRunId) {
+        runChecks(checkRunId, CheckRunProgress.NONE);
+    }
+
+    public void runChecks(Id<CheckRun> checkRunId, CheckRunProgress progress) {
         CheckRun checkRun = dataManager.load(checkRunId).one();
-        JmixVersion jmixVersion = checkRun.getJmixVersion() != null ? checkRun.getJmixVersion() : JmixVersion.V2;
+        JmixVersion jmixVersion = versionOf(checkRun);
         List<Future<Check>> submittedChecks = new ArrayList<>();
         try {
             List<CheckDef> definitions = loadActiveDefinitions(jmixVersion);
@@ -65,7 +74,7 @@ public class CheckRunner {
 
             prepareRunMetadata(checkRun, definitions);
             List<Check> completedChecks = executeChecks(
-                    definitions, checkRun.getParameters(), jmixVersion, submittedChecks);
+                    definitions, checkRun.getParameters(), jmixVersion, submittedChecks, progress);
 
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Check run was cancelled");
@@ -103,7 +112,8 @@ public class CheckRunner {
     private List<Check> executeChecks(List<CheckDef> definitions,
                                       String parameters,
                                       JmixVersion jmixVersion,
-                                      List<Future<Check>> submittedChecks)
+                                      List<Future<Check>> submittedChecks,
+                                      CheckRunProgress progress)
             throws InterruptedException, ExecutionException {
         CompletionService<Check> completedChecks = new ExecutorCompletionService<>(executor);
         Iterator<CheckDef> remainingDefinitions = definitions.iterator();
@@ -114,11 +124,13 @@ public class CheckRunner {
 
         List<Check> results = new ArrayList<>(definitions.size());
         for (int i = 0; i < definitions.size(); i++) {
-            results.add(completedChecks.take().get());
+            Check completedCheck = completedChecks.take().get();
+            results.add(completedCheck);
             if (remainingDefinitions.hasNext()) {
                 submittedChecks.add(submitCheck(
                         completedChecks, remainingDefinitions.next(), parameters, jmixVersion));
             }
+            progress.checkCompleted(completedCheck, results.size(), definitions.size());
         }
         return results;
     }
@@ -159,6 +171,10 @@ public class CheckRunner {
         check.setScore(score);
         check.setLog(NormalizationUtils.stripNul(log));
         return check;
+    }
+
+    private static JmixVersion versionOf(CheckRun checkRun) {
+        return checkRun.getJmixVersion() != null ? checkRun.getJmixVersion() : JmixVersion.V2;
     }
 
     private List<CheckDef> loadActiveDefinitions(JmixVersion jmixVersion) {
