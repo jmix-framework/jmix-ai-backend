@@ -16,4 +16,4 @@ if [ -n "$missing" ]; then
     exit 1
 fi
 
-exec java -jar application.jar "$@"
+exec java org.springframework.boot.loader.launch.JarLauncher "$@"
