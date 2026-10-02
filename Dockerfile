@@ -14,10 +14,12 @@ RUN --mount=type=cache,target=/root/.gradle \
     && cp build/libs/*.jar application.jar \
     && java -Djarmode=tools -jar application.jar extract --layers --destination extracted
 
-FROM eclipse-temurin:21-jre-jammy
-RUN useradd --system --create-home --home-dir /app app
+FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -S app && adduser -S -G app -h /app app
 WORKDIR /app
 USER app
+
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 COPY --from=builder --chown=app /build/extracted/dependencies/ ./
 COPY --from=builder --chown=app /build/extracted/snapshot-dependencies/ ./
@@ -28,6 +30,6 @@ ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
 EXPOSE 8081
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-    CMD curl -fsS http://localhost:8081/actuator/health || exit 1
+    CMD wget -q -O /dev/null http://localhost:8081/actuator/health || exit 1
 
-ENTRYPOINT ["java", "-jar", "application.jar"]
+ENTRYPOINT ["entrypoint.sh"]

@@ -5,5 +5,6 @@
 !build.gradle
 !gradle.properties
 !src/
+!docker/
 src/main/frontend/generated/
 src/main/bundles/

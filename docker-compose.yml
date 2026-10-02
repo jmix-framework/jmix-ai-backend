@@ -34,6 +34,26 @@ services:
       retries: 10
     restart: unless-stopped
 
+  app:
+    profiles: ["app"]
+    build: .
+    image: jmix-ai-backend
+    environment:
+      - OPENAI_API_KEY
+      - MAIN_DATASOURCE_URL=jdbc:postgresql://postgres/jmix-ai-backend
+      - MAIN_DATASOURCE_USERNAME=postgres
+      - MAIN_DATASOURCE_PASSWORD=postgres
+      - PGVECTOR_DATASOURCE_URL=jdbc:postgresql://pgvector/vectorstore
+      - PGVECTOR_DATASOURCE_USERNAME=postgres
+      - PGVECTOR_DATASOURCE_PASSWORD=postgres
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgvector:
+        condition: service_healthy
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command:
