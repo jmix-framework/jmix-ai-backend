@@ -96,16 +96,20 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
     public ExternalEvaluatorImpl(
             @Value("${answer-checks.model:gpt-5-mini}") String model,
             @Value("${answer-checks.temperature:0}") double temperature,
-            @Value("${spring.ai.openai.api-key:}") String configuredApiKey
+            @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
+            @Value("${spring.ai.openai.base-url:}") String baseUrl
     ) {
         String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
         if (StringUtils.isBlank(apiKey)) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
         }
 
-        OpenAiApi openAiApi = OpenAiApi.builder()
-                .apiKey(apiKey)
-                .build();
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .apiKey(apiKey);
+        if (StringUtils.isNotBlank(baseUrl)) {
+            apiBuilder.baseUrl(baseUrl);
+        }
+        OpenAiApi openAiApi = apiBuilder.build();
 
         OpenAiChatOptions options = OpenAiChatOptions.builder()
                 .model(model)

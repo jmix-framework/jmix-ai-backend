@@ -81,9 +81,10 @@ public class JavaApiEnricher extends AbstractOpenAiEnricher {
             @Value("${javaapi.enrichment.model}") String modelName,
             @Value("${javaapi.enrichment.reasoning-effort:}") String reasoningEffort,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
+            @Value("${spring.ai.openai.base-url:}") String baseUrl,
             @Value("${enrichment.openai.connect-timeout}") Duration connectTimeout,
             @Value("${enrichment.openai.read-timeout}") Duration readTimeout) {
-        super(modelName, reasoningEffort, configuredApiKey, false, connectTimeout, readTimeout);
+        super(modelName, reasoningEffort, configuredApiKey, baseUrl, false, connectTimeout, readTimeout);
     }
 
     @Override
