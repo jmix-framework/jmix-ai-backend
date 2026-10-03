@@ -7,14 +7,13 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 public interface Chat {
 
     /** @deprecated Use {@link #requestStream} instead. */
     @Deprecated
     StructuredResponse requestStructured(String userPrompt, String parametersYaml, @Nullable String conversationId,
-                                         @Nullable JmixVersion jmixVersion, @Nullable Consumer<String> externalLogger);
+                                         @Nullable JmixVersion jmixVersion, boolean saveChatLog);
 
     default Flux<StreamingEvent> requestStream(String userPrompt, String parametersYaml,
                                                @Nullable String conversationId, @Nullable JmixVersion jmixVersion) {
@@ -24,6 +23,7 @@ public interface Chat {
     record StructuredResponse(
             String text,
             List<String> logMessages,
+            List<String> retrievalLog,
             @Nullable List<Document> retrievedDocuments,
             @Nullable List<String> sourceLinks,
             int promptTokens,
@@ -31,10 +31,16 @@ public interface Chat {
             int responseTime
     ) {
 
+        public StructuredResponse(String text, List<String> logMessages, List<String> retrievalLog,
+                                  @Nullable List<Document> retrievedDocuments,
+                                  int promptTokens, int completionTokens, int responseTime) {
+            this(text, logMessages, retrievalLog, retrievedDocuments, getSourceLinks(retrievedDocuments),
+                    promptTokens, completionTokens, responseTime);
+        }
+
         public StructuredResponse(String text, List<String> logMessages, @Nullable List<Document> retrievedDocuments,
                                   int promptTokens, int completionTokens, int responseTime) {
-            this(text, logMessages, retrievedDocuments, getSourceLinks(retrievedDocuments),
-                    promptTokens, completionTokens, responseTime);
+            this(text, logMessages, List.of(), retrievedDocuments, promptTokens, completionTokens, responseTime);
         }
 
         private static List<String> getSourceLinks(@Nullable List<Document> retrievedDocuments) {

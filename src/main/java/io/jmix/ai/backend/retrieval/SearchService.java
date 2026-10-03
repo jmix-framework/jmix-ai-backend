@@ -45,46 +45,15 @@ public class SearchService {
     public List<Document> search(String query, JmixVersion jmixVersion, @Nullable Integer maxResults) {
         List<Document> retrievedDocuments = new ArrayList<>();
 
-        List<String> logMessages = new ArrayList<>();
-
-        ToolEventListener listener = new ToolEventListener() {
-            @Override
-            public void onToolCallStart(String tool, String query,
-                                        @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
-                String suffix = requested == null ? ""
-                        : " (%d results requested, vector fetch widened to %d)"
-                                .formatted(requested.results(), requested.vectorFetch());
-                RetrievalUtils.addLogMessage(logger, logMessages, "Using %s: %s%s".formatted(tool, query, suffix));
-            }
-
-            @Override
-            public void onToolRetrieved(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
-                RetrievalUtils.addLogMessage(logger, logMessages, "Retrieved %d docs in %d ms".formatted(documents.size(), durationMs));
-            }
-
-            @Override
-            public void onToolReranked(String tool, List<EventStreamValueHolder.DocScore> documents, long durationMs) {
-                RetrievalUtils.addLogMessage(logger, logMessages, "Reranked to %d docs in %d ms".formatted(documents.size(), durationMs));
-            }
-
-            @Override
-            public void onToolCallEnd(String tool, long totalDurationMs) {
-                RetrievalUtils.addLogMessage(logger, logMessages, "%s done in %d ms".formatted(tool, totalDurationMs));
-            }
-
-            @Override
-            public void onLog(String message) {
-                RetrievalUtils.addLogMessage(logger, logMessages, message);
-            }
-        };
-
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.SEARCH);
 
-        List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), retrievedDocuments, listener, jmixVersion);
+        List<AbstractRagTool> ragTools = toolsManager.getTools(parameters.getContent(), jmixVersion);
 
         // each tool fills the pool with up to maxResults candidates from its own corpus
         for (AbstractRagTool tool : ragTools) {
-            tool.execute(query, maxResults);
+            RetrievalResult result = tool.search(query, maxResults);
+            logResult(result);
+            retrievedDocuments.addAll(result.documents());
         }
 
         // then keep the globally most relevant maxResults across all corpora
@@ -93,5 +62,25 @@ public class SearchService {
             return ranked.subList(0, maxResults);
         }
         return ranked;
+    }
+
+    private void logResult(RetrievalResult result) {
+        logger.debug("Using {}: {}{}", result.tool(), result.query(), formatRequested(result.requested()));
+        for (RetrievalResult.Step step : result.steps()) {
+            switch (step) {
+                case RetrievalResult.Retrieved retrieved ->
+                        logger.debug("Retrieved {} docs in {} ms", retrieved.documents().size(), retrieved.durationMs());
+                case RetrievalResult.Reranked reranked ->
+                        logger.debug("Reranked to {} docs in {} ms", reranked.documents().size(), reranked.durationMs());
+                case RetrievalResult.Note note -> logger.debug(note.message());
+            }
+        }
+        logger.debug("{} done in {} ms", result.tool(), result.durationMs());
+    }
+
+    private static String formatRequested(@Nullable EventStreamValueHolder.RequestedRetrieval requested) {
+        return requested == null ? ""
+                : " (%d results requested, vector fetch widened to %d)"
+                        .formatted(requested.results(), requested.vectorFetch());
     }
 }

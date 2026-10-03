@@ -3,7 +3,6 @@ package io.jmix.ai.backend.retrieval;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
-import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
@@ -27,25 +26,24 @@ public class ToolsManager {
         this.reranker = reranker;
     }
 
-    public List<AbstractRagTool> getTools(String parametersYaml, List<Document> retrievedDocuments,
-                                          ToolEventListener listener, JmixVersion jmixVersion) {
+    public List<AbstractRagTool> getTools(String parametersYaml, JmixVersion jmixVersion) {
         ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
 
         PostRetrievalProcessor postRetrievalProcessor = applicationContext.getBean(
-                PostRetrievalProcessor.class, parametersReader, (java.util.function.Consumer<String>) listener::onLog);
+                PostRetrievalProcessor.class, parametersReader);
 
         List<AbstractRagTool> tools = new ArrayList<>();
         if (parametersReader.getBoolean("tools.documentation_retriever.enabled", true)) {
-            tools.add(new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener, jmixVersion));
+            tools.add(new DocsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, jmixVersion));
         }
         if (parametersReader.getBoolean("tools.uisamples_retriever.enabled", true)) {
-            tools.add(new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener, jmixVersion));
+            tools.add(new UiSamplesTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, jmixVersion));
         }
         if (parametersReader.getBoolean("tools.trainings_retriever.enabled", true)) {
-            tools.add(new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener, jmixVersion));
+            tools.add(new TrainingsTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, jmixVersion));
         }
         if (parametersReader.getBoolean("tools.javaapi_retriever.enabled", false)) {
-            tools.add(new JavaApiTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, retrievedDocuments, listener, jmixVersion));
+            tools.add(new JavaApiTool(vectorStore, postRetrievalProcessor, reranker, parametersReader, jmixVersion));
         }
         return tools;
     }

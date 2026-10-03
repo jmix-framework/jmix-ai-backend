@@ -1,7 +1,10 @@
 package io.jmix.ai.backend.retrieval;
 
+import io.jmix.ai.backend.chat.TurnTrace;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
+import org.slf4j.MDC;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -17,6 +20,7 @@ import org.springframework.util.ReflectionUtils;
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -52,8 +56,6 @@ public abstract class AbstractRagTool {
     protected final VectorStore vectorStore;
     private final PostRetrievalProcessor postRetrievalProcessor;
     private final Reranker reranker;
-    private final List<Document> retrievedDocuments;
-    private final ToolEventListener listener;
     private final ParametersReader parametersReader;
     protected String type;
     protected final JmixVersion jmixVersion;
@@ -69,14 +71,11 @@ public abstract class AbstractRagTool {
 
     protected AbstractRagTool(String toolName, String type, VectorStore vectorStore,
                               PostRetrievalProcessor postRetrievalProcessor, Reranker reranker,
-                              ParametersReader parametersReader, List<Document> retrievedDocuments,
-                              ToolEventListener listener, JmixVersion jmixVersion, boolean versionScoped) {
+                              ParametersReader parametersReader, JmixVersion jmixVersion, boolean versionScoped) {
         this.toolName = toolName;
         this.vectorStore = vectorStore;
         this.postRetrievalProcessor = postRetrievalProcessor;
         this.reranker = reranker;
-        this.retrievedDocuments = retrievedDocuments;
-        this.listener = listener;
         this.parametersReader = parametersReader;
         this.type = type;
         this.jmixVersion = Objects.requireNonNull(jmixVersion, "jmixVersion must not be null");
@@ -113,8 +112,8 @@ public abstract class AbstractRagTool {
         // the exposed method defines the LLM-visible schema: the fixed pipeline accepts only the
         // query, the adaptive one also lets the model request a result count
         Method method = Objects.requireNonNull(isFixedPipeline()
-                ? ReflectionUtils.findMethod(getClass(), "execute", String.class)
-                : ReflectionUtils.findMethod(getClass(), "execute", String.class, Integer.class));
+                ? ReflectionUtils.findMethod(getClass(), "execute", String.class, ToolContext.class)
+                : ReflectionUtils.findMethod(getClass(), "execute", String.class, Integer.class, ToolContext.class));
 
         ToolCallback toolCallback = MethodToolCallback.builder()
                 .toolDefinition(ToolDefinition.builder()
@@ -128,36 +127,77 @@ public abstract class AbstractRagTool {
         return toolCallback;
     }
 
-    /** Fixed-pipeline entry point: retrieval sizes come from the configuration alone. */
-    public String execute(String queryText) {
-        if (!isFixedPipeline()) {
-            // an adaptive tool has no topK to unbox; a one-arg call means "no requested count"
-            return execute(queryText, null);
-        }
-        return executeSearch(queryText, topK, topReranked, null, null, null);
+    /** Fixed-pipeline tool method: retrieval sizes come from the configuration alone. */
+    public String execute(String queryText, @Nullable ToolContext toolContext) {
+        return execute(queryText, null, toolContext);
     }
 
     /**
-     * Adaptive entry point: {@code maxResults} lets the caller decide how many snippets it needs
-     * back for this call; omit it to use the configured default. On a fixed-pipeline tool
-     * {@code maxResults} is ignored.
+     * Adaptive tool method: {@code maxResults} lets the model decide how many snippets it needs
+     * back for this call; omit it to use the configured default.
      */
     public String execute(
             @ToolParam(description = "Search query in English. For API questions use the class or member name (e.g. DataManager, FetchPlan.BASE); otherwise a short natural-language query.")
             String queryText,
             @ToolParam(required = false, description = MAX_RESULTS_DESCRIPTION)
-            Integer maxResults) {
-        if (isFixedPipeline()) {
-            return execute(queryText);
+            Integer maxResults,
+            @Nullable ToolContext toolContext) {
+        TurnTrace trace = TurnTrace.from(toolContext);
+        String conversationId = trace != null ? trace.conversationId() : null;
+        String previousConversationId = MDC.get("cid");
+        MDC.put("cid", conversationId != null ? conversationId : "");
+        Instant startedAt = Instant.now();
+        if (trace != null) {
+            trace.toolStarted(toolName, queryText, requestedRetrieval(maxResults));
         }
-        boolean callerRequested = maxResults != null && maxResults > 0;
-        int requested = callerRequested ? Math.min(maxResults, MAX_RESULTS_CAP) : topReranked;
+        try {
+            RetrievalResult result = search(queryText, maxResults);
+            if (trace != null) {
+                trace.addRetrieval(result);
+            }
+            return result.text();
+        } catch (RuntimeException e) {
+            if (trace != null) {
+                trace.addRetrieval(RetrievalResult.failed(toolName, queryText, startedAt));
+            }
+            throw e;
+        } finally {
+            if (previousConversationId != null) {
+                MDC.put("cid", previousConversationId);
+            } else {
+                MDC.remove("cid");
+            }
+        }
+    }
+
+    /**
+     * {@code maxResults} lets the caller decide how many snippets it needs back; null uses the
+     * configured default. On a fixed-pipeline tool {@code maxResults} is ignored.
+     */
+    public RetrievalResult search(String queryText, @Nullable Integer maxResults) {
+        if (isFixedPipeline()) {
+            return executeSearch(queryText, topK, topReranked, null, null, null);
+        }
+        EventStreamValueHolder.RequestedRetrieval callerRequest = requestedRetrieval(maxResults);
+        int requested = callerRequest != null ? callerRequest.results() : topReranked;
+        int vectorFetch = vectorFetchFor(requested);
+        return executeSearch(queryText, vectorFetch, vectorFetch, requested, requested, callerRequest);
+    }
+
+    @Nullable
+    private EventStreamValueHolder.RequestedRetrieval requestedRetrieval(@Nullable Integer maxResults) {
+        if (isFixedPipeline() || maxResults == null || maxResults <= 0) {
+            return null;
+        }
+        int requested = Math.min(maxResults, MAX_RESULTS_CAP);
+        return new EventStreamValueHolder.RequestedRetrieval(requested, vectorFetchFor(requested));
+    }
+
+    private static int vectorFetchFor(int requested) {
         // overfetch: the per-source cap needs spare candidates to refill from. The reranker is
         // asked for the whole pool — it scores every candidate in one call anyway, and truncating
         // its result before the cap would leave nothing to refill from when one page floods the top
-        int vectorFetch = Math.min(requested * 4, MAX_VECTOR_FETCH);
-        return executeSearch(queryText, vectorFetch, vectorFetch, requested, requested,
-                callerRequested ? new EventStreamValueHolder.RequestedRetrieval(requested, vectorFetch) : null);
+        return Math.min(requested * 4, MAX_VECTOR_FETCH);
     }
 
     /**
@@ -166,107 +206,113 @@ public abstract class AbstractRagTool {
      * {@code fallbackLimit} select the fixed-pipeline semantics — no per-source cap and an
      * unbounded minScore filter when reranking fails; non-null values cap both paths.
      */
-    private String executeSearch(
+    private RetrievalResult executeSearch(
             String queryText,
             int vectorTopK,
             int rerankTopN,
             @Nullable Integer resultLimit,
             @Nullable Integer fallbackLimit,
             @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
-        long startTime = System.currentTimeMillis();
-        listener.onToolCallStart(toolName, queryText, requested);
+        Instant startedAt = Instant.now();
+        List<RetrievalResult.Step> steps = new ArrayList<>();
 
-        try {
-            // Retrieval
-            SearchRequest.Builder requestBuilder = SearchRequest.builder()
-                    .query(queryText)
-                    .similarityThreshold(similarityThreshold)
-                    .topK(vectorTopK);
+        // Retrieval
+        SearchRequest.Builder requestBuilder = SearchRequest.builder()
+                .query(queryText)
+                .similarityThreshold(similarityThreshold)
+                .topK(vectorTopK);
 
-            FilterExpressionBuilder fb = new FilterExpressionBuilder();
-            var typeFilter = fb.eq("type", type);
-            var filter = versionScoped
-                    ? fb.and(typeFilter, fb.eq("jmixVersion", jmixVersion.getId())).build()
-                    : typeFilter.build();
-            requestBuilder.filterExpression(filter);
+        FilterExpressionBuilder fb = new FilterExpressionBuilder();
+        var typeFilter = fb.eq("type", type);
+        var filter = versionScoped
+                ? fb.and(typeFilter, fb.eq("jmixVersion", jmixVersion.getId())).build()
+                : typeFilter.build();
+        requestBuilder.filterExpression(filter);
 
-            SearchRequest searchRequest = requestBuilder.build();
+        SearchRequest searchRequest = requestBuilder.build();
 
-            long retrievalStart = System.currentTimeMillis();
-            List<Document> documents = vectorStore.similaritySearch(searchRequest);
-            long retrievalMs = System.currentTimeMillis() - retrievalStart;
+        long retrievalStart = System.currentTimeMillis();
+        List<Document> documents = vectorStore.similaritySearch(searchRequest);
+        long retrievalMs = System.currentTimeMillis() - retrievalStart;
 
-            if (documents == null) {
-                listener.onToolRetrieved(toolName, List.of(), retrievalMs);
-                return getNoResultsMessage();
-            }
-            listener.onToolRetrieved(toolName, toDocScores(documents), retrievalMs);
-
-            documents = postRetrievalProcessor.process(queryText, documents);
-            if (documents.isEmpty()) {
-                listener.onLog("All documents filtered out by PostRetrievalProcessor");
-                return getNoResultsMessage();
-            }
-
-            // Reranking. The reranker judges every candidate: capping per source beforehand would
-            // hide relevant chunks from it by raw cosine alone — the page that legitimately holds
-            // most of the answer loses its less obvious parts (a job page keeps its "how to
-            // schedule" snippets and drops the "authenticate the job" one). The cap is applied to
-            // the reranked list instead, where dropped chunks can be replaced by the next best
-            // ones the reranker already scored.
-            List<Document> filteredDocuments;
-
-            long rerankStart = System.currentTimeMillis();
-            List<Reranker.Result> rerankResults =
-                    reranker.rerank(queryText, documents, rerankTopN, parametersReader);
-            long rerankMs = System.currentTimeMillis() - rerankStart;
-
-            if (rerankResults == null) {
-                listener.onLog("Reranking failed, filtering by minScore");
-                List<Document> minScoreFiltered = documents.stream()
-                        .filter(document ->
-                                minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
-                        .toList();
-                filteredDocuments = fallbackLimit == null
-                        ? minScoreFiltered
-                        : capPerSource(minScoreFiltered, fallbackLimit);
-                listener.onToolReranked(toolName, toDocScores(filteredDocuments), rerankMs);
-            } else {
-                List<Reranker.Result> filteredRerankResults = rerankResults.stream()
-                        .filter(rr -> rr.score() >= minRerankedScore)
-                        .toList();
-
-                for (Reranker.Result result : filteredRerankResults) {
-                    result.document().getMetadata().put("rerankScore", result.score());
-                }
-
-                List<Document> rerankedDocuments = filteredRerankResults.stream()
-                        .map(Reranker.Result::document)
-                        .toList();
-                filteredDocuments = resultLimit == null
-                        ? rerankedDocuments
-                        : capPerSource(rerankedDocuments, resultLimit);
-                List<Document> selected = filteredDocuments;
-                listener.onToolReranked(toolName,
-                        filteredRerankResults.stream()
-                                .filter(rr -> selected.contains(rr.document()))
-                                .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), RetrievalUtils.getUrlOrSource(rr.document())))
-                                .toList(),
-                        rerankMs);
-            }
-
-            if (filteredDocuments.isEmpty()) {
-                return getNoResultsMessage();
-            }
-
-            retrievedDocuments.addAll(filteredDocuments);
-
-            return filteredDocuments.stream()
-                    .map(Document::getText)
-                    .collect(Collectors.joining("\n\n"));
-        } finally {
-            listener.onToolCallEnd(toolName, System.currentTimeMillis() - startTime);
+        if (documents == null) {
+            steps.add(new RetrievalResult.Retrieved(Instant.now(), List.of(), retrievalMs));
+            return noResults(queryText, requested, startedAt, steps);
         }
+        steps.add(new RetrievalResult.Retrieved(Instant.now(), toDocScores(documents), retrievalMs));
+
+        PostRetrievalProcessor.Result processed = postRetrievalProcessor.process(queryText, documents);
+        processed.notes().forEach(note -> steps.add(new RetrievalResult.Note(Instant.now(), note)));
+        documents = processed.documents();
+        if (documents.isEmpty()) {
+            steps.add(new RetrievalResult.Note(Instant.now(), "All documents filtered out by PostRetrievalProcessor"));
+            return noResults(queryText, requested, startedAt, steps);
+        }
+
+        // Reranking. The reranker judges every candidate: capping per source beforehand would
+        // hide relevant chunks from it by raw cosine alone — the page that legitimately holds
+        // most of the answer loses its less obvious parts (a job page keeps its "how to
+        // schedule" snippets and drops the "authenticate the job" one). The cap is applied to
+        // the reranked list instead, where dropped chunks can be replaced by the next best
+        // ones the reranker already scored.
+        List<Document> filteredDocuments;
+
+        long rerankStart = System.currentTimeMillis();
+        List<Reranker.Result> rerankResults =
+                reranker.rerank(queryText, documents, rerankTopN, parametersReader);
+        long rerankMs = System.currentTimeMillis() - rerankStart;
+
+        if (rerankResults == null) {
+            steps.add(new RetrievalResult.Note(Instant.now(), "Reranking failed, filtering by minScore"));
+            List<Document> minScoreFiltered = documents.stream()
+                    .filter(document ->
+                            minScore <= 0.0 || document.getScore() == null || document.getScore() >= minScore)
+                    .toList();
+            filteredDocuments = fallbackLimit == null
+                    ? minScoreFiltered
+                    : capPerSource(minScoreFiltered, fallbackLimit, steps);
+            steps.add(new RetrievalResult.Reranked(Instant.now(), toDocScores(filteredDocuments), rerankMs));
+        } else {
+            List<Reranker.Result> filteredRerankResults = rerankResults.stream()
+                    .filter(rr -> rr.score() >= minRerankedScore)
+                    .toList();
+
+            for (Reranker.Result result : filteredRerankResults) {
+                result.document().getMetadata().put("rerankScore", result.score());
+            }
+
+            List<Document> rerankedDocuments = filteredRerankResults.stream()
+                    .map(Reranker.Result::document)
+                    .toList();
+            filteredDocuments = resultLimit == null
+                    ? rerankedDocuments
+                    : capPerSource(rerankedDocuments, resultLimit, steps);
+            List<Document> selected = filteredDocuments;
+            steps.add(new RetrievalResult.Reranked(Instant.now(),
+                    filteredRerankResults.stream()
+                            .filter(rr -> selected.contains(rr.document()))
+                            .map(rr -> new EventStreamValueHolder.DocScore(rr.score(), RetrievalUtils.getUrlOrSource(rr.document())))
+                            .toList(),
+                    rerankMs));
+        }
+
+        if (filteredDocuments.isEmpty()) {
+            return noResults(queryText, requested, startedAt, steps);
+        }
+
+        String text = filteredDocuments.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n\n"));
+        return new RetrievalResult(toolName, queryText, requested, startedAt, steps,
+                filteredDocuments, text, Instant.now());
+    }
+
+    private RetrievalResult noResults(String queryText,
+                                      @Nullable EventStreamValueHolder.RequestedRetrieval requested,
+                                      Instant startedAt,
+                                      List<RetrievalResult.Step> steps) {
+        return new RetrievalResult(toolName, queryText, requested, startedAt, steps,
+                List.of(), getNoResultsMessage(), Instant.now());
     }
 
     /**
@@ -274,7 +320,7 @@ public abstract class AbstractRagTool {
      * the list back to {@code limit}, preserving the similarity order. Documents without a
      * {@code source} are never capped.
      */
-    private List<Document> capPerSource(List<Document> documents, int limit) {
+    private List<Document> capPerSource(List<Document> documents, int limit, List<RetrievalResult.Step> steps) {
         Map<Object, Integer> chunksPerSource = new HashMap<>();
         List<Document> capped = new ArrayList<>(Math.min(documents.size(), limit));
         int flooded = 0;
@@ -290,7 +336,7 @@ public abstract class AbstractRagTool {
             }
         }
         if (flooded > 0) {
-            listener.onLog("Per-source cap dropped %d flooded chunks".formatted(flooded));
+            steps.add(new RetrievalResult.Note(Instant.now(), "Per-source cap dropped %d flooded chunks".formatted(flooded)));
         }
         return capped;
     }

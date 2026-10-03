@@ -48,7 +48,7 @@ class CheckRunnerUnitTest {
                 .thenReturn(List.of(checkDef));
         when(dataManager.create(Check.class)).thenReturn(check);
 
-        Chat chat = (question, parameters, conversationId, version, logger) ->
+        Chat chat = (question, parameters, conversationId, version, saveChatLog) ->
                 new Chat.StructuredResponse("Actual answer", List.of(), null, 1, 1, 1);
         AtomicReference<String> evaluatedQuestion = new AtomicReference<>();
         ExternalEvaluator evaluator = new ExternalEvaluator() {
@@ -118,7 +118,7 @@ class CheckRunnerUnitTest {
                 .thenReturn(List.of(checkDef));
         when(dataManager.create(Check.class)).thenReturn(check);
 
-        Chat chat = (question, parameters, conversationId, version, logger) ->
+        Chat chat = (question, parameters, conversationId, version, saveChatLog) ->
                 new Chat.StructuredResponse("Default \u0000char value.", List.of(), null, 1, 1, 1);
         ExternalEvaluator evaluator = new ExternalEvaluator() {
             @Override

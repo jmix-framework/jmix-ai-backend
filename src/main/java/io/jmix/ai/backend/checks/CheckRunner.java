@@ -216,7 +216,8 @@ public class CheckRunner {
 
     private String requestAnswer(String question, String parameters, JmixVersion jmixVersion,
                                  Consumer<String> logger) {
-        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, jmixVersion, logger);
+        Chat.StructuredResponse response = chat.requestStructured(question, parameters, null, jmixVersion, false);
+        response.retrievalLog().forEach(logger);
         return response.text();
     }
 }

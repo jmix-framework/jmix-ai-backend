@@ -50,9 +50,7 @@ public class ChatController {
         }
         Parameters parameters = parametersRepository.loadActive(ParametersTargetType.CHAT);
         Chat.StructuredResponse chatResponse = chat.requestStructured(
-                request.text(), parameters.getContent(), request.conversationId(), version, null);
-
-        chatLogManager.saveResponse(request.conversationId(), chatResponse);
+                request.text(), parameters.getContent(), request.conversationId(), version, true);
 
         return ResponseEntity.ok(new Response(
                 request.text(),

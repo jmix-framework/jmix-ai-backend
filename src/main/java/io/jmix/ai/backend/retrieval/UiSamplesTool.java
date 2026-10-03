@@ -2,17 +2,16 @@ package io.jmix.ai.backend.retrieval;
 
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
-import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
-
-import java.util.List;
 
 public class UiSamplesTool extends AbstractRagTool {
 
-    public UiSamplesTool(VectorStore vectorStore, PostRetrievalProcessor postRetrievalProcessor, Reranker reranker,
-                         ParametersReader parametersReader, List<Document> retrievedDocuments, ToolEventListener listener,
+    public UiSamplesTool(VectorStore vectorStore,
+                         PostRetrievalProcessor postRetrievalProcessor,
+                         Reranker reranker,
+                         ParametersReader parametersReader,
                          JmixVersion jmixVersion) {
         super("uisamples_retriever", "uisamples", vectorStore, postRetrievalProcessor, reranker,
-                parametersReader, retrievedDocuments, listener, jmixVersion, true);
+                parametersReader, jmixVersion, true);
     }
 }

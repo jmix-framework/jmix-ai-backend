@@ -3,12 +3,14 @@ package io.jmix.ai.backend.retrieval;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jmix.ai.backend.chat.EventStreamValueHolder;
+import io.jmix.ai.backend.chat.TurnTrace;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -42,14 +44,12 @@ class AbstractRagToolTest {
     private PostRetrievalProcessor postRetrievalProcessor;
     @Mock
     private Reranker reranker;
-    @Mock
-    private ToolEventListener listener;
 
     @Test
     void vectorTypeParameterOverridesCorpusType() {
         ParametersReader reader = adaptiveReader(Map.of("vectorType", "docs-snippets"));
 
-        DocsTool tool = tool(reader, new ArrayList<>());
+        DocsTool tool = tool(reader);
 
         assertThat(tool.type).isEqualTo("docs-snippets");
     }
@@ -58,14 +58,14 @@ class AbstractRagToolTest {
     void typeDefaultsToBuiltInWithoutOverride() {
         ParametersReader reader = adaptiveReader(Map.of());
 
-        DocsTool tool = tool(reader, new ArrayList<>());
+        DocsTool tool = tool(reader);
 
         assertThat(tool.type).isEqualTo("docs");
     }
 
     @Test
     void appendsConfiguredAverageSizeToToolDescription() {
-        DocsTool tool = tool(adaptiveReader(Map.of("averageDocumentTokens", 321)), new ArrayList<>());
+        DocsTool tool = tool(adaptiveReader(Map.of("averageDocumentTokens", 321)));
 
         assertThat(tool.getToolCallback().getToolDefinition().description())
                 .isEqualTo("docs tool A typical returned snippet is about 321 tokens.");
@@ -73,7 +73,7 @@ class AbstractRagToolTest {
 
     @Test
     void adaptiveSchemaMakesMaxResultsOptionalAndAdvertisesCap() throws Exception {
-        DocsTool tool = tool(adaptiveReader(Map.of("averageDocumentTokens", 300)), new ArrayList<>());
+        DocsTool tool = tool(adaptiveReader(Map.of("averageDocumentTokens", 300)));
 
         JsonNode schema = toolInputSchema(tool);
 
@@ -88,7 +88,7 @@ class AbstractRagToolTest {
     void explicitNullTopKEnablesTheAdaptivePipeline() throws Exception {
         Map<String, Object> overrides = new HashMap<>();
         overrides.put("topK", null);
-        DocsTool tool = tool(reader(overrides, false), new ArrayList<>());
+        DocsTool tool = tool(reader(overrides, false));
 
         JsonNode schema = toolInputSchema(tool);
 
@@ -97,7 +97,7 @@ class AbstractRagToolTest {
 
     @Test
     void configuredTopKExposesOnlyTheQueryToTheModel() throws Exception {
-        DocsTool tool = tool(legacyReader(Map.of()), new ArrayList<>());
+        DocsTool tool = tool(legacyReader(Map.of()));
 
         JsonNode schema = toolInputSchema(tool);
 
@@ -109,65 +109,62 @@ class AbstractRagToolTest {
     @Test
     void fixedPipelineUsesConfiguredCountsExactly() {
         ParametersReader reader = legacyReader(Map.of("topK", 10, "topReranked", 3));
-        List<Document> retrievedDocuments = new ArrayList<>();
-        DocsTool tool = tool(reader, retrievedDocuments);
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 3, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
-        tool.execute("query");
+        RetrievalResult result = tool.search("query", null);
 
         verifySearchTopK(10);
         verify(reranker).rerank("query", candidates, 3, reader);
-        assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
+        assertThat(result.documents()).containsExactly(candidates.getFirst());
     }
 
     @Test
     void fixedPipelineIgnoresCallerMaxResults() {
         ParametersReader reader = legacyReader(Map.of("topK", 10, "topReranked", 3));
-        List<Document> retrievedDocuments = new ArrayList<>();
-        DocsTool tool = tool(reader, retrievedDocuments);
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 3, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
-        tool.execute("query", 20);
+        RetrievalResult result = tool.search("query", 20);
 
         verifySearchTopK(10);
         verify(reranker).rerank("query", candidates, 3, reader);
-        assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
-        verify(listener).onToolCallStart("documentation_retriever", "query", null);
+        assertThat(result.documents()).containsExactly(candidates.getFirst());
+        assertThat(result.requested()).isNull();
     }
 
     @Test
     void fixedPipelineFallbackKeepsAllDocumentsPassingMinScore() {
         ParametersReader reader = legacyReader(Map.of("topK", 4, "topReranked", 2));
-        List<Document> retrievedDocuments = new ArrayList<>();
-        DocsTool tool = tool(reader, retrievedDocuments);
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(6);
         when(reranker.rerank("query", candidates, 2, reader)).thenReturn(null);
 
-        String result = tool.execute("query");
+        RetrievalResult result = tool.search("query", null);
 
         verifySearchTopK(4);
-        assertThat(retrievedDocuments).containsExactlyElementsOf(candidates);
-        assertThat(result).isEqualTo("text-0\n\ntext-1\n\ntext-2\n\ntext-3\n\ntext-4\n\ntext-5");
+        assertThat(result.documents()).containsExactlyElementsOf(candidates);
+        assertThat(result.text()).isEqualTo("text-0\n\ntext-1\n\ntext-2\n\ntext-3\n\ntext-4\n\ntext-5");
     }
 
     @Test
     void fixedPipelineDoesNotCapFloodedSourcePages() {
         ParametersReader reader = legacyReader(Map.of("topK", 6, "topReranked", 6));
-        List<Document> retrieved = new ArrayList<>();
-        DocsTool tool = tool(reader, retrieved);
+        DocsTool tool = tool(reader);
         List<Document> candidates = floodingCandidates();
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
-        when(postRetrievalProcessor.process(eq("query"), same(candidates))).thenReturn(candidates);
+        when(postRetrievalProcessor.process(eq("query"), same(candidates)))
+                .thenReturn(new PostRetrievalProcessor.Result(candidates, List.of()));
         when(reranker.rerank(eq("query"), anyList(), eq(6), eq(reader))).thenReturn(
                 candidates.stream().map(document -> new Reranker.Result(document, 0.9)).toList());
 
-        tool.execute("query");
+        RetrievalResult result = tool.search("query", null);
 
-        assertThat(retrieved).extracting(Document::getId)
+        assertThat(result.documents()).extracting(Document::getId)
                 .describedAs("the fixed pipeline returns the reranked list as is, page flooding included")
                 .containsExactly("flood-0", "flood-1", "flood-2", "flood-3", "flood-4", "other");
     }
@@ -175,18 +172,17 @@ class AbstractRagToolTest {
     @Test
     void nullMaxResultsUsesConfiguredRetrievalAndResultCounts() {
         ParametersReader reader = adaptiveReader(Map.of("topReranked", 3));
-        List<Document> retrievedDocuments = new ArrayList<>();
-        DocsTool tool = tool(reader, retrievedDocuments);
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 12, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
-        tool.execute("query", null);
+        RetrievalResult result = tool.search("query", null);
 
         verifySearchTopK(12);
         verify(reranker).rerank("query", candidates, 12, reader);
-        assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
-        verify(listener).onToolCallStart("documentation_retriever", "query", null);
+        assertThat(result.documents()).containsExactly(candidates.getFirst());
+        assertThat(result.requested()).isNull();
     }
 
     @Test
@@ -194,12 +190,12 @@ class AbstractRagToolTest {
         ParametersReader reader = adaptiveReader(Map.of(
                 "vectorType", "docs-snippets",
                 "topReranked", 3));
-        DocsTool tool = tool(reader, new ArrayList<>());
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(1);
         when(reranker.rerank("query", candidates, 12, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
-        tool.execute("query", null);
+        tool.search("query", null);
 
         org.mockito.ArgumentCaptor<SearchRequest> requestCaptor =
                 org.mockito.ArgumentCaptor.forClass(SearchRequest.class);
@@ -215,47 +211,44 @@ class AbstractRagToolTest {
     @Test
     void maxResultsIsCappedAtFiftyAndTheFetchAtItsOwnBound() {
         ParametersReader reader = adaptiveReader(Map.of("topReranked", 3));
-        DocsTool tool = tool(reader, new ArrayList<>());
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 120, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
 
-        tool.execute("query", 500);
+        RetrievalResult result = tool.search("query", 500);
 
         verifySearchTopK(120);
         verify(reranker).rerank("query", candidates, 120, reader);
-        verify(listener).onToolCallStart("documentation_retriever", "query",
-                new EventStreamValueHolder.RequestedRetrieval(50, 120));
+        assertThat(result.requested()).isEqualTo(new EventStreamValueHolder.RequestedRetrieval(50, 120));
     }
 
     @Test
     void adaptiveFallbackDefaultsToTheConfiguredResultCount() {
         ParametersReader reader = adaptiveReader(Map.of("topReranked", 2));
-        List<Document> retrievedDocuments = new ArrayList<>();
-        DocsTool tool = tool(reader, retrievedDocuments);
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(5);
         when(reranker.rerank("query", candidates, 8, reader)).thenReturn(null);
 
-        String result = tool.execute("query", null);
+        RetrievalResult result = tool.search("query", null);
 
         verifySearchTopK(8);
-        assertThat(retrievedDocuments).containsExactlyElementsOf(candidates.subList(0, 2));
-        assertThat(result).isEqualTo("text-0\n\ntext-1");
+        assertThat(result.documents()).containsExactlyElementsOf(candidates.subList(0, 2));
+        assertThat(result.text()).isEqualTo("text-0\n\ntext-1");
     }
 
     @Test
     void adaptiveFallbackRespectsExplicitMaxResults() {
         ParametersReader reader = adaptiveReader(Map.of("topReranked", 2));
-        List<Document> retrievedDocuments = new ArrayList<>();
-        DocsTool tool = tool(reader, retrievedDocuments);
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(6);
         when(reranker.rerank("query", candidates, 12, reader)).thenReturn(null);
 
-        String result = tool.execute("query", 3);
+        RetrievalResult result = tool.search("query", 3);
 
         verifySearchTopK(12);
-        assertThat(retrievedDocuments).containsExactlyElementsOf(candidates.subList(0, 3));
-        assertThat(result).isEqualTo("text-0\n\ntext-1\n\ntext-2");
+        assertThat(result.documents()).containsExactlyElementsOf(candidates.subList(0, 3));
+        assertThat(result.text()).isEqualTo("text-0\n\ntext-1\n\ntext-2");
     }
 
     /**
@@ -267,17 +260,17 @@ class AbstractRagToolTest {
     @SuppressWarnings("unchecked")
     void capsFloodedSourcePageInTheRerankedSelection() {
         ParametersReader reader = adaptiveReader(Map.of("topReranked", 4));
-        List<Document> retrieved = new ArrayList<>();
-        DocsTool tool = tool(reader, retrieved);
+        DocsTool tool = tool(reader);
         List<Document> candidates = floodingCandidates();
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
-        when(postRetrievalProcessor.process(eq("query"), same(candidates))).thenReturn(candidates);
+        when(postRetrievalProcessor.process(eq("query"), same(candidates)))
+                .thenReturn(new PostRetrievalProcessor.Result(candidates, List.of()));
         // the reranker ranks the flooding page above the other one; the cap must still let the
         // other page through and must not pad the result with a fourth flooding chunk
         when(reranker.rerank(eq("query"), anyList(), eq(16), eq(reader))).thenReturn(
                 candidates.stream().map(document -> new Reranker.Result(document, 0.9)).toList());
 
-        tool.execute("query", null);
+        RetrievalResult result = tool.search("query", null);
 
         org.mockito.ArgumentCaptor<List<Document>> rerankInput =
                 org.mockito.ArgumentCaptor.forClass(List.class);
@@ -285,24 +278,28 @@ class AbstractRagToolTest {
         assertThat(rerankInput.getValue()).extracting(Document::getId)
                 .describedAs("the reranker judges every candidate, uncapped")
                 .containsExactlyElementsOf(candidates.stream().map(Document::getId).toList());
-        assertThat(retrieved).extracting(Document::getId)
+        assertThat(result.documents()).extracting(Document::getId)
                 .containsExactly("flood-0", "flood-1", "flood-2", "other");
     }
 
     @Test
-    void oneArgExecuteOnAdaptiveToolRunsTheDefaultPipeline() {
+    void oneArgToolMethodRunsTheDefaultPipelineAndRecordsTheResultInTheTurnTrace() {
         ParametersReader reader = adaptiveReader(Map.of("topReranked", 3));
-        List<Document> retrievedDocuments = new ArrayList<>();
-        DocsTool tool = tool(reader, retrievedDocuments);
+        DocsTool tool = tool(reader);
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 12, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
+        TurnTrace trace = new TurnTrace("conversation");
 
-        tool.execute("query");
+        String text = tool.execute("query", new ToolContext(Map.of(TurnTrace.KEY, trace)));
 
         verifySearchTopK(12);
-        assertThat(retrievedDocuments).containsExactly(candidates.getFirst());
-        verify(listener).onToolCallStart("documentation_retriever", "query", null);
+        assertThat(text)
+                .isEqualTo("text-0");
+        assertThat(trace.retrievals())
+                .singleElement()
+                .extracting(RetrievalResult::documents)
+                .isEqualTo(List.of(candidates.getFirst()));
     }
 
     /**
@@ -312,8 +309,7 @@ class AbstractRagToolTest {
     @Test
     void capRefillsFromTheWholeRerankedPoolWhenOnePageFloodsTheHead() {
         ParametersReader reader = adaptiveReader(Map.of("topReranked", 3));
-        List<Document> retrieved = new ArrayList<>();
-        DocsTool tool = tool(reader, retrieved);
+        DocsTool tool = tool(reader);
         List<Document> candidates = new ArrayList<>();
         for (int i = 0; i < 12; i++) {
             candidates.add(Document.builder().id("flood-" + i).text("flood-" + i)
@@ -324,18 +320,63 @@ class AbstractRagToolTest {
         candidates.add(Document.builder().id("tail-b").text("tail-b")
                 .metadata(Map.of("source", "b.html")).score(0.4).build());
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
-        when(postRetrievalProcessor.process(eq("query"), same(candidates))).thenReturn(candidates);
+        when(postRetrievalProcessor.process(eq("query"), same(candidates)))
+                .thenReturn(new PostRetrievalProcessor.Result(candidates, List.of()));
         // the flooding page occupies the entire head of the ranking; the diverse pages sit at
         // positions 13-14, beyond any requested*2 boundary
         when(reranker.rerank(eq("query"), anyList(), eq(16), eq(reader))).thenReturn(
                 candidates.stream().map(document -> new Reranker.Result(document, 0.9)).toList());
 
-        tool.execute("query", 4);
+        RetrievalResult result = tool.search("query", 4);
 
         verifySearchTopK(16);
-        assertThat(retrieved).extracting(Document::getId)
+        assertThat(result.documents()).extracting(Document::getId)
                 .describedAs("slots freed by the cap are refilled from the tail of the scored pool")
                 .containsExactly("flood-0", "flood-1", "flood-2", "tail-a");
+    }
+
+    @Test
+    void toolMethodAnnouncesTheStartWithTheRequestedCountBeforeTheResult() {
+        ParametersReader reader = adaptiveReader(Map.of("topReranked", 3));
+        DocsTool tool = tool(reader);
+        List<Document> candidates = prepareCandidates(4);
+        when(reranker.rerank("query", candidates, 80, reader))
+                .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
+        TurnTrace trace = new TurnTrace("conversation");
+
+        tool.execute("query", 20, new ToolContext(Map.of(TurnTrace.KEY, trace)));
+
+        trace.completeToolEvents();
+        List<EventStreamValueHolder> events = trace.toolEvents().collectList().block();
+        assertThat(events)
+                .extracting(event -> event.getClass().getSimpleName())
+                .containsExactly("ToolCallStart", "ToolRetrieved", "ToolReranked", "ToolCallEnd");
+        assertThat(events.getFirst())
+                .isEqualTo(new EventStreamValueHolder.ToolCallStart("documentation_retriever", "query",
+                        new EventStreamValueHolder.RequestedRetrieval(20, 80)));
+    }
+
+    @Test
+    void recordsRetrievalStepsInPipelineOrder() {
+        ParametersReader reader = adaptiveReader(Map.of("topReranked", 3));
+        DocsTool tool = tool(reader);
+        List<Document> candidates = IntStream.range(0, 2)
+                .mapToObj(index -> Document.builder().id("id-" + index).text("text-" + index).score(0.9).build())
+                .toList();
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
+        when(postRetrievalProcessor.process(eq("query"), same(candidates)))
+                .thenReturn(new PostRetrievalProcessor.Result(candidates.subList(0, 1), List.of("Rule 'R' filtered out id-1")));
+        when(reranker.rerank(eq("query"), anyList(), eq(12), eq(reader))).thenReturn(null);
+
+        RetrievalResult result = tool.search("query", null);
+
+        assertThat(result.steps())
+                .extracting(step -> step.getClass().getSimpleName())
+                .containsExactly("Retrieved", "Note", "Note", "Reranked");
+        assertThat(result.steps())
+                .filteredOn(RetrievalResult.Note.class::isInstance)
+                .extracting(step -> ((RetrievalResult.Note) step).message())
+                .containsExactly("Rule 'R' filtered out id-1", "Reranking failed, filtering by minScore");
     }
 
     private ParametersReader legacyReader(Map<String, Object> overrides) {
@@ -379,9 +420,8 @@ class AbstractRagToolTest {
         return candidates;
     }
 
-    private DocsTool tool(ParametersReader reader, List<Document> retrievedDocuments) {
-        return new DocsTool(vectorStore, postRetrievalProcessor, reranker, reader,
-                retrievedDocuments, listener, JmixVersion.V2);
+    private DocsTool tool(ParametersReader reader) {
+        return new DocsTool(vectorStore, postRetrievalProcessor, reranker, reader, JmixVersion.V2);
     }
 
     private List<Document> prepareCandidates(int count) {
@@ -393,7 +433,8 @@ class AbstractRagToolTest {
                         .build())
                 .toList();
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(candidates);
-        when(postRetrievalProcessor.process(eq("query"), same(candidates))).thenReturn(candidates);
+        when(postRetrievalProcessor.process(eq("query"), same(candidates)))
+                .thenReturn(new PostRetrievalProcessor.Result(candidates, List.of()));
         return candidates;
     }
 

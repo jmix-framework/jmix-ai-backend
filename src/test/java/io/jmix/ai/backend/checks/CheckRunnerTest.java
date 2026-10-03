@@ -222,7 +222,7 @@ public class CheckRunnerTest {
         CountDownLatch workerInterrupted = new CountDownLatch(1);
         CountDownLatch releaseWorker = new CountDownLatch(1);
         AtomicInteger requestCount = new AtomicInteger();
-        Chat blockingChat = (question, parameters, conversationId, version, logger) -> {
+        Chat blockingChat = (question, parameters, conversationId, version, saveChatLog) -> {
             requestCount.incrementAndGet();
             firstRequestStarted.countDown();
             try {
@@ -295,7 +295,7 @@ public class CheckRunnerTest {
     private static class TestChat implements Chat {
 
         @Override
-        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, Consumer<String> externalLogger) {
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, boolean saveChatLog) {
             if (userPrompt.equals("What is the answer?")) {
                 return new StructuredResponse("42", List.of(), null, 100, 200, 1000);
             }
@@ -326,7 +326,7 @@ public class CheckRunnerTest {
     private static class EchoChat implements Chat {
 
         @Override
-        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, Consumer<String> externalLogger) {
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, boolean saveChatLog) {
             String answer = userPrompt.replace("Question ", "Answer ");
             return new StructuredResponse(answer, List.of(), null, 10, 10, 10);
         }
@@ -335,7 +335,7 @@ public class CheckRunnerTest {
     private static class FailingChat implements Chat {
 
         @Override
-        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, Consumer<String> externalLogger) {
+        public StructuredResponse requestStructured(String userPrompt, String parametersYaml, String conversationId, JmixVersion jmixVersion, boolean saveChatLog) {
             if ("fail".equals(userPrompt)) {
                 throw new RuntimeException("simulated failure");
             }

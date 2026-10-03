@@ -31,32 +31,32 @@ class PostRetrievalProcessorTest {
 
     @Test
     void testTabbedModeRule() {
-        PostRetrievalProcessor processor = applicationContext.getBean(PostRetrievalProcessor.class, getParametersReader(), null);
+        PostRetrievalProcessor processor = applicationContext.getBean(PostRetrievalProcessor.class, getParametersReader());
 
         Document d1 = new Document("1", "content 1", Map.of("source", "test1"));
         Document d2 = new Document("2", "Path: Add-ons > Tabbed Application Mode > Opening Views\n\nYou can open views", Map.of("source", "test2"));
 
-        List<Document> processed = processor.process("test", List.of(d1, d2));
+        List<Document> processed = processor.process("test", List.of(d1, d2)).documents();
         assertThat(processed).hasSize(1);
         assertThat(processed.get(0).getId()).isEqualTo("1");
 
-        processed = processor.process("test tabbed", List.of(d1, d2));
+        processed = processor.process("test tabbed", List.of(d1, d2)).documents();
         assertThat(processed).hasSize(2);
         assertThat(processed.get(1).getId()).isEqualTo("2");
     }
 
     @Test
     void testBpmRule() {
-        PostRetrievalProcessor processor = applicationContext.getBean(PostRetrievalProcessor.class, getParametersReader(), null);
+        PostRetrievalProcessor processor = applicationContext.getBean(PostRetrievalProcessor.class, getParametersReader());
 
         Document d1 = new Document("1", "content 1", Map.of("source", "test1"));
         Document d2 = new Document("2", "Path: Add-ons > BPM > Using BPMN 2.0 > BPMN 2.0 Elements > Tasks > Script Task\n\nOverview A script task", Map.of("source", "test2"));
 
-        List<Document> processed = processor.process("test", List.of(d1, d2));
+        List<Document> processed = processor.process("test", List.of(d1, d2)).documents();
         assertThat(processed).hasSize(1);
         assertThat(processed.get(0).getId()).isEqualTo("1");
 
-        processed = processor.process("test bpmn", List.of(d1, d2));
+        processed = processor.process("test bpmn", List.of(d1, d2)).documents();
         assertThat(processed).hasSize(2);
         assertThat(processed.get(1).getId()).isEqualTo("2");
     }

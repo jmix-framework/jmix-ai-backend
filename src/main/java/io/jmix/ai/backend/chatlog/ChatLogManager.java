@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.chatlog;
 
-import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.entity.ChatLog;
 import io.jmix.ai.backend.vectorstore.NormalizationUtils;
 import io.jmix.core.UnconstrainedDataManager;
@@ -18,23 +17,15 @@ public class ChatLogManager {
         this.dataManager = dataManager;
     }
 
-    public void saveResponse(String conversationId, Chat.StructuredResponse response) {
+    public void save(@Nullable String conversationId,
+                     List<String> logMessages,
+                     @Nullable String sources,
+                     int promptTokens,
+                     int completionTokens,
+                     int responseTime) {
         ChatLog chatLog = dataManager.create(ChatLog.class);
         chatLog.setConversationId(conversationId);
         // log lines embed model text (answer prefix, model-written tool queries); NUL would fail the insert
-        chatLog.setContent(NormalizationUtils.stripNul(String.join("\n", response.logMessages())));
-        chatLog.setSources(response.sourceLinks() != null ? String.join(",", response.sourceLinks()) : null);
-        chatLog.setPromptTokens(response.promptTokens());
-        chatLog.setCompletionTokens(response.completionTokens());
-        chatLog.setResponseTime(response.responseTime());
-        dataManager.save(chatLog);
-    }
-
-    public void saveStreamResponse(String conversationId, List<String> logMessages,
-                                    @Nullable String sources,
-                                    int promptTokens, int completionTokens, int responseTime) {
-        ChatLog chatLog = dataManager.create(ChatLog.class);
-        chatLog.setConversationId(conversationId);
         chatLog.setContent(NormalizationUtils.stripNul(String.join("\n", logMessages)));
         chatLog.setSources(sources);
         chatLog.setPromptTokens(promptTokens);

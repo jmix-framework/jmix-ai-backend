@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.chatlog;
 
-import io.jmix.ai.backend.chat.Chat;
 import io.jmix.ai.backend.entity.ChatLog;
 import io.jmix.core.UnconstrainedDataManager;
 import org.junit.jupiter.api.Test;
@@ -27,20 +26,10 @@ class ChatLogManagerTest {
     }
 
     @Test
-    void saveResponse_StripsNulFromContent() {
+    void save_StripsNulFromContent() {
         ChatLog chatLog = stubCreate();
 
-        manager.saveResponse("cid", new Chat.StructuredResponse(
-                "answer", List.of("Received: Default \u0000char value."), null, 1, 1, 1));
-
-        assertThat(chatLog.getContent()).isEqualTo("Received: Default char value.");
-    }
-
-    @Test
-    void saveStreamResponse_StripsNulFromContent() {
-        ChatLog chatLog = stubCreate();
-
-        manager.saveStreamResponse("cid", List.of("line \u0000one", "line two"), null, 1, 1, 1);
+        manager.save("cid", List.of("line \u0000one", "line two"), null, 1, 1, 1);
 
         assertThat(chatLog.getContent()).isEqualTo("line one\nline two");
     }

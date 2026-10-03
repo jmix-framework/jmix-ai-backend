@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.document.Document;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,31 +25,27 @@ class SearchServiceTest {
     private ParametersRepository parametersRepository;
     @Mock
     private ToolsManager toolsManager;
+    @Mock
+    private AbstractRagTool firstTool;
+    @Mock
+    private AbstractRagTool secondTool;
 
     private static Document doc(String id, double score) {
         return Document.builder().id(id).text(id).score(score).build();
     }
 
-    /** Two tools, each fills the shared pool from its own corpus when executed. */
-    @SuppressWarnings("unchecked")
+    /** Two tools, each returns documents from its own corpus. */
     private void stubTools(List<Document> firstToolDocs, List<Document> secondToolDocs) {
         Parameters parameters = mock(Parameters.class);
         when(parameters.getContent()).thenReturn("");
         when(parametersRepository.loadActive(ParametersTargetType.SEARCH)).thenReturn(parameters);
-        when(toolsManager.getTools(any(), any(), any(), any())).thenAnswer(invocation -> {
-            List<Document> pool = invocation.getArgument(1);
-            AbstractRagTool first = mock(AbstractRagTool.class);
-            AbstractRagTool second = mock(AbstractRagTool.class);
-            when(first.execute(any(), any())).thenAnswer(call -> {
-                pool.addAll(firstToolDocs);
-                return "";
-            });
-            when(second.execute(any(), any())).thenAnswer(call -> {
-                pool.addAll(secondToolDocs);
-                return "";
-            });
-            return List.of(first, second);
-        });
+        when(firstTool.search(any(), any())).thenReturn(retrieved(firstToolDocs));
+        when(secondTool.search(any(), any())).thenReturn(retrieved(secondToolDocs));
+        when(toolsManager.getTools(any(), any())).thenReturn(List.of(firstTool, secondTool));
+    }
+
+    private static RetrievalResult retrieved(List<Document> documents) {
+        return new RetrievalResult("tool", "query", null, Instant.now(), List.of(), documents, "", Instant.now());
     }
 
     @Test
