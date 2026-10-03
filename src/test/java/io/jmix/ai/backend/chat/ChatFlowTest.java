@@ -186,6 +186,9 @@ class ChatFlowTest {
                         "T uisamples_retriever done in N ms",
                         "T Received response in N ms [promptTokens: 400, completionTokens: 30]");
 
+        assertThat(console.list)
+                .extracting(ChatFlowTest::conversationIdOf)
+                .containsOnly("streamed-turn");
         assertThat(eventsOf(stream, EventStreamValueHolder.ToolCallStart.class))
                 .extracting(EventStreamValueHolder.ToolCallStart::tool)
                 .containsExactly(DOCS_TOOL, SAMPLES_TOOL)
@@ -237,6 +240,9 @@ class ChatFlowTest {
                         "T uisamples_retriever done in N ms",
                         "T Received response in N ms [promptTokens: 400, completionTokens: 30]:",
                         ANSWER_START + ANSWER_END);
+        assertThat(console.list)
+                .extracting(ChatFlowTest::conversationIdOf)
+                .containsOnly("called-turn");
         assertThat(response.retrievalLog())
                 .isEqualTo(chatLogLines.subList(1, 9)
                         .stream()
@@ -301,6 +307,15 @@ class ChatFlowTest {
                 .filter(type::isInstance)
                 .map(type::cast)
                 .toList();
+    }
+
+    private static Object conversationIdOf(ILoggingEvent event) {
+        return event.getKeyValuePairs()
+                .stream()
+                .filter(pair -> "cid".equals(pair.key))
+                .map(pair -> pair.value)
+                .findFirst()
+                .orElse(null);
     }
 
     private static List<String> captured(List<String> lines, String regex) {

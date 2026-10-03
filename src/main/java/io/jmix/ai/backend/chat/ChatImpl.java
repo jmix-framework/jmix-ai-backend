@@ -23,7 +23,6 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -51,9 +50,9 @@ public class ChatImpl implements Chat {
     private final ParametersRepository parametersRepository;
     private final ChatMemory chatMemory;
     private final ToolsManager toolsManager;
-    private final ChatLogManager chatLogManager;
     private final Scheduler streamingScheduler;
     private final SystemPromptResolver systemPromptResolver;
+    private final List<Advisor> advisors;
 
     public ChatImpl(ChatMemoryRepository chatMemoryRepository,
                     ParametersRepository parametersRepository,
@@ -63,7 +62,6 @@ public class ChatImpl implements Chat {
                     SystemPromptResolver systemPromptResolver) {
         this.parametersRepository = parametersRepository;
         this.streamingScheduler = streamingScheduler;
-        this.chatLogManager = chatLogManager;
         this.systemPromptResolver = systemPromptResolver;
 
         chatMemory = MessageWindowChatMemory.builder()
@@ -72,6 +70,15 @@ public class ChatImpl implements Chat {
                 .build();
 
         this.toolsManager = toolsManager;
+        this.advisors = List.of(
+                new ChatLogAdvisor(chatLogManager, streamingScheduler, CHAT_LOG_ORDER),
+                new CompletedTurnMemoryAdvisor(chatMemory),
+                new ToolEventsAdvisor(TOOL_EVENTS_ORDER),
+                ToolCallingAdvisor.builder()
+                        .advisorOrder(TOOL_LOOP_ORDER)
+                        .build(),
+                new RoundUsageAdvisor(ROUND_USAGE_ORDER),
+                new ModelCallLoggingAdvisor(MODEL_CALL_LOGGING_ORDER));
     }
 
     private record ChatRequestContext(
@@ -115,7 +122,7 @@ public class ChatImpl implements Chat {
                                                 @Nullable JmixVersion jmixVersion, boolean saveChatLog) {
         long start = System.currentTimeMillis();
         JmixVersion version = jmixVersion != null ? jmixVersion : JmixVersion.V2;
-        TurnTrace trace = new TurnTrace(conversationId);
+        TurnTrace trace = TurnTrace.forCall(conversationId);
 
         ChatRequestContext ctx = prepareRequest(userPrompt, parametersYaml, conversationId, version, trace, saveChatLog);
         ChatClientResponse response = ctx.request().call().chatClientResponse();
@@ -134,14 +141,16 @@ public class ChatImpl implements Chat {
     /**
      * Streams the assistant response as a sequence of typed {@link EventStreamValueHolder}s via SSE.
      *
-     * <p>Events always arrive in this order:
+     * <p>Events arrive in this order:
      * <pre>
      * RequestInfo
-     *   → [ToolCallStart* → (ToolRetrieved → ToolReranked → ToolCallEnd)*]*
+     *   → [ToolCallStart → ToolRetrieved → ToolReranked → ToolCallEnd]*
      *   → TokensStart → Content* → TokensEnd
      *   → [SourcesStart → Metadata*]
      *   → RequestEnd
      * </pre>
+     * If the model writes text before it calls a tool, that text arrives as Content after
+     * TokensStart and before the tool events.
      *
      * <p>Tool events come from {@link ToolEventsAdvisor} as part of the model stream; console logging
      * and ChatLog persistence are done by {@link ChatLogAdvisor}.
@@ -155,7 +164,7 @@ public class ChatImpl implements Chat {
         Flux<EventStreamValueHolder> stream = Flux.defer(() -> {
             long startTime = System.currentTimeMillis();
             JmixVersion version = jmixVersion != null ? jmixVersion : JmixVersion.V2;
-            TurnTrace trace = new TurnTrace(cid);
+            TurnTrace trace = TurnTrace.forStream(cid);
             ChatRequestContext ctx = prepareRequest(userPrompt, parametersYaml, conversationId, version, trace, true);
 
             AtomicBoolean tokensStarted = new AtomicBoolean();
@@ -180,7 +189,7 @@ public class ChatImpl implements Chat {
                     : emit(new EventStreamValueHolder.TokensStart()).concatWith(emit(new EventStreamValueHolder.TokensEnd())));
 
             Flux<EventStreamValueHolder> sources = Flux.defer(() -> {
-                List<String> urls = extractSourceUrls(trace.documents());
+                List<String> urls = trace.sourceLinks();
                 if (urls.isEmpty()) return Flux.empty();
                 return emit(new EventStreamValueHolder.SourcesStart())
                         .concatWith(Flux.fromIterable(urls).map(EventStreamValueHolder.Metadata::new));
@@ -210,15 +219,6 @@ public class ChatImpl implements Chat {
     private static List<String> linesOf(ChatClientResponse response, String key) {
         Object lines = response.context().get(key);
         return lines instanceof List<?> list ? (List<String>) list : List.of();
-    }
-
-    private List<String> extractSourceUrls(List<Document> documents) {
-        return documents.stream()
-                .map(doc -> doc.getMetadata().get("url"))
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .distinct()
-                .toList();
     }
 
     @Nullable
@@ -269,15 +269,7 @@ public class ChatImpl implements Chat {
 
     ChatClient buildClient(ChatModel chatModel) {
         return ChatClient.builder(chatModel)
-                .defaultAdvisors(
-                        new ChatLogAdvisor(chatLogManager, streamingScheduler, CHAT_LOG_ORDER),
-                        new CompletedTurnMemoryAdvisor(chatMemory),
-                        new ToolEventsAdvisor(TOOL_EVENTS_ORDER),
-                        ToolCallingAdvisor.builder()
-                                .advisorOrder(TOOL_LOOP_ORDER)
-                                .build(),
-                        new RoundUsageAdvisor(ROUND_USAGE_ORDER),
-                        new ModelCallLoggingAdvisor(MODEL_CALL_LOGGING_ORDER))
+                .defaultAdvisors(advisors)
                 .build();
     }
 }

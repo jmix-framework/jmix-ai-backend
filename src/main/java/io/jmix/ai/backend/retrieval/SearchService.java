@@ -1,6 +1,5 @@
 package io.jmix.ai.backend.retrieval;
 
-import io.jmix.ai.backend.chat.EventStreamValueHolder;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.entity.Parameters;
 import io.jmix.ai.backend.entity.ParametersTargetType;
@@ -65,7 +64,7 @@ public class SearchService {
     }
 
     private void logResult(RetrievalResult result) {
-        logger.debug("Using {}: {}{}", result.tool(), result.query(), formatRequested(result.requested()));
+        logger.debug("Using {}: {}{}", result.tool(), result.query(), RetrievalUtils.formatRequested(result.requested()));
         for (RetrievalResult.Step step : result.steps()) {
             switch (step) {
                 case RetrievalResult.Retrieved retrieved ->
@@ -76,11 +75,5 @@ public class SearchService {
             }
         }
         logger.debug("{} done in {} ms", result.tool(), result.durationMs());
-    }
-
-    private static String formatRequested(@Nullable EventStreamValueHolder.RequestedRetrieval requested) {
-        return requested == null ? ""
-                : " (%d results requested, vector fetch widened to %d)"
-                        .formatted(requested.results(), requested.vectorFetch());
     }
 }

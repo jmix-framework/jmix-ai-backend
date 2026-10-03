@@ -19,8 +19,10 @@ public record RetrievalResult(
         String text,
         Instant endedAt) {
 
-    public static RetrievalResult failed(String tool, String query, Instant startedAt) {
-        return new RetrievalResult(tool, query, null, startedAt, List.of(), List.of(), "", Instant.now());
+    public static RetrievalResult failed(String tool, String query, Instant startedAt, Exception failure) {
+        Instant endedAt = Instant.now();
+        return new RetrievalResult(tool, query, null, startedAt, List.of(new Note(endedAt, "Failed: " + failure)),
+                List.of(), "", endedAt);
     }
 
     public long durationMs() {

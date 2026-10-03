@@ -3,7 +3,6 @@ package io.jmix.ai.backend.retrieval;
 import io.jmix.ai.backend.chat.TurnTrace;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
-import org.slf4j.MDC;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.tool.ToolCallback;
@@ -128,7 +127,7 @@ public abstract class AbstractRagTool {
     }
 
     /** Fixed-pipeline tool method: retrieval sizes come from the configuration alone. */
-    public String execute(String queryText, @Nullable ToolContext toolContext) {
+    public String execute(String queryText, ToolContext toolContext) {
         return execute(queryText, null, toolContext);
     }
 
@@ -141,32 +140,17 @@ public abstract class AbstractRagTool {
             String queryText,
             @ToolParam(required = false, description = MAX_RESULTS_DESCRIPTION)
             Integer maxResults,
-            @Nullable ToolContext toolContext) {
-        TurnTrace trace = TurnTrace.from(toolContext);
-        String conversationId = trace != null ? trace.conversationId() : null;
-        String previousConversationId = MDC.get("cid");
-        MDC.put("cid", conversationId != null ? conversationId : "");
+            ToolContext toolContext) {
+        TurnTrace trace = TurnTrace.of(toolContext);
         Instant startedAt = Instant.now();
-        if (trace != null) {
-            trace.toolStarted(toolName, queryText, requestedRetrieval(maxResults));
-        }
+        trace.toolStarted(toolName, queryText, requestedRetrieval(maxResults));
         try {
             RetrievalResult result = search(queryText, maxResults);
-            if (trace != null) {
-                trace.addRetrieval(result);
-            }
+            trace.addRetrieval(result);
             return result.text();
         } catch (RuntimeException e) {
-            if (trace != null) {
-                trace.addRetrieval(RetrievalResult.failed(toolName, queryText, startedAt));
-            }
+            trace.addRetrieval(RetrievalResult.failed(toolName, queryText, startedAt, e));
             throw e;
-        } finally {
-            if (previousConversationId != null) {
-                MDC.put("cid", previousConversationId);
-            } else {
-                MDC.remove("cid");
-            }
         }
     }
 

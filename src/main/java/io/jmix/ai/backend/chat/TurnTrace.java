@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.chat;
 
 import io.jmix.ai.backend.retrieval.RetrievalResult;
+import io.jmix.ai.backend.retrieval.RetrievalUtils;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.document.Document;
@@ -10,6 +11,7 @@ import reactor.core.publisher.Sinks;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -19,18 +21,27 @@ public final class TurnTrace {
 
     @Nullable
     private final String conversationId;
+    @Nullable
+    private final Sinks.Many<EventStreamValueHolder> toolEvents;
     private final List<RetrievalResult> retrievals = new CopyOnWriteArrayList<>();
     private final AtomicInteger promptTokens = new AtomicInteger();
     private final AtomicInteger completionTokens = new AtomicInteger();
-    private final Sinks.Many<EventStreamValueHolder> toolEvents = Sinks.many().unicast().onBackpressureBuffer();
 
-    public TurnTrace(@Nullable String conversationId) {
+    private TurnTrace(@Nullable String conversationId, @Nullable Sinks.Many<EventStreamValueHolder> toolEvents) {
         this.conversationId = conversationId;
+        this.toolEvents = toolEvents;
     }
 
-    @Nullable
-    public static TurnTrace from(@Nullable ToolContext toolContext) {
-        return toolContext != null ? from(toolContext.getContext()) : null;
+    public static TurnTrace forCall(@Nullable String conversationId) {
+        return new TurnTrace(conversationId, null);
+    }
+
+    public static TurnTrace forStream(@Nullable String conversationId) {
+        return new TurnTrace(conversationId, Sinks.many().unicast().onBackpressureBuffer());
+    }
+
+    public static TurnTrace of(ToolContext toolContext) {
+        return Objects.requireNonNull(from(toolContext.getContext()), "The tool context has no TurnTrace");
     }
 
     @Nullable
@@ -44,30 +55,32 @@ public final class TurnTrace {
     }
 
     public void toolStarted(String tool, String query, @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
-        toolEvents.tryEmitNext(new EventStreamValueHolder.ToolCallStart(tool, query, requested));
+        emit(new EventStreamValueHolder.ToolCallStart(tool, query, requested));
     }
 
     public void addRetrieval(RetrievalResult result) {
         retrievals.add(result);
         for (RetrievalResult.Step step : result.steps()) {
             switch (step) {
-                case RetrievalResult.Retrieved retrieved -> toolEvents.tryEmitNext(new EventStreamValueHolder.ToolRetrieved(
+                case RetrievalResult.Retrieved retrieved -> emit(new EventStreamValueHolder.ToolRetrieved(
                         result.tool(), retrieved.documents(), retrieved.durationMs()));
-                case RetrievalResult.Reranked reranked -> toolEvents.tryEmitNext(new EventStreamValueHolder.ToolReranked(
+                case RetrievalResult.Reranked reranked -> emit(new EventStreamValueHolder.ToolReranked(
                         result.tool(), reranked.documents(), reranked.durationMs()));
                 case RetrievalResult.Note ignored -> {
                 }
             }
         }
-        toolEvents.tryEmitNext(new EventStreamValueHolder.ToolCallEnd(result.tool(), result.durationMs()));
+        emit(new EventStreamValueHolder.ToolCallEnd(result.tool(), result.durationMs()));
     }
 
     public Flux<EventStreamValueHolder> toolEvents() {
-        return toolEvents.asFlux();
+        return toolEvents != null ? toolEvents.asFlux() : Flux.empty();
     }
 
     public void completeToolEvents() {
-        toolEvents.tryEmitComplete();
+        if (toolEvents != null) {
+            toolEvents.tryEmitComplete();
+        }
     }
 
     public List<RetrievalResult> retrievals() {
@@ -77,6 +90,13 @@ public final class TurnTrace {
     public List<Document> documents() {
         return retrievals.stream()
                 .flatMap(result -> result.documents().stream())
+                .toList();
+    }
+
+    public List<String> sourceLinks() {
+        return RetrievalUtils.getUrls(documents())
+                .stream()
+                .distinct()
                 .toList();
     }
 
@@ -94,5 +114,11 @@ public final class TurnTrace {
 
     public int completionTokens() {
         return completionTokens.get();
+    }
+
+    private void emit(EventStreamValueHolder event) {
+        if (toolEvents != null) {
+            toolEvents.tryEmitNext(event);
+        }
     }
 }

@@ -42,7 +42,8 @@ public class RoundUsageAdvisor implements CallAdvisor, StreamAdvisor {
             AtomicReference<Usage> roundUsage = new AtomicReference<>();
             return streamAdvisorChain.nextStream(chatClientRequest)
                     .doOnNext(response -> rememberUsage(response.chatResponse(), roundUsage))
-                    .doOnComplete(() -> trace.addUsage(roundUsage.get()));
+                    .doOnTerminate(() -> trace.addUsage(roundUsage.get()))
+                    .doOnCancel(() -> trace.addUsage(roundUsage.get()));
         });
     }
 

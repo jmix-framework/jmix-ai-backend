@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.chat;
 
 import io.jmix.ai.backend.retrieval.RetrievalResult;
+import io.jmix.ai.backend.retrieval.RetrievalUtils;
 import org.springframework.lang.Nullable;
 
 import java.time.Instant;
@@ -88,7 +89,7 @@ final class ChatLogFormatter {
     }
 
     static String usingLine(String tool, String query, @Nullable EventStreamValueHolder.RequestedRetrieval requested) {
-        return ">>> Using %s: %s%s".formatted(tool, query, formatRequested(requested));
+        return ">>> Using %s: %s%s".formatted(tool, query, RetrievalUtils.formatRequested(requested));
     }
 
     static String stepLine(RetrievalResult.Step step) {
@@ -110,11 +111,5 @@ final class ChatLogFormatter {
                 .map(d -> "(%.3f) %s".formatted(d.score(), d.url()))
                 .toList()
                 .toString();
-    }
-
-    private static String formatRequested(@Nullable EventStreamValueHolder.RequestedRetrieval requested) {
-        return requested == null ? ""
-                : " (%d results requested, vector fetch widened to %d)"
-                        .formatted(requested.results(), requested.vectorFetch());
     }
 }

@@ -50,7 +50,7 @@ class ChatLogAdvisorTest {
     private static final int PROMPT_TOKENS = 100;
     private static final int COMPLETION_TOKENS = 20;
 
-    private final TurnTrace trace = new TurnTrace(CONVERSATION_ID);
+    private final TurnTrace trace = TurnTrace.forStream(CONVERSATION_ID);
 
     @Mock
     private ChatLogManager chatLogManager;
@@ -68,34 +68,6 @@ class ChatLogAdvisorTest {
         advisor = new ChatLogAdvisor(chatLogManager, Schedulers.immediate(), 0);
         trace.addRetrieval(retrievalWithOneDocument());
         trace.addUsage(new DefaultUsage(PROMPT_TOKENS, COMPLETION_TOKENS));
-    }
-
-    @Test
-    void savesTheCallLogWithTheTurnTokensAndSources() {
-        // Arrange
-        when(callChain.nextCall(any())).thenReturn(response(ANSWER));
-
-        // Act
-        advisor.adviseCall(request(true), callChain);
-
-        // Assert
-        verify(chatLogManager).save(eq(CONVERSATION_ID), savedLines.capture(), eq(DOCUMENT_URL),
-                eq(PROMPT_TOKENS), eq(COMPLETION_TOKENS), anyInt());
-        assertThat(savedLines.getValue().getLast())
-                .contains("Received response in", "[promptTokens: 100, completionTokens: 20]:\n" + ANSWER);
-    }
-
-    @Test
-    void returnsTheLogLinesWithTheCallResponse() {
-        // Arrange
-        when(callChain.nextCall(any())).thenReturn(response(ANSWER));
-
-        // Act
-        ChatClientResponse response = advisor.adviseCall(request(true), callChain);
-
-        // Assert
-        assertThat(response.context())
-                .containsKeys(ChatLogAdvisor.LOG_LINES, ChatLogAdvisor.RETRIEVAL_LINES);
     }
 
     @Test
@@ -124,21 +96,6 @@ class ChatLogAdvisorTest {
                 .hasMessage(MODEL_FAILURE);
         assertThat(savedLines.getValue().getLast())
                 .contains("Request failed: ", MODEL_FAILURE);
-    }
-
-    @Test
-    void savesACompletedStream() {
-        // Arrange
-        when(streamChain.nextStream(any())).thenReturn(Flux.just(response(ANSWER)));
-
-        // Act
-        advisor.adviseStream(request(true), streamChain).blockLast();
-
-        // Assert
-        verify(chatLogManager).save(eq(CONVERSATION_ID), savedLines.capture(), eq(DOCUMENT_URL),
-                eq(PROMPT_TOKENS), eq(COMPLETION_TOKENS), anyInt());
-        assertThat(savedLines.getValue().getLast())
-                .contains("Received response in", "[promptTokens: 100, completionTokens: 20]");
     }
 
     @Test

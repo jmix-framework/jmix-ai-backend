@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -289,7 +290,7 @@ class AbstractRagToolTest {
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 12, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
-        TurnTrace trace = new TurnTrace("conversation");
+        TurnTrace trace = TurnTrace.forCall("conversation");
 
         String text = tool.execute("query", new ToolContext(Map.of(TurnTrace.KEY, trace)));
 
@@ -342,7 +343,7 @@ class AbstractRagToolTest {
         List<Document> candidates = prepareCandidates(4);
         when(reranker.rerank("query", candidates, 80, reader))
                 .thenReturn(List.of(new Reranker.Result(candidates.getFirst(), 1.0)));
-        TurnTrace trace = new TurnTrace("conversation");
+        TurnTrace trace = TurnTrace.forStream("conversation");
 
         tool.execute("query", 20, new ToolContext(Map.of(TurnTrace.KEY, trace)));
 
@@ -354,6 +355,23 @@ class AbstractRagToolTest {
         assertThat(events.getFirst())
                 .isEqualTo(new EventStreamValueHolder.ToolCallStart("documentation_retriever", "query",
                         new EventStreamValueHolder.RequestedRetrieval(20, 80)));
+    }
+
+    @Test
+    void toolMethodRecordsAFailedSearchWithItsError() {
+        DocsTool tool = tool(adaptiveReader(Map.of()));
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenThrow(new IllegalStateException("vector store is down"));
+        TurnTrace trace = TurnTrace.forCall("conversation");
+
+        Throwable failure = catchThrowable(() -> tool.execute("query", new ToolContext(Map.of(TurnTrace.KEY, trace))));
+
+        assertThat(failure)
+                .hasMessage("vector store is down");
+        assertThat(trace.retrievals())
+                .singleElement()
+                .extracting(RetrievalResult::steps)
+                .isEqualTo(List.of(new RetrievalResult.Note(trace.retrievals().getFirst().endedAt(),
+                        "Failed: java.lang.IllegalStateException: vector store is down")));
     }
 
     @Test

@@ -18,7 +18,6 @@ class ChatLogFormatterTest {
     private static final String TOOL = "documentation_retriever";
     private static final String QUERY = "notifications";
     private static final String RULE_NOTE = "Rule 'BPM Add-on' filtered out https://docs.jmix.io/bpm.html";
-    private static final String ANSWER = "Use the Notifications bean.";
     private static final EventStreamValueHolder.DocScore FOUND = new EventStreamValueHolder.DocScore(0.9, "https://docs.jmix.io/a.html");
     private static final EventStreamValueHolder.DocScore RERANKED = new EventStreamValueHolder.DocScore(0.95, "https://docs.jmix.io/a.html");
     private static final EventStreamValueHolder.RequestedRetrieval REQUESTED = new EventStreamValueHolder.RequestedRetrieval(6, 24);
@@ -58,44 +57,6 @@ class ChatLogFormatterTest {
                         "10:00:02 Found documents (1) in 120 ms: [" + docScore(FOUND) + "]",
                         "10:00:03 Reranked documents (1) in 300 ms: [" + docScore(RERANKED) + "]",
                         "10:00:04 documentation_retriever done in 3000 ms");
-    }
-
-    @Test
-    void retrievalLinesKeepTheCheckRunLogFormat() {
-        // Arrange
-        RetrievalResult result = retrievalResult();
-
-        // Act
-        List<String> lines = ChatLogFormatter.retrievalLines(result);
-
-        // Assert
-        assertThat(lines)
-                .containsExactly(
-                        ">>> Using documentation_retriever: notifications (6 results requested, vector fetch widened to 24)",
-                        "Found documents (1): [" + docScore(FOUND) + "]",
-                        RULE_NOTE,
-                        "Reranked documents (1): [" + docScore(RERANKED) + "]",
-                        "documentation_retriever done in 3000 ms");
-    }
-
-    @Test
-    void callResponseLineEndsWithTheAnswerStart() {
-        // Act
-        String line = ChatLogFormatter.callResponseLine(ANSWER, 5000, 100, 20);
-
-        // Assert
-        assertThat(line)
-                .isEqualTo("Received response in 5000 ms [promptTokens: 100, completionTokens: 20]:\n" + ANSWER);
-    }
-
-    @Test
-    void callResponseLineReportsAMissingResponse() {
-        // Act
-        String line = ChatLogFormatter.callResponseLine(null, 5000, 0, 0);
-
-        // Assert
-        assertThat(line)
-                .isEqualTo("No response received from the chat model");
     }
 
     private static RetrievalResult retrievalResult() {
