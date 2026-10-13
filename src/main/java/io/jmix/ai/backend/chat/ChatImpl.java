@@ -32,6 +32,8 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.responses.OpenAiResponsesChatModel;
+import org.springframework.ai.openai.responses.OpenAiResponsesChatOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
@@ -59,6 +61,8 @@ public class ChatImpl implements Chat {
 
     private static final Logger log = LoggerFactory.getLogger(ChatImpl.class);
     private static final String DEFAULT_MODEL = "gpt-5";
+    private static final String RESPONSES_API = "responses";
+    private static final String CHAT_COMPLETIONS_API = "chat-completions";
 
     private final ParametersRepository parametersRepository;
     private final ChatMemory chatMemory;
@@ -104,13 +108,19 @@ public class ChatImpl implements Chat {
      * Chat model settings read from the parameters. The chat model and the model line of the chat log are both built
      * from this object, so the log always shows the model that answered.
      */
-    record ChatModelOptions(String model, @Nullable Double temperature, @Nullable String reasoningEffort) {
+    record ChatModelOptions(String model, @Nullable Double temperature, @Nullable String reasoningEffort, String api) {
 
         static ChatModelOptions read(ParametersReader parametersReader) {
             return new ChatModelOptions(
                     parametersReader.getString("model.name", DEFAULT_MODEL),
                     parametersReader.getDouble("model.temperature", null),
-                    parametersReader.getString("model.reasoningEffort", null));
+                    parametersReader.getString("model.reasoningEffort", null),
+                    parametersReader.getString("model.api", RESPONSES_API));
+        }
+
+        /** Chat Completions is for providers without the Responses API; any other value means the Responses API. */
+        boolean usesChatCompletions() {
+            return CHAT_COMPLETIONS_API.equals(api);
         }
 
         /**
@@ -559,26 +569,49 @@ public class ChatImpl implements Chat {
         if (StringUtils.isBlank(openaiApiKey)) {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
         }
-        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
-                .apiKey(openaiApiKey)
+        if (modelOptions.usesChatCompletions()) {
+            return buildChatCompletionsModel(openaiApiKey, modelOptions);
+        }
+        return buildResponsesModel(openaiApiKey, modelOptions);
+    }
+
+    private ChatModel buildResponsesModel(String apiKey, ChatModelOptions modelOptions) {
+        OpenAiResponsesChatOptions.Builder optionsBuilder = OpenAiResponsesChatOptions.builder()
+                .apiKey(apiKey)
                 .timeout(OpenAiClientDefaults.TIMEOUT)
                 .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
                 .model(modelOptions.model());
         if (StringUtils.isNotBlank(openAiBaseUrl)) {
             optionsBuilder.baseUrl(openAiBaseUrl);
         }
-
         if (modelOptions.temperature() != null)
             optionsBuilder.temperature(modelOptions.temperature());
         if (modelOptions.reasoningEffort() != null)
             optionsBuilder.reasoningEffort(modelOptions.reasoningEffort());
 
-        OpenAiChatOptions openAiChatOptions = optionsBuilder
-                .streamUsage(true)
+        return OpenAiResponsesChatModel.builder()
+                .options(optionsBuilder.build())
+                .observationRegistry(observationRegistry)
                 .build();
+    }
+
+    private ChatModel buildChatCompletionsModel(String apiKey, ChatModelOptions modelOptions) {
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .apiKey(apiKey)
+                .timeout(OpenAiClientDefaults.TIMEOUT)
+                .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
+                .model(modelOptions.model())
+                .streamUsage(true);
+        if (StringUtils.isNotBlank(openAiBaseUrl)) {
+            optionsBuilder.baseUrl(openAiBaseUrl);
+        }
+        if (modelOptions.temperature() != null)
+            optionsBuilder.temperature(modelOptions.temperature());
+        if (modelOptions.reasoningEffort() != null)
+            optionsBuilder.reasoningEffort(modelOptions.reasoningEffort());
 
         return OpenAiChatModel.builder()
-                .options(openAiChatOptions)
+                .options(optionsBuilder.build())
                 .observationRegistry(observationRegistry)
                 .build();
     }

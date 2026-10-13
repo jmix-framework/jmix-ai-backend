@@ -3,6 +3,8 @@ description: gpt-5.1, snippets + Java API, low reasoning, prompt-2026-07-28f
 model:
   name: gpt-5.1
   reasoningEffort: low
+  # responses = OpenAI Responses API (tool calls with reasoning); chat-completions = providers without it
+  api: responses
 
 reranker:
   model: gpt-5.4-nano
