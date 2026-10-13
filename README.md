@@ -168,3 +168,21 @@ Build app image:
 ```shell
 ./gradlew bootBuildImage -Pvaadin.productionMode=true
 ```
+
+Alternatively, build the image with the `Dockerfile`:
+```shell
+docker build -t jmix-ai-backend .
+```
+
+This image runs with the `prod` profile and listens on port 8081. The container exits at startup if any of these environment variables is not set:
+```shell
+docker run -p 8081:8081 \
+  -e OPENAI_API_KEY=... \
+  -e MAIN_DATASOURCE_URL=jdbc:postgresql://db-host/jmix-ai-backend \
+  -e MAIN_DATASOURCE_USERNAME=... \
+  -e MAIN_DATASOURCE_PASSWORD=... \
+  -e PGVECTOR_DATASOURCE_URL=jdbc:postgresql://vector-host/vectorstore \
+  -e PGVECTOR_DATASOURCE_USERNAME=... \
+  -e PGVECTOR_DATASOURCE_PASSWORD=... \
+  jmix-ai-backend
+```
