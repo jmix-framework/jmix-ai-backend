@@ -17,10 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
-import org.springframework.ai.chat.memory.repository.jdbc.JdbcChatMemoryRepository;
 import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -69,7 +68,7 @@ public class ChatImpl implements Chat {
     private final SystemPromptResolver systemPromptResolver;
     private final String openAiBaseUrl;
 
-    public ChatImpl(JdbcChatMemoryRepository chatMemoryRepository,
+    public ChatImpl(ChatMemoryRepository chatMemoryRepository,
                     ParametersRepository parametersRepository,
                     @Qualifier("streamingScheduler") Scheduler streamingScheduler,
                     ToolsManager toolsManager,
@@ -518,7 +517,7 @@ public class ChatImpl implements Chat {
                 .orElse(null);
     }
 
-    private Prompt buildPrompt(String userPrompt, String systemPrompt) {
+    Prompt buildPrompt(String userPrompt, String systemPrompt) {
         return new Prompt(List.of(
                 new SystemMessage(systemPrompt),
                 new UserMessage(userPrompt)
@@ -559,9 +558,9 @@ public class ChatImpl implements Chat {
                 .build();
     }
 
-    private ChatClient buildClient(ChatModel chatModel) {
+    ChatClient buildClient(ChatModel chatModel) {
         return ChatClient.builder(chatModel)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(new CompletedTurnMemoryAdvisor(chatMemory))
                 .build();
     }
 
