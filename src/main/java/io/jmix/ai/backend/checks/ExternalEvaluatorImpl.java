@@ -14,7 +14,6 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
@@ -104,21 +103,16 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
         }
 
-        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
-                .apiKey(apiKey);
-        if (StringUtils.isNotBlank(baseUrl)) {
-            apiBuilder.baseUrl(baseUrl);
-        }
-        OpenAiApi openAiApi = apiBuilder.build();
-
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .apiKey(apiKey)
                 .model(model)
-                .temperature(temperature)
-                .build();
+                .temperature(temperature);
+        if (StringUtils.isNotBlank(baseUrl)) {
+            optionsBuilder.baseUrl(baseUrl);
+        }
 
         this.chatModel = OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(options)
+                .options(optionsBuilder.build())
                 .build();
         this.configurationSnapshot = configurationSnapshot(model, temperature);
     }

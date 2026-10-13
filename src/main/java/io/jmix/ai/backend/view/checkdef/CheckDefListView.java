@@ -73,7 +73,7 @@ public class CheckDefListView extends StandardListView<CheckDef> {
     }
 
     @Subscribe("jsonImportUploadField")
-    public void onJsonImportUploadFieldFileUploadSucceeded(final FileUploadSucceededEvent<FileUploadField> event) {
+    public void onJsonImportUploadFieldFileUploadSucceeded(final FileUploadSucceededEvent<FileUploadField, byte[]> event) {
         byte[] fileContent = event.getSource().getValue();
         if (fileContent == null || fileContent.length == 0) {
             notifications.show(messageBundle.getMessage("jsonImport.emptyFile"));

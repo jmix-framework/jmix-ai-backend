@@ -31,7 +31,6 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
@@ -529,15 +528,12 @@ public class ChatImpl implements Chat {
         if (StringUtils.isBlank(openaiApiKey)) {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
         }
-        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
-                .apiKey(openaiApiKey);
-        if (StringUtils.isNotBlank(openAiBaseUrl)) {
-            apiBuilder.baseUrl(openAiBaseUrl);
-        }
-        OpenAiApi openAiApi = apiBuilder.build();
-
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .apiKey(openaiApiKey)
                 .model(parametersReader.getString("model.name", "gpt-5"));
+        if (StringUtils.isNotBlank(openAiBaseUrl)) {
+            optionsBuilder.baseUrl(openAiBaseUrl);
+        }
 
         Double temperature = parametersReader.getDouble("model.temperature", null);
         if (temperature != null)
@@ -552,8 +548,7 @@ public class ChatImpl implements Chat {
                 .build();
 
         return OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(openAiChatOptions)
+                .options(openAiChatOptions)
                 .observationRegistry(observationRegistry)
                 .build();
     }
