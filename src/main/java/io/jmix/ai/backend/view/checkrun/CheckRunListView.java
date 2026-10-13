@@ -43,11 +43,13 @@ public class CheckRunListView extends StandardListView<CheckRun> {
 
     @Install(to = "checkRunsDataGrid.createAction", subject = "afterSaveHandler")
     private void checkRunsDataGridCreateActionAfterSaveHandler(final CheckRun checkRun) {
+        int definitionsToRun = checkRunner.countDefinitionsToRun(checkRun);
         dialogs.createBackgroundTaskDialog(
                         new BackgroundTask<Integer, Void>(3600, this) {
                             @Override
                             public Void run(TaskLifeCycle<Integer> taskLifeCycle) throws Exception {
-                                checkRunner.runChecks(Id.of(checkRun));
+                                checkRunner.runChecks(Id.of(checkRun), (ignoredCheck, completed, ignoredTotal) ->
+                                        taskLifeCycle.publish(completed));
                                 return null;
                             }
 
@@ -60,6 +62,7 @@ public class CheckRunListView extends StandardListView<CheckRun> {
                 .withHeader(messageBundle.getMessage("checksRunning.header"))
                 .withText(messageBundle.getMessage("checksRunning.text"))
                 .withCancelAllowed(true)
+                .withTotal(definitionsToRun)
                 .open();
     }
 
