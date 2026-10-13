@@ -31,6 +31,8 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.responses.OpenAiResponsesChatModel;
+import org.springframework.ai.openai.responses.OpenAiResponsesChatOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
@@ -528,27 +530,51 @@ public class ChatImpl implements Chat {
         if (StringUtils.isBlank(openaiApiKey)) {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
         }
-        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
-                .apiKey(openaiApiKey)
-                .model(parametersReader.getString("model.name", "gpt-5"));
+        String model = parametersReader.getString("model.name", "gpt-5");
+        Double temperature = parametersReader.getDouble("model.temperature", null);
+        String reasoningEffort = parametersReader.getString("model.reasoningEffort", null);
+
+        if ("chat-completions".equals(parametersReader.getString("model.api", "responses"))) {
+            return buildChatCompletionsModel(openaiApiKey, model, temperature, reasoningEffort);
+        }
+        return buildResponsesModel(openaiApiKey, model, temperature, reasoningEffort);
+    }
+
+    private ChatModel buildResponsesModel(String apiKey, String model,
+                                          @Nullable Double temperature, @Nullable String reasoningEffort) {
+        OpenAiResponsesChatOptions.Builder optionsBuilder = OpenAiResponsesChatOptions.builder()
+                .apiKey(apiKey)
+                .model(model);
         if (StringUtils.isNotBlank(openAiBaseUrl)) {
             optionsBuilder.baseUrl(openAiBaseUrl);
         }
-
-        Double temperature = parametersReader.getDouble("model.temperature", null);
         if (temperature != null)
             optionsBuilder.temperature(temperature);
-
-        String reasoningEffort = parametersReader.getString("model.reasoningEffort", null);
         if (reasoningEffort != null)
             optionsBuilder.reasoningEffort(reasoningEffort);
 
-        OpenAiChatOptions openAiChatOptions = optionsBuilder
-                .streamUsage(true)
+        return OpenAiResponsesChatModel.builder()
+                .options(optionsBuilder.build())
+                .observationRegistry(observationRegistry)
                 .build();
+    }
+
+    private ChatModel buildChatCompletionsModel(String apiKey, String model,
+                                                @Nullable Double temperature, @Nullable String reasoningEffort) {
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .apiKey(apiKey)
+                .model(model)
+                .streamUsage(true);
+        if (StringUtils.isNotBlank(openAiBaseUrl)) {
+            optionsBuilder.baseUrl(openAiBaseUrl);
+        }
+        if (temperature != null)
+            optionsBuilder.temperature(temperature);
+        if (reasoningEffort != null)
+            optionsBuilder.reasoningEffort(reasoningEffort);
 
         return OpenAiChatModel.builder()
-                .options(openAiChatOptions)
+                .options(optionsBuilder.build())
                 .observationRegistry(observationRegistry)
                 .build();
     }
