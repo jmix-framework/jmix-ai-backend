@@ -148,7 +148,7 @@ class RerankerTest {
         private Prompt capturedPrompt;
 
         private TestReranker(ChatModel chatModel) {
-            super("test-api-key");
+            super("test-api-key", "");
             this.chatModel = chatModel;
         }
 

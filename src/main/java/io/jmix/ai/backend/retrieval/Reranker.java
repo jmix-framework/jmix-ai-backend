@@ -89,15 +89,19 @@ public class Reranker {
     private final OpenAiApi openAiApi;
 
     public Reranker(
-            @Value("${spring.ai.openai.api-key:}") String configuredApiKey
+            @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
+            @Value("${spring.ai.openai.base-url:}") String baseUrl
     ) {
         String apiKey = StringUtils.defaultIfBlank(configuredApiKey, System.getenv("OPENAI_API_KEY"));
         if (StringUtils.isBlank(apiKey)) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
         }
-        this.openAiApi = OpenAiApi.builder()
-                .apiKey(apiKey)
-                .build();
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
+                .apiKey(apiKey);
+        if (StringUtils.isNotBlank(baseUrl)) {
+            apiBuilder.baseUrl(baseUrl);
+        }
+        this.openAiApi = apiBuilder.build();
     }
 
     @Nullable
