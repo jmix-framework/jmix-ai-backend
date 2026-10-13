@@ -53,7 +53,7 @@ public class VectorStoreRepository {
         if (filterExpression != null) {
             String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
             sql = "SELECT id, content, metadata FROM vector_store " +
-                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath " + orderBy;
+                    "WHERE " + nativeFilterExpression + " " + orderBy;
         } else {
             sql = "SELECT id, content, metadata FROM vector_store " + orderBy;
         }
@@ -135,7 +135,7 @@ public class VectorStoreRepository {
         if (filterExpression != null) {
             String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
             sql = "SELECT count(*) FROM vector_store " +
-                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath ";
+                    "WHERE " + nativeFilterExpression + " ";
         } else {
             sql = "SELECT count(*) FROM vector_store ";
         }
@@ -169,7 +169,7 @@ public class VectorStoreRepository {
         if (filterExpression != null) {
             String nativeFilterExpression = this.filterExpressionConverter.convertExpression(filterExpression);
             sql = "DELETE FROM vector_store " +
-                    "WHERE metadata::jsonb @@ '" + nativeFilterExpression + "'::jsonpath ";
+                    "WHERE " + nativeFilterExpression + " ";
         } else {
             sql = "DELETE FROM vector_store ";
         }
