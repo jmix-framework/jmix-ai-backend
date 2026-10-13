@@ -58,7 +58,8 @@ class ChatImplTest {
                 Schedulers.immediate(),
                 toolsManager,
                 chatLogManager,
-                systemPromptResolver);
+                systemPromptResolver,
+                "");
     }
 
     @Test
