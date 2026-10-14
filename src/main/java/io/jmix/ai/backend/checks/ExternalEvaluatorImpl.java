@@ -94,7 +94,7 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
     @Autowired
     public ExternalEvaluatorImpl(
-            @Value("${answer-checks.model:gpt-5-mini}") String model,
+            @Value("${answer-checks.model:gpt-6.1-sol}") String model,
             @Value("${answer-checks.temperature:0}") double temperature,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
             @Value("${spring.ai.openai.base-url:}") String baseUrl
