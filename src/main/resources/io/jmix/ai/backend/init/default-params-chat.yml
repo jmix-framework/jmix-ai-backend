@@ -8,7 +8,7 @@ model:
 
 reranker:
   model: gpt-6-luna
-  reasoningEffort: low
+  reasoningEffort: none
   temperature: 1.0
   maxDocumentChars: 10000
 
