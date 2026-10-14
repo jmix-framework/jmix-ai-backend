@@ -59,7 +59,8 @@ class RerankerTest {
                 "reranker", Map.of(
                         "model", "custom-model",
                         "temperature", 0.25,
-                        "maxDocumentChars", 5
+                        "maxDocumentChars", 5,
+                        "reasoningEffort", "none"
                 )
         ));
 
@@ -73,6 +74,7 @@ class RerankerTest {
         assertThat(reranker.capturedOptions.model()).isEqualTo("custom-model");
         assertThat(reranker.capturedOptions.temperature()).isEqualTo(0.25);
         assertThat(reranker.capturedOptions.maxDocumentChars()).isEqualTo(5);
+        assertThat(reranker.capturedOptions.reasoningEffort()).isEqualTo("none");
         assertThat(results).singleElement().extracting(result -> result.document().getId()).isEqualTo("1");
 
         UserMessage userMessage = reranker.capturedPrompt.getUserMessage();
