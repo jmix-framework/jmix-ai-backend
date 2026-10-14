@@ -131,6 +131,6 @@ class ChatImplTest {
 
         // Assert
         assertThat(description)
-                .isEqualTo("gpt-5");
+                .isEqualTo("gpt-6.1-sol");
     }
 }

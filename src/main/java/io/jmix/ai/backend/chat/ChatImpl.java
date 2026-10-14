@@ -60,7 +60,7 @@ import static org.apache.commons.lang3.StringUtils.abbreviate;
 public class ChatImpl implements Chat {
 
     private static final Logger log = LoggerFactory.getLogger(ChatImpl.class);
-    private static final String DEFAULT_MODEL = "gpt-5";
+    private static final String DEFAULT_MODEL = "gpt-6.1-sol";
     private static final String RESPONSES_API = "responses";
     private static final String CHAT_COMPLETIONS_API = "chat-completions";
 
