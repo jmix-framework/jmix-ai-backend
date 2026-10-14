@@ -1,13 +1,14 @@
-description: gpt-5.1, snippets + Java API, low reasoning, prompt-2026-07-28f
+description: gpt-6.1-sol, snippets + Java API, low reasoning, prompt-2026-07-28f
 
 model:
-  name: gpt-5.1
+  name: gpt-6.1-sol
   reasoningEffort: low
   # responses = OpenAI Responses API (tool calls with reasoning); chat-completions = providers without it
   api: responses
 
 reranker:
-  model: gpt-5.4-nano
+  model: gpt-6-luna
+  reasoningEffort: low
   temperature: 1.0
   maxDocumentChars: 10000
 

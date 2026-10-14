@@ -34,7 +34,7 @@ import java.util.stream.IntStream;
 @Component
 public class Reranker {
 
-    static final String DEFAULT_MODEL = "gpt-5-nano";
+    static final String DEFAULT_MODEL = "gpt-6-luna";
     static final double DEFAULT_TEMPERATURE = 1.0;
     static final int DEFAULT_MAX_DOCUMENT_CHARS = 3000;
 

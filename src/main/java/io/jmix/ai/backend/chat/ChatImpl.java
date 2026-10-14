@@ -530,7 +530,7 @@ public class ChatImpl implements Chat {
         if (StringUtils.isBlank(openaiApiKey)) {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
         }
-        String model = parametersReader.getString("model.name", "gpt-5");
+        String model = parametersReader.getString("model.name", "gpt-6.1-sol");
         Double temperature = parametersReader.getDouble("model.temperature", null);
         String reasoningEffort = parametersReader.getString("model.reasoningEffort", null);
 
