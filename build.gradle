@@ -71,6 +71,28 @@ dependencies {
     testImplementation 'org.hsqldb:hsqldb'
 }
 
+def jmixManagedGroups = ['org.springframework', 'org.springframework.boot', 'io.micrometer', 'io.projectreactor',
+                         'io.projectreactor.netty', 'ch.qos.logback', 'org.apache.logging.log4j', 'org.slf4j',
+                         'com.zaxxer', 'org.jetbrains.kotlin', 'org.yaml', 'tools.jackson', 'tools.jackson.core']
+
+dependencies {
+    components {
+        all { details ->
+            if (details.id.group == 'org.springframework.ai') {
+                details.allVariants {
+                    withDependencies { deps ->
+                        deps.findAll { it.group in jmixManagedGroups }
+                                .each { dep ->
+                                    String version = dep.versionConstraint.requiredVersion
+                                    dep.version { require ''; prefer version }
+                                }
+                    }
+                }
+            }
+        }
+    }
+}
+
 configurations.implementation {
     exclude group: 'com.vaadin', module: 'hilla'
     exclude group: 'com.vaadin', module: 'hilla-dev'
