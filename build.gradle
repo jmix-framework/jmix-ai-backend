@@ -28,6 +28,7 @@ repositories {
 }
 
 dependencies {
+    implementation platform('org.springframework.ai:spring-ai-bom:2.1.0-M1')
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
     implementation 'org.springframework.ai:spring-ai-pgvector-store'
     implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
