@@ -80,6 +80,17 @@ class VectorStoreRepositoryTest {
     }
 
     @Test
+    void filtersByTheConvertedMetadataPredicate() {
+        repository.loadList("type == 'docs'");
+
+        verify(jdbcTemplate).query(
+                eq("SELECT id, content, metadata FROM vector_store " +
+                        "WHERE metadata::jsonb @@ '$.\"type\" == \"docs\"'::jsonpath " +
+                        "ORDER BY metadata::jsonb ->> 'type', metadata::jsonb ->> 'source'"),
+                any(RowMapper.class));
+    }
+
+    @Test
     void rejectsIncompleteSourceIdentityWithoutQuerying() {
         assertThatThrownBy(() -> repository.loadSourceChunks(" ", "source", JmixVersion.V2))
                 .isInstanceOf(IllegalArgumentException.class);

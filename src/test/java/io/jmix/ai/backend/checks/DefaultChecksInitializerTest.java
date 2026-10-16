@@ -136,7 +136,7 @@ class DefaultChecksInitializerTest {
         });
 
         DefaultChecksInitializer initializer =
-                new DefaultChecksInitializer(dataManager, resources, new ObjectMapper());
+                new DefaultChecksInitializer(dataManager, resources);
         initializer.initDefaultChecks(null);
 
         verify(query).hint(PersistenceHints.SOFT_DELETION, false);
