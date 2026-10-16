@@ -28,10 +28,9 @@ repositories {
 }
 
 dependencies {
-    // Spring AI modules below have no versions: they come from this BOM. The Jmix BOM manages Spring AI 2.0.0, which
-    // keeps the OpenAI stream open after the client of /chat/stream disconnects (spring-projects/spring-ai#6656).
-    // Do not use 2.0.1: it limits every OpenAI call to 60 seconds (spring-projects/spring-ai#6837).
-    implementation platform('org.springframework.ai:spring-ai-bom:2.0.2')
+    // Spring AI modules below have no versions: they come from this BOM. The Jmix BOM manages Spring AI 2.0.0; the chat
+    // needs 2.1 for OpenAiResponsesChatModel: OpenAI runs tool calls with reasoning only through the Responses API.
+    implementation platform('org.springframework.ai:spring-ai-bom:2.1.0-M1')
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
     implementation 'org.springframework.ai:spring-ai-pgvector-store'
     implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
