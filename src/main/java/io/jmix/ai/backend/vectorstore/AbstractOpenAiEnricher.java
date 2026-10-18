@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore;
 
+import io.jmix.ai.backend.OpenAiClientDefaults;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -68,6 +69,7 @@ public abstract class AbstractOpenAiEnricher {
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
                 .apiKey(apiKey)
                 .timeout(timeout)
+                .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
                 .model(modelName)
                 .outputSchema(outputConverter().getJsonSchema());
         if (StringUtils.isNotBlank(baseUrl)) {

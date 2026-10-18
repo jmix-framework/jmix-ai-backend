@@ -3,6 +3,7 @@ package io.jmix.ai.backend.retrieval;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jmix.ai.backend.OpenAiClientDefaults;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -155,6 +156,8 @@ public class Reranker {
     protected ChatModel buildChatModel(RerankerOptions options) {
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .apiKey(apiKey)
+                .timeout(OpenAiClientDefaults.TIMEOUT)
+                .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
                 .model(options.model())
                 .temperature(options.temperature())
                 .outputSchema(OUTPUT_CONVERTER.getJsonSchema());

@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.chat;
 
+import io.jmix.ai.backend.OpenAiClientDefaults;
 import io.jmix.ai.backend.chatlog.ChatLogManager;
 import io.jmix.ai.backend.entity.JmixVersion;
 import io.jmix.ai.backend.parameters.ParametersReader;
@@ -530,6 +531,8 @@ public class ChatImpl implements Chat {
         }
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .apiKey(openaiApiKey)
+                .timeout(OpenAiClientDefaults.TIMEOUT)
+                .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
                 .model(parametersReader.getString("model.name", "gpt-5"));
         if (StringUtils.isNotBlank(openAiBaseUrl)) {
             optionsBuilder.baseUrl(openAiBaseUrl);

@@ -2,6 +2,7 @@ package io.jmix.ai.backend.checks;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jmix.ai.backend.OpenAiClientDefaults;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,6 +106,8 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .apiKey(apiKey)
+                .timeout(OpenAiClientDefaults.TIMEOUT)
+                .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
                 .model(model)
                 .temperature(temperature);
         if (StringUtils.isNotBlank(baseUrl)) {
