@@ -41,13 +41,14 @@ dependencies {
     implementation 'io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.28.1-alpha'
 
     implementation 'org.commonmark:commonmark:0.24.0'
-    implementation 'org.jsoup:jsoup:1.17.2'
+    implementation 'org.jsoup:jsoup'
     implementation 'org.asciidoctor:asciidoctorj:3.0.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
 
     implementation 'io.jmix.core:jmix-core-starter'
     implementation 'io.jmix.data:jmix-eclipselink-starter'
-    // TODO: remove when the Jmix security starters bring spring-boot-security
+    // TODO: remove when the Jmix security starters bring spring-boot-security (internal #52)
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'io.jmix.security:jmix-security-starter'
     implementation 'io.jmix.security:jmix-security-flowui-starter'
@@ -74,6 +75,10 @@ dependencies {
     testImplementation 'org.hsqldb:hsqldb'
 }
 
+// Spring AI 2.0.0 asks for newer Spring Boot, Spring Framework, Micrometer, Reactor, logging, Kotlin and Jackson 3
+// versions than the Jmix BOM manages. The rule turns those requests into preferences, so the Jmix BOM versions win
+// and the app runs on the platform Jmix is tested with. Remove it when the Spring AI version in the Jmix BOM is built
+// on the Spring Boot version of that BOM.
 def jmixManagedGroups = ['org.springframework', 'org.springframework.boot', 'io.micrometer', 'io.projectreactor',
                          'io.projectreactor.netty', 'ch.qos.logback', 'org.apache.logging.log4j', 'org.slf4j',
                          'com.zaxxer', 'org.jetbrains.kotlin', 'org.yaml', 'tools.jackson', 'tools.jackson.core']
