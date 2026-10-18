@@ -51,6 +51,9 @@
         <addColumn tableName="SPRING_AI_CHAT_MEMORY">
             <column name="sequence_id" type="bigint"/>
         </addColumn>
+        <!-- Spring AI 1.x saved a conversation with one timestamp per message, one second apart (the epoch
+             second of the save plus the message position), so "timestamp" is unique within a conversation
+             and ordering by it restores the message order. -->
         <sql dbms="postgresql">
             WITH ordered AS (
                 SELECT ctid, ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY "timestamp") - 1 AS seq
