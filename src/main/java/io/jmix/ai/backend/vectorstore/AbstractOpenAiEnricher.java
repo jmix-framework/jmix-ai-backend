@@ -1,5 +1,6 @@
 package io.jmix.ai.backend.vectorstore;
 
+import io.jmix.ai.backend.OpenAiClientDefaults;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -8,11 +9,7 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.openai.api.ResponseFormat;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.lang.Nullable;
-import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -25,7 +22,9 @@ public abstract class AbstractOpenAiEnricher {
 
     private final String modelName;
     private final String reasoningEffort;
-    private final OpenAiApi openAiApi;
+    private final String apiKey;
+    private final String baseUrl;
+    private final Duration timeout;
     private ChatModel chatModel;
 
     protected AbstractOpenAiEnricher(
@@ -34,8 +33,7 @@ public abstract class AbstractOpenAiEnricher {
             String configuredApiKey,
             String baseUrl,
             boolean requireApiKey,
-            Duration connectTimeout,
-            Duration readTimeout) {
+            Duration timeout) {
         this.modelName = modelName;
         this.reasoningEffort = reasoningEffort;
         // the api-key property already resolves OPENAI_API_KEY (spring.ai.openai.api-key=${OPENAI_API_KEY:})
@@ -43,20 +41,9 @@ public abstract class AbstractOpenAiEnricher {
         if (requireApiKey && StringUtils.isBlank(apiKey)) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key)");
         }
-        if (StringUtils.isBlank(apiKey)) {
-            this.openAiApi = null;
-        } else {
-            SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-            requestFactory.setConnectTimeout(connectTimeout);
-            requestFactory.setReadTimeout(readTimeout);
-            OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
-                    .apiKey(apiKey)
-                    .restClientBuilder(RestClient.builder().requestFactory(requestFactory));
-            if (StringUtils.isNotBlank(baseUrl)) {
-                apiBuilder.baseUrl(baseUrl);
-            }
-            this.openAiApi = apiBuilder.build();
-        }
+        this.apiKey = apiKey;
+        this.baseUrl = baseUrl;
+        this.timeout = timeout;
     }
 
     /** The structured-output schema the model must produce. */
@@ -68,7 +55,7 @@ public abstract class AbstractOpenAiEnricher {
     }
 
     protected final synchronized ChatModel chatModel() {
-        if (openAiApi == null) {
+        if (StringUtils.isBlank(apiKey)) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key)");
         }
         if (chatModel == null) {
@@ -80,14 +67,19 @@ public abstract class AbstractOpenAiEnricher {
     /** Creates the immutable, thread-safe model lazily; one instance is reused by this enricher. */
     protected ChatModel createChatModel() {
         OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
+                .apiKey(apiKey)
+                .timeout(timeout)
+                .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
                 .model(modelName)
-                .responseFormat(new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, outputConverter().getJsonSchema()));
+                .outputSchema(outputConverter().getJsonSchema());
+        if (StringUtils.isNotBlank(baseUrl)) {
+            options.baseUrl(baseUrl);
+        }
         if (!StringUtils.isBlank(reasoningEffort)) {
             options.reasoningEffort(reasoningEffort);
         }
         return OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(options.build())
+                .options(options.build())
                 .build();
     }
 

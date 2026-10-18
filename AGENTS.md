@@ -3,7 +3,7 @@
 Guide for coding agents working in `jmix-ai-backend`.
 
 ## Project Snapshot
-- Stack: Java 21, Jmix 2.8 (Spring Boot 3, Vaadin Flow UI), Spring AI.
+- Stack: Java 21, Jmix 3.0 (Spring Boot 4, Vaadin Flow UI), Spring AI 2.
 - Build tool: Gradle (`./gradlew`).
 - Main app: `src/main/java/io/jmix/ai/backend`.
 - Default app port: `8081`.

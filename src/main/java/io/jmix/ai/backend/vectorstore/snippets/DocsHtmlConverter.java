@@ -63,7 +63,7 @@ public class DocsHtmlConverter {
 
             @Override
             public void tail(Node node, int depth) {
-                if (node instanceof Element el && el.isBlock() && !partOfTableRow(el)) {
+                if (node instanceof Element el && (el.isBlock() || el.normalName().equals("br")) && !partOfTableRow(el)) {
                     textBuf.append('\n');
                 }
             }

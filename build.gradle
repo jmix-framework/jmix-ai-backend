@@ -1,14 +1,14 @@
 plugins {
-    id 'io.jmix' version '2.8.2'
+    id 'io.jmix' version '3.0.3'
     id 'java'
-    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.1.9'
+    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.4.1'
 }
 
 apply plugin: 'org.springframework.boot'
 apply plugin: 'com.vaadin'
 
 jmix {
-    bomVersion = '2.8.2'
+    bomVersion = '3.0.3'
 }
 
 group = 'io.jmix.ai'
@@ -27,29 +27,29 @@ repositories {
     }
 }
 
-def springAiVersion = '1.1.2'
-
 dependencies {
-    implementation "org.springframework.ai:spring-ai-starter-model-openai:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-pgvector-store:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-advisors-vector-store:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-rag:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc:$springAiVersion"
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.ai:spring-ai-pgvector-store'
+    implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
 
     implementation 'io.projectreactor:reactor-core'
 
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
-    implementation 'io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:1.32.1-alpha'
+    implementation 'org.springframework.boot:spring-boot-opentelemetry'
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+    implementation 'io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.28.1-alpha'
 
     implementation 'org.commonmark:commonmark:0.24.0'
-    implementation 'org.jsoup:jsoup:1.17.2'
+    implementation 'org.jsoup:jsoup'
     implementation 'org.asciidoctor:asciidoctorj:3.0.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
 
     implementation 'io.jmix.core:jmix-core-starter'
     implementation 'io.jmix.data:jmix-eclipselink-starter'
+    // TODO: remove when the Jmix security starters bring spring-boot-security (internal #52)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'io.jmix.security:jmix-security-starter'
     implementation 'io.jmix.security:jmix-security-flowui-starter'
     implementation 'io.jmix.security:jmix-security-data-starter'
@@ -62,7 +62,8 @@ dependencies {
     implementation 'io.jmix.gridexport:jmix-gridexport-flowui-starter'
     implementation 'io.jmix.charts:jmix-charts-flowui-starter'
 
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'com.vaadin:vaadin-dev'
 
     implementation 'org.postgresql:postgresql'
 
@@ -70,7 +71,34 @@ dependencies {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
     }
     testImplementation 'io.jmix.flowui:jmix-flowui-test-assist'
+    testImplementation 'org.springframework.boot:spring-boot-jdbc-test'
     testImplementation 'org.hsqldb:hsqldb'
+}
+
+// Spring AI 2.0.0 asks for newer Spring Boot, Spring Framework, Micrometer, Reactor, logging, Kotlin and Jackson 3
+// versions than the Jmix BOM manages. The rule turns those requests into preferences, so the Jmix BOM versions win
+// and the app runs on the platform Jmix is tested with. Remove it when the Spring AI version in the Jmix BOM is built
+// on the Spring Boot version of that BOM.
+def jmixManagedGroups = ['org.springframework', 'org.springframework.boot', 'io.micrometer', 'io.projectreactor',
+                         'io.projectreactor.netty', 'ch.qos.logback', 'org.apache.logging.log4j', 'org.slf4j',
+                         'com.zaxxer', 'org.jetbrains.kotlin', 'org.yaml', 'tools.jackson', 'tools.jackson.core']
+
+dependencies {
+    components {
+        all { details ->
+            if (details.id.group == 'org.springframework.ai') {
+                details.allVariants {
+                    withDependencies { deps ->
+                        deps.findAll { it.group in jmixManagedGroups }
+                                .each { dep ->
+                                    String version = dep.versionConstraint.requiredVersion
+                                    dep.version { require ''; prefer version }
+                                }
+                    }
+                }
+            }
+        }
+    }
 }
 
 configurations.implementation {

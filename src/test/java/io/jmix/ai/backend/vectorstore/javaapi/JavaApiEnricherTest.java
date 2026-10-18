@@ -32,7 +32,7 @@ class JavaApiEnricherTest {
 
         TestEnricher(ChatModel chatModel) {
             super("test-model", "low", "test-key", "",
-                    Duration.ofSeconds(1), Duration.ofSeconds(1));
+                    Duration.ofSeconds(1));
             this.chatModel = chatModel;
         }
 

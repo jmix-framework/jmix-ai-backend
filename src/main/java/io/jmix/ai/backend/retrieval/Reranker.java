@@ -3,6 +3,7 @@ package io.jmix.ai.backend.retrieval;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jmix.ai.backend.OpenAiClientDefaults;
 import io.jmix.ai.backend.parameters.ParametersReader;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -18,8 +19,6 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -86,7 +85,8 @@ public class Reranker {
 
     private static final Logger log = LoggerFactory.getLogger(Reranker.class);
 
-    private final OpenAiApi openAiApi;
+    private final String apiKey;
+    private final String baseUrl;
 
     public Reranker(
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
@@ -96,12 +96,8 @@ public class Reranker {
         if (StringUtils.isBlank(apiKey)) {
             throw new IllegalStateException("OPENAI API key is not set (spring.ai.openai.api-key or OPENAI_API_KEY)");
         }
-        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
-                .apiKey(apiKey);
-        if (StringUtils.isNotBlank(baseUrl)) {
-            apiBuilder.baseUrl(baseUrl);
-        }
-        this.openAiApi = apiBuilder.build();
+        this.apiKey = apiKey;
+        this.baseUrl = baseUrl;
     }
 
     @Nullable
@@ -158,15 +154,19 @@ public class Reranker {
     }
 
     protected ChatModel buildChatModel(RerankerOptions options) {
-        OpenAiChatOptions openAiChatOptions = OpenAiChatOptions.builder()
+        OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
+                .apiKey(apiKey)
+                .timeout(OpenAiClientDefaults.TIMEOUT)
+                .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
                 .model(options.model())
                 .temperature(options.temperature())
-                .responseFormat(new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, OUTPUT_CONVERTER.getJsonSchema()))
-                .build();
+                .outputSchema(OUTPUT_CONVERTER.getJsonSchema());
+        if (StringUtils.isNotBlank(baseUrl)) {
+            optionsBuilder.baseUrl(baseUrl);
+        }
 
         return OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(openAiChatOptions)
+                .options(optionsBuilder.build())
                 .build();
     }
 
