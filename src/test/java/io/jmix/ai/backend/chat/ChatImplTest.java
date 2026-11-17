@@ -1,6 +1,7 @@
 package io.jmix.ai.backend.chat;
 
 import io.jmix.ai.backend.chatlog.ChatLogManager;
+import io.jmix.ai.backend.parameters.ParametersReader;
 import io.jmix.ai.backend.parameters.ParametersRepository;
 import io.jmix.ai.backend.retrieval.ToolsManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -88,5 +90,47 @@ class ChatImplTest {
                 .containsExactly(
                         tuple(USER, FIRST_QUESTION),
                         tuple(ASSISTANT, FIRST_ANSWER));
+    }
+
+    @Test
+    void describesTheModelWithItsSettings() {
+        // Arrange
+        ParametersReader parameters = new ParametersReader(Map.of("model", Map.of(
+                "name", "gpt-5.1",
+                "temperature", 0.2,
+                "reasoningEffort", "low")));
+
+        // Act
+        String description = ChatImpl.describeModel(parameters);
+
+        // Assert
+        assertThat(description)
+                .isEqualTo("gpt-5.1 (temperature: 0.2, reasoning effort: low)");
+    }
+
+    @Test
+    void describesTheModelByNameOnlyWhenItHasNoSettings() {
+        // Arrange
+        ParametersReader parameters = new ParametersReader(Map.of("model", Map.of("name", "gpt-5.1")));
+
+        // Act
+        String description = ChatImpl.describeModel(parameters);
+
+        // Assert
+        assertThat(description)
+                .isEqualTo("gpt-5.1");
+    }
+
+    @Test
+    void describesTheDefaultModelWhenParametersNameNone() {
+        // Arrange
+        ParametersReader parameters = new ParametersReader(Map.of());
+
+        // Act
+        String description = ChatImpl.describeModel(parameters);
+
+        // Assert
+        assertThat(description)
+                .isEqualTo("gpt-5");
     }
 }

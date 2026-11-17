@@ -58,6 +58,7 @@ import static org.apache.commons.lang3.StringUtils.abbreviate;
 public class ChatImpl implements Chat {
 
     private static final Logger log = LoggerFactory.getLogger(ChatImpl.class);
+    private static final String DEFAULT_MODEL = "gpt-5";
 
     private final ParametersRepository parametersRepository;
     private final ChatMemory chatMemory;
@@ -93,7 +94,7 @@ public class ChatImpl implements Chat {
 
     private record ChatRequestContext(
             String conversationId,
-            ChatModel chatModel,
+            String modelDescription,
             ChatClient.ChatClientRequestSpec request,
             List<Document> retrievedDocuments
     ) {
@@ -120,7 +121,7 @@ public class ChatImpl implements Chat {
         request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));
         request.toolCallbacks(tools.stream().map(AbstractRagTool::getToolCallback).toList());
 
-        return new ChatRequestContext(nonNullConversationId, chatModel, request, retrievedDocuments);
+        return new ChatRequestContext(nonNullConversationId, describeModel(parametersReader), request, retrievedDocuments);
     }
 
     @Override
@@ -171,7 +172,7 @@ public class ChatImpl implements Chat {
         MDC.put("cid", ctx.conversationId());
         try {
             RetrievalUtils.addLogMessage(log, logMessages, "Model: %s, User prompt: %s".formatted(
-                    ctx.chatModel().getDefaultOptions(), abbreviate(userPrompt, 200)));
+                    ctx.modelDescription(), abbreviate(userPrompt, 200)));
 
             ChatResponse chatResponse = ctx.request().call().chatResponse();
             List<Document> uniqueSortedDocuments = RetrievalUtils.getUniqueSortedDocuments(ctx.retrievedDocuments());
@@ -264,7 +265,7 @@ public class ChatImpl implements Chat {
 
             // Request metadata — model config and user prompt
             var requestInfo = emit(new EventStreamValueHolder.RequestInfo(
-                    ctx.chatModel().getDefaultOptions().toString(), userPrompt));
+                    ctx.modelDescription(), userPrompt));
 
             // Stream content tokens from OpenAI. Each chunk is a ChatResponse object —
             // we extract the text and capture token usage from the last chunk.
@@ -533,7 +534,7 @@ public class ChatImpl implements Chat {
                 .apiKey(openaiApiKey)
                 .timeout(OpenAiClientDefaults.TIMEOUT)
                 .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
-                .model(parametersReader.getString("model.name", "gpt-5"));
+                .model(parametersReader.getString("model.name", DEFAULT_MODEL));
         if (StringUtils.isNotBlank(openAiBaseUrl)) {
             optionsBuilder.baseUrl(openAiBaseUrl);
         }
@@ -554,6 +555,24 @@ public class ChatImpl implements Chat {
                 .options(openAiChatOptions)
                 .observationRegistry(observationRegistry)
                 .build();
+    }
+
+    /**
+     * Returns the model line of the chat log, for example {@code gpt-5.1 (reasoning effort: low)}.
+     * It is built from the parameters: the options object of the chat model has no {@code toString()} in Spring AI 2
+     * and must not be printed as a whole, because it also holds the API key.
+     */
+    static String describeModel(ParametersReader parametersReader) {
+        List<String> settings = new ArrayList<>();
+        Double temperature = parametersReader.getDouble("model.temperature", null);
+        if (temperature != null)
+            settings.add("temperature: " + temperature);
+        String reasoningEffort = parametersReader.getString("model.reasoningEffort", null);
+        if (reasoningEffort != null)
+            settings.add("reasoning effort: " + reasoningEffort);
+
+        String name = parametersReader.getString("model.name", DEFAULT_MODEL);
+        return settings.isEmpty() ? name : "%s (%s)".formatted(name, String.join(", ", settings));
     }
 
     ChatClient buildClient(ChatModel chatModel) {
