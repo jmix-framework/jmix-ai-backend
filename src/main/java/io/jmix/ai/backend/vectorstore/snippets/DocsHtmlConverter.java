@@ -63,7 +63,13 @@ public class DocsHtmlConverter {
 
             @Override
             public void tail(Node node, int depth) {
-                if (node instanceof Element el && el.isBlock() && !partOfTableRow(el)) {
+                if (!(node instanceof Element el)) {
+                    return;
+                }
+                // jsoup 1.22 no longer counts <br> as a block; keep its line break so the text,
+                // and with it the enrichment cache key, stays as before the update
+                boolean lineBreak = el.normalName().equals("br");
+                if ((el.isBlock() || lineBreak) && !partOfTableRow(el)) {
                     textBuf.append('\n');
                 }
             }

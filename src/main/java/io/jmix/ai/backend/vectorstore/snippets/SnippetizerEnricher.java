@@ -117,10 +117,9 @@ public class SnippetizerEnricher extends AbstractOpenAiEnricher {
             @Value("${snippets.enrichment.parallelism}") int parallelism,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
             @Value("${spring.ai.openai.base-url:}") String baseUrl,
-            @Value("${enrichment.openai.connect-timeout}") Duration connectTimeout,
-            @Value("${enrichment.openai.read-timeout}") Duration readTimeout,
+            @Value("${enrichment.openai.timeout}") Duration timeout,
             EnrichmentCacheRepository enrichmentCacheRepository) {
-        super(modelName, reasoningEffort, configuredApiKey, baseUrl, false, connectTimeout, readTimeout);
+        super(modelName, reasoningEffort, configuredApiKey, baseUrl, false, timeout);
         this.parallelism = Math.max(1, parallelism);
         this.enrichmentCacheRepository = enrichmentCacheRepository;
         this.executor = Executors.newFixedThreadPool(this.parallelism);

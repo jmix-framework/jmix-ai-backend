@@ -76,7 +76,7 @@ public class ParametersDetailView extends StandardDetailView<Parameters> {
     }
 
     @Subscribe("uploadField")
-    public void onUploadFieldFileUploadSucceeded(final FileUploadSucceededEvent<FileUploadField> event) {
+    public void onUploadFieldFileUploadSucceeded(final FileUploadSucceededEvent<FileUploadField, byte[]> event) {
         byte[] fileContent = event.getSource().getValue();
         if (fileContent == null || fileContent.length == 0) {
             notifications.show("Empty file");

@@ -17,6 +17,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.lang.Nullable;
+import org.springframework.util.Assert;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
@@ -90,7 +91,8 @@ public class CompletedTurnMemoryAdvisor implements CallAdvisor, StreamAdvisor {
 
     private static String getConversationId(ChatClientRequest request) {
         Object conversationId = request.context().get(ChatMemory.CONVERSATION_ID);
-        return conversationId != null ? conversationId.toString() : ChatMemory.DEFAULT_CONVERSATION_ID;
+        Assert.notNull(conversationId, "conversationId cannot be null");
+        return conversationId.toString();
     }
 
     private ChatClientRequest withHistory(ChatClientRequest request, String conversationId) {

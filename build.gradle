@@ -1,14 +1,14 @@
 plugins {
-    id 'io.jmix' version '2.8.2'
+    id 'io.jmix' version '3.0.3'
     id 'java'
-    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.1.9'
+    id 'org.jetbrains.gradle.plugin.idea-ext' version '1.4.1'
 }
 
 apply plugin: 'org.springframework.boot'
 apply plugin: 'com.vaadin'
 
 jmix {
-    bomVersion = '2.8.2'
+    bomVersion = '3.0.3'
 }
 
 group = 'io.jmix.ai'
@@ -27,29 +27,35 @@ repositories {
     }
 }
 
-def springAiVersion = '1.1.2'
-
 dependencies {
-    implementation "org.springframework.ai:spring-ai-starter-model-openai:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-pgvector-store:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-advisors-vector-store:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-rag:$springAiVersion"
-    implementation "org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc:$springAiVersion"
+    // Spring AI modules below have no versions: they come from this BOM. The Jmix BOM manages Spring AI 2.0.0, which
+    // keeps the OpenAI stream open after the client of /chat/stream disconnects (spring-projects/spring-ai#6656).
+    // Do not use 2.0.1: it limits every OpenAI call to 60 seconds (spring-projects/spring-ai#6837).
+    implementation platform('org.springframework.ai:spring-ai-bom:2.0.2')
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation 'org.springframework.ai:spring-ai-pgvector-store'
+    implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
 
     implementation 'io.projectreactor:reactor-core'
 
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
-    implementation 'io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:1.32.1-alpha'
+    implementation 'org.springframework.boot:spring-boot-opentelemetry'
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+    implementation 'io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.28.1-alpha'
 
     implementation 'org.commonmark:commonmark:0.24.0'
-    implementation 'org.jsoup:jsoup:1.17.2'
+    implementation 'org.jsoup:jsoup'
     implementation 'org.asciidoctor:asciidoctorj:3.0.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
 
     implementation 'io.jmix.core:jmix-core-starter'
     implementation 'io.jmix.data:jmix-eclipselink-starter'
+    // Jmix 3.0.x security starters do not bring spring-boot-security. Without it Spring Boot 4 does not register the
+    // security filter chain first and for all dispatcher types (jmix-framework/jmix#5886, fixed in Jmix 3.1.0).
+    // Remove this line when the project moves to Jmix 3.1.0 or later.
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'io.jmix.security:jmix-security-starter'
     implementation 'io.jmix.security:jmix-security-flowui-starter'
     implementation 'io.jmix.security:jmix-security-data-starter'
@@ -62,7 +68,8 @@ dependencies {
     implementation 'io.jmix.gridexport:jmix-gridexport-flowui-starter'
     implementation 'io.jmix.charts:jmix-charts-flowui-starter'
 
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'com.vaadin:vaadin-dev'
 
     implementation 'org.postgresql:postgresql'
 
@@ -71,6 +78,38 @@ dependencies {
     }
     testImplementation 'io.jmix.flowui:jmix-flowui-test-assist'
     testImplementation 'org.hsqldb:hsqldb'
+}
+
+// Spring AI 2.0.2 is built on Spring Boot 4.1.2, while the Jmix BOM manages Spring Boot 4.0.8. Gradle takes the
+// highest requested version, so without this rule Spring AI pulls Spring Boot 4.1.2 modules, Spring Framework 7.0.10,
+// Micrometer 1.17 and Kotlin 2.3 into an application that otherwise runs on Spring Boot 4.0.8.
+//
+// The rule turns the versions Spring AI modules declare for the groups below from "required" into "preferred".
+// A preference loses to any requirement, so the Jmix BOM versions win and the whole application runs on one
+// Spring Boot version. Spring AI 2.0.x supports Spring Boot 4.0.x and 4.1.x.
+//
+// List only groups the Jmix BOM manages: for any other library a preference would also lose to an older version
+// requested by a third library.
+// Remove the rule when every org.springframework.boot module resolves to the Jmix BOM version without it.
+def jmixManagedGroups = ['org.springframework', 'org.springframework.boot', 'io.micrometer', 'io.projectreactor',
+                         'com.zaxxer', 'org.jetbrains.kotlin', 'tools.jackson.core']
+
+dependencies {
+    components {
+        all { details ->
+            if (details.id.group == 'org.springframework.ai') {
+                details.allVariants {
+                    withDependencies { deps ->
+                        deps.findAll { it.group in jmixManagedGroups }
+                                .each { dep ->
+                                    String version = dep.versionConstraint.requiredVersion
+                                    dep.version { require ''; prefer version }
+                                }
+                    }
+                }
+            }
+        }
+    }
 }
 
 configurations.implementation {

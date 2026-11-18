@@ -29,14 +29,12 @@ public class DefaultChecksInitializer {
 
     private final UnconstrainedDataManager dataManager;
     private final Resources resources;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DefaultChecksInitializer(UnconstrainedDataManager dataManager,
-                                    Resources resources,
-                                    ObjectMapper objectMapper) {
+                                    Resources resources) {
         this.dataManager = dataManager;
         this.resources = resources;
-        this.objectMapper = objectMapper;
     }
 
     @EventListener
