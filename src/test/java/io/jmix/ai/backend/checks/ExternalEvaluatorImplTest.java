@@ -18,10 +18,19 @@ class ExternalEvaluatorImplTest {
     @Test
     void exposesConfigurationSnapshotFromEvaluatorSettings() {
         ExternalEvaluatorImpl evaluator = new ExternalEvaluatorImpl(
-                "gpt-test", 0.25, "test-api-key", "");
+                "gpt-test", "medium", "flex", "test-api-key", "");
 
         assertThat(evaluator.configurationSnapshot())
-                .isEqualTo("semantic-evaluator-version-2026-07-28|model=gpt-test|temperature=0.25");
+                .isEqualTo("semantic-evaluator-version-2026-07-28|model=gpt-test|reasoningEffort=medium");
+    }
+
+    @Test
+    void namesTheDefaultReasoningEffortInTheSnapshotWhenNoneIsSet() {
+        ExternalEvaluatorImpl evaluator = new ExternalEvaluatorImpl(
+                "gpt-test", "", "", "test-api-key", "");
+
+        assertThat(evaluator.configurationSnapshot())
+                .isEqualTo("semantic-evaluator-version-2026-07-28|model=gpt-test|reasoningEffort=default");
     }
 
     @Test
