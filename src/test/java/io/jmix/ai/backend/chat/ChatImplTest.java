@@ -101,7 +101,7 @@ class ChatImplTest {
                 "reasoningEffort", "low")));
 
         // Act
-        String description = ChatImpl.describeModel(parameters);
+        String description = ChatImpl.ChatModelOptions.read(parameters).describe();
 
         // Assert
         assertThat(description)
@@ -114,7 +114,7 @@ class ChatImplTest {
         ParametersReader parameters = new ParametersReader(Map.of("model", Map.of("name", "gpt-5.1")));
 
         // Act
-        String description = ChatImpl.describeModel(parameters);
+        String description = ChatImpl.ChatModelOptions.read(parameters).describe();
 
         // Assert
         assertThat(description)
@@ -127,7 +127,7 @@ class ChatImplTest {
         ParametersReader parameters = new ParametersReader(Map.of());
 
         // Act
-        String description = ChatImpl.describeModel(parameters);
+        String description = ChatImpl.ChatModelOptions.read(parameters).describe();
 
         // Assert
         assertThat(description)

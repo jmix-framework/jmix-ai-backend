@@ -94,10 +94,38 @@ public class ChatImpl implements Chat {
 
     private record ChatRequestContext(
             String conversationId,
-            String modelDescription,
+            ChatModelOptions modelOptions,
             ChatClient.ChatClientRequestSpec request,
             List<Document> retrievedDocuments
     ) {
+    }
+
+    /**
+     * Chat model settings read from the parameters. The chat model and the model line of the chat log are both built
+     * from this object, so the log always shows the model that answered.
+     */
+    record ChatModelOptions(String model, @Nullable Double temperature, @Nullable String reasoningEffort) {
+
+        static ChatModelOptions read(ParametersReader parametersReader) {
+            return new ChatModelOptions(
+                    parametersReader.getString("model.name", DEFAULT_MODEL),
+                    parametersReader.getDouble("model.temperature", null),
+                    parametersReader.getString("model.reasoningEffort", null));
+        }
+
+        /**
+         * Returns the model line of the chat log, for example {@code gpt-5.1 (reasoning effort: low)}. The options
+         * object of the chat model is not printed instead: it has no {@code toString()} in Spring AI 2 and also holds
+         * the API key.
+         */
+        String describe() {
+            List<String> settings = new ArrayList<>();
+            if (temperature != null)
+                settings.add("temperature: " + temperature);
+            if (reasoningEffort != null)
+                settings.add("reasoning effort: " + reasoningEffort);
+            return settings.isEmpty() ? model : "%s (%s)".formatted(model, String.join(", ", settings));
+        }
     }
 
     private ChatRequestContext prepareRequest(String userPrompt, String parametersYaml,
@@ -108,7 +136,8 @@ public class ChatImpl implements Chat {
                 ? conversationId : UuidProvider.createUuid().toString();
 
         ParametersReader parametersReader = parametersRepository.getReader(parametersYaml);
-        ChatModel chatModel = buildChatModel(parametersReader);
+        ChatModelOptions modelOptions = ChatModelOptions.read(parametersReader);
+        ChatModel chatModel = buildChatModel(modelOptions);
         ChatClient chatClient = buildClient(chatModel);
 
         List<Document> retrievedDocuments = new ArrayList<>();
@@ -121,7 +150,7 @@ public class ChatImpl implements Chat {
         request.advisors(a -> a.param(ChatMemory.CONVERSATION_ID, nonNullConversationId));
         request.toolCallbacks(tools.stream().map(AbstractRagTool::getToolCallback).toList());
 
-        return new ChatRequestContext(nonNullConversationId, describeModel(parametersReader), request, retrievedDocuments);
+        return new ChatRequestContext(nonNullConversationId, modelOptions, request, retrievedDocuments);
     }
 
     @Override
@@ -172,7 +201,7 @@ public class ChatImpl implements Chat {
         MDC.put("cid", ctx.conversationId());
         try {
             RetrievalUtils.addLogMessage(log, logMessages, "Model: %s, User prompt: %s".formatted(
-                    ctx.modelDescription(), abbreviate(userPrompt, 200)));
+                    ctx.modelOptions().describe(), abbreviate(userPrompt, 200)));
 
             ChatResponse chatResponse = ctx.request().call().chatResponse();
             List<Document> uniqueSortedDocuments = RetrievalUtils.getUniqueSortedDocuments(ctx.retrievedDocuments());
@@ -265,7 +294,7 @@ public class ChatImpl implements Chat {
 
             // Request metadata — model config and user prompt
             var requestInfo = emit(new EventStreamValueHolder.RequestInfo(
-                    ctx.modelDescription(), userPrompt));
+                    ctx.modelOptions().describe(), userPrompt));
 
             // Stream content tokens from OpenAI. Each chunk is a ChatResponse object —
             // we extract the text and capture token usage from the last chunk.
@@ -525,7 +554,7 @@ public class ChatImpl implements Chat {
         ));
     }
 
-    private ChatModel buildChatModel(ParametersReader parametersReader) {
+    private ChatModel buildChatModel(ChatModelOptions modelOptions) {
         String openaiApiKey = System.getenv("OPENAI_API_KEY");
         if (StringUtils.isBlank(openaiApiKey)) {
             throw new IllegalStateException("OPENAI_API_KEY environment variable is not set");
@@ -534,18 +563,15 @@ public class ChatImpl implements Chat {
                 .apiKey(openaiApiKey)
                 .timeout(OpenAiClientDefaults.TIMEOUT)
                 .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
-                .model(parametersReader.getString("model.name", DEFAULT_MODEL));
+                .model(modelOptions.model());
         if (StringUtils.isNotBlank(openAiBaseUrl)) {
             optionsBuilder.baseUrl(openAiBaseUrl);
         }
 
-        Double temperature = parametersReader.getDouble("model.temperature", null);
-        if (temperature != null)
-            optionsBuilder.temperature(temperature);
-
-        String reasoningEffort = parametersReader.getString("model.reasoningEffort", null);
-        if (reasoningEffort != null)
-            optionsBuilder.reasoningEffort(reasoningEffort);
+        if (modelOptions.temperature() != null)
+            optionsBuilder.temperature(modelOptions.temperature());
+        if (modelOptions.reasoningEffort() != null)
+            optionsBuilder.reasoningEffort(modelOptions.reasoningEffort());
 
         OpenAiChatOptions openAiChatOptions = optionsBuilder
                 .streamUsage(true)
@@ -555,24 +581,6 @@ public class ChatImpl implements Chat {
                 .options(openAiChatOptions)
                 .observationRegistry(observationRegistry)
                 .build();
-    }
-
-    /**
-     * Returns the model line of the chat log, for example {@code gpt-5.1 (reasoning effort: low)}.
-     * It is built from the parameters: the options object of the chat model has no {@code toString()} in Spring AI 2
-     * and must not be printed as a whole, because it also holds the API key.
-     */
-    static String describeModel(ParametersReader parametersReader) {
-        List<String> settings = new ArrayList<>();
-        Double temperature = parametersReader.getDouble("model.temperature", null);
-        if (temperature != null)
-            settings.add("temperature: " + temperature);
-        String reasoningEffort = parametersReader.getString("model.reasoningEffort", null);
-        if (reasoningEffort != null)
-            settings.add("reasoning effort: " + reasoningEffort);
-
-        String name = parametersReader.getString("model.name", DEFAULT_MODEL);
-        return settings.isEmpty() ? name : "%s (%s)".formatted(name, String.join(", ", settings));
     }
 
     ChatClient buildClient(ChatModel chatModel) {
