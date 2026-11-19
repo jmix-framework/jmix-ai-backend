@@ -30,7 +30,7 @@ repositories {
 dependencies {
     // Spring AI modules below have no versions: they come from this BOM. The Jmix BOM manages Spring AI 2.0.0; the chat
     // needs 2.1 for OpenAiResponsesChatModel: OpenAI runs tool calls with reasoning only through the Responses API.
-    implementation platform('org.springframework.ai:spring-ai-bom:2.1.0-RC2')
+    implementation platform('org.springframework.ai:spring-ai-bom:2.1.0')
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
     implementation 'org.springframework.ai:spring-ai-pgvector-store'
     implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
@@ -75,9 +75,9 @@ dependencies {
     testImplementation 'org.hsqldb:hsqldb'
 }
 
-// Spring AI 2.1.0-RC2 is built on Spring Boot 4.2.0-RC2, while the Jmix BOM manages Spring Boot 4.1.2. Gradle takes
-// the highest requested version, so without this rule Spring AI pulls Spring Boot 4.2.0-RC2 modules, Spring Framework
-// 7.1.0-RC2, Micrometer 1.18, Reactor 3.9 and Kotlin 2.4 into an application that otherwise runs on Spring Boot 4.1.2.
+// Spring AI 2.1.0 is built on Spring Boot 4.2.0, while the Jmix BOM manages Spring Boot 4.1.2. Gradle takes
+// the highest requested version, so without this rule Spring AI pulls Spring Boot 4.2.0 modules, Spring Framework
+// 7.1.0, Micrometer 1.18, Reactor 3.9 and Kotlin 2.4 into an application that otherwise runs on Spring Boot 4.1.2.
 //
 // The rule turns the versions Spring AI modules declare for the groups below from "required" into "preferred".
 // A preference loses to any requirement, so the Jmix BOM versions win and the whole application runs on one
