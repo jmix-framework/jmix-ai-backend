@@ -59,7 +59,7 @@ The `Parameters` instance includes the YAML configuration that specifies paramet
 
 ### Answer checks
 
-This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses a separate LLM to calculate the semantic score for similarity between the question and the answer. The LLM is called through OpenAI API and configured by `answer-checks.model` and `answer-checks.temperature` application properties. It uses the same API key as the main chat LLM.
+This feature allows you to quickly validate AI response quality after changing the chat parameters. It uses a separate LLM to calculate the semantic score for similarity between the question and the answer. The LLM is called through OpenAI API and configured by `answer-checks.model`, `answer-checks.reasoning-effort` and `answer-checks.service-tier` application properties. It uses the same API key as the main chat LLM.
 
 ## API authentication
 

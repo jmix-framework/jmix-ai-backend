@@ -94,8 +94,9 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
 
     @Autowired
     public ExternalEvaluatorImpl(
-            @Value("${answer-checks.model:gpt-5-mini}") String model,
-            @Value("${answer-checks.temperature:0}") double temperature,
+            @Value("${answer-checks.model:gpt-6.1-sol}") String model,
+            @Value("${answer-checks.reasoning-effort:}") String reasoningEffort,
+            @Value("${answer-checks.service-tier:}") String serviceTier,
             @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
             @Value("${spring.ai.openai.base-url:}") String baseUrl
     ) {
@@ -108,8 +109,15 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
                 .apiKey(apiKey)
                 .timeout(OpenAiClientDefaults.TIMEOUT)
                 .maxRetries(OpenAiClientDefaults.MAX_RETRIES)
-                .model(model)
-                .temperature(temperature);
+                .model(model);
+        // no temperature: reasoning models accept only their default
+        if (StringUtils.isNotBlank(reasoningEffort)) {
+            optionsBuilder.reasoningEffort(reasoningEffort);
+        }
+        // the service tier changes price and latency, not the verdicts, so it is not part of the snapshot
+        if (StringUtils.isNotBlank(serviceTier)) {
+            optionsBuilder.serviceTier(serviceTier);
+        }
         if (StringUtils.isNotBlank(baseUrl)) {
             optionsBuilder.baseUrl(baseUrl);
         }
@@ -117,12 +125,12 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
         this.chatModel = OpenAiChatModel.builder()
                 .options(optionsBuilder.build())
                 .build();
-        this.configurationSnapshot = configurationSnapshot(model, temperature);
+        this.configurationSnapshot = configurationSnapshot(model, reasoningEffort);
     }
 
     ExternalEvaluatorImpl(ChatModel chatModel) {
         this.chatModel = chatModel;
-        this.configurationSnapshot = configurationSnapshot("test-model", 0.0);
+        this.configurationSnapshot = configurationSnapshot("test-model", "");
     }
 
     @Override
@@ -217,8 +225,9 @@ public class ExternalEvaluatorImpl implements ExternalEvaluator {
         return Math.max(0.0, Math.min(1.0, score));
     }
 
-    private static String configurationSnapshot(String model, double temperature) {
-        return "%s|model=%s|temperature=%s".formatted(EVALUATOR_VERSION, model, temperature);
+    private static String configurationSnapshot(String model, String reasoningEffort) {
+        String effort = StringUtils.isBlank(reasoningEffort) ? "default" : reasoningEffort;
+        return "%s|model=%s|reasoningEffort=%s".formatted(EVALUATOR_VERSION, model, effort);
     }
 
     private static @Nullable String getContent(@Nullable ChatResponse chatResponse) {

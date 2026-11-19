@@ -35,7 +35,7 @@ import java.util.stream.IntStream;
 @Component
 public class Reranker {
 
-    static final String DEFAULT_MODEL = "gpt-5-nano";
+    static final String DEFAULT_MODEL = "gpt-6-luna";
     static final double DEFAULT_TEMPERATURE = 1.0;
     static final int DEFAULT_MAX_DOCUMENT_CHARS = 3000;
 
@@ -62,7 +62,8 @@ public class Reranker {
     public record Result(Document document, double score) {
     }
 
-    protected record RerankerOptions(String model, double temperature, int maxDocumentChars) {
+    protected record RerankerOptions(String model, double temperature, int maxDocumentChars,
+                                     @Nullable String reasoningEffort) {
     }
 
     record CandidateDocument(int index, String source, String content) {
@@ -164,6 +165,9 @@ public class Reranker {
         if (StringUtils.isNotBlank(baseUrl)) {
             optionsBuilder.baseUrl(baseUrl);
         }
+        if (StringUtils.isNotBlank(options.reasoningEffort())) {
+            optionsBuilder.reasoningEffort(options.reasoningEffort());
+        }
 
         return OpenAiChatModel.builder()
                 .options(optionsBuilder.build())
@@ -181,7 +185,8 @@ public class Reranker {
         return new RerankerOptions(
                 model,
                 temperature != null ? temperature : DEFAULT_TEMPERATURE,
-                maxDocumentChars != null && maxDocumentChars > 0 ? maxDocumentChars : DEFAULT_MAX_DOCUMENT_CHARS
+                maxDocumentChars != null && maxDocumentChars > 0 ? maxDocumentChars : DEFAULT_MAX_DOCUMENT_CHARS,
+                parametersReader.getString("reranker.reasoningEffort", null)
         );
     }
 
